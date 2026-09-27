@@ -9083,6 +9083,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "shown"
+version = "0.2.0"
+source = "git+https://github.com/uniproc-dev/shown?tag=v0.2.0#b0697b29c5f80d287e01b0840e80dcf2885f3348"
+
+[[package]]
 name = "signal-hook"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12877,6 +12882,7 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "serde_json",
+ "shown",
  "syn 2.0.117",
 ]
 

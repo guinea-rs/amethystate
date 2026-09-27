@@ -169,6 +169,12 @@ output no run produced. It also checks the identifiers the prose names against
 the sources, so a method renamed in the code is caught in the pages that still
 name the old one.
 
+The grammar itself - the marks, the regions, `//@hide` / `//@unhide` for lines
+a block runs but does not show - is the
+[`shown`](https://github.com/uniproc-dev/shown) crate's, and so are the errors
+it names by file and line: a mark or a region left open, a name marked twice, a
+fence on a page never closed.
+
 `cargo xtask docs` is separate: it regenerates `Choosing/` wholesale from the
 probe tests that measure each limit. Those pages carry a header saying so — edit
 the probe, not the page.
