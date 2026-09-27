@@ -3,7 +3,7 @@
   "version": "0.4.0",
   "description": "Reactive persistent state for Tauri apps",
   "type": "module",
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "homepage": "https://uniproc-dev.github.io/amethystate/integrations/typescript/",
   "repository": {
     "type": "git",
