@@ -79,9 +79,14 @@ fn main() -> ExitCode {
             .unwrap_or_default();
         let features = features(&preamble);
 
+        let mut marks = shown::Marks::new();
+        if let Err(why) = marks.read(probe, &source) {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
+
         eprintln!("running {stem}");
-        let shown = shown(&source);
-        let printed = match output(stem, &features, &shown) {
+        let printed = match output(stem, &features, &marks) {
             Ok(printed) => printed,
             Err(why) => {
                 eprintln!("{}: {why}", probe.display());
@@ -218,16 +223,13 @@ fn declared(preamble: &str, field: &str) -> Vec<String> {
 /// The page is only true if the run happened, so this runs it rather than
 /// reading the source and believing it. One thread, so what several tests
 /// print stays in the order the file declares them.
-fn output(
-    stem: &str,
-    features: &[String],
-    shown: &BTreeMap<String, String>,
-) -> Result<String, String> {
+fn output(stem: &str, features: &[String], marks: &shown::Marks) -> Result<String, String> {
     let cleaned = ran(stem, features)?;
     let measured = measured_in(&cleaned)?;
 
     if !measured.is_empty() {
-        for name in shown.keys() {
+        for region in marks.iter() {
+            let name = &region.name;
             let measured_it = measured
                 .iter()
                 .any(|record| record.get(name.as_str()).is_some());
@@ -240,7 +242,7 @@ fn output(
             }
         }
 
-        return Ok(laid_out(&measured, shown));
+        return Ok(laid_out(&measured, marks));
     }
 
     Ok(cleaned.join("\n").trim().to_string())
@@ -291,7 +293,7 @@ fn measured_in(cleaned: &[String]) -> Result<Vec<Value>, String> {
 /// it; a short one is a line beside its record. The first field names the
 /// record, and `lang` is a fact about the text rather than a field of its own,
 /// so it tags the fence and is not shown.
-fn laid_out(measured: &[Value], shown: &BTreeMap<String, String>) -> String {
+fn laid_out(measured: &[Value], marks: &shown::Marks) -> String {
     const CELL: usize = 24;
 
     let mut columns: Vec<String> = Vec::new();
@@ -340,8 +342,8 @@ fn laid_out(measured: &[Value], shown: &BTreeMap<String, String>) -> String {
 
             page.push_str(&format!("\n#### {named} - {name}\n\n"));
 
-            if let Some(code) = shown.get(name.as_str()) {
-                page.push_str(&format!("```rust\n{code}\n```\n\n"));
+            if let Some(region) = marks.get(name.as_str()) {
+                page.push_str(&format!("```rust\n{}\n```\n\n", region.code));
             }
 
             page.push_str(&format!("```{lang}\n{}\n```\n", body.trim_end()));
@@ -414,47 +416,6 @@ fn acts(source: &str) -> Vec<String> {
                 }
             }
         }
-    }
-
-    found
-}
-
-/// What each `//@show <name>` names: the statements under it, up to the blank
-/// line that ends them.
-///
-/// The heading of a block is then the code that produced it, taken from the
-/// file rather than written out beside it, so the two cannot drift apart.
-fn shown(source: &str) -> BTreeMap<String, String> {
-    let mut found = BTreeMap::new();
-    let mut taking: Option<(String, Vec<&str>)> = None;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        if trimmed == "//@show-end" {
-            if let Some((name, lines)) = taking.take() {
-                found.insert(name, dedent(&lines));
-            }
-            continue;
-        }
-
-        if let Some(name) = trimmed.strip_prefix("//@show") {
-            if let Some((name, lines)) = taking.take() {
-                found.insert(name, dedent(&lines));
-            }
-            taking = Some((name.trim().to_string(), Vec::new()));
-            continue;
-        }
-
-        let Some((_, lines)) = taking.as_mut() else {
-            continue;
-        };
-
-        lines.push(line);
-    }
-
-    if let Some((name, lines)) = taking {
-        found.insert(name, dedent(&lines));
     }
 
     found
@@ -662,17 +623,24 @@ fn book() -> ExitCode {
     }
     pages.push(PathBuf::from("README.md"));
 
-    let Some(version) = declared_version() else {
+    let Some(number) = declared_version() else {
         eprintln!("cannot read the workspace version out of Cargo.toml");
         return ExitCode::FAILURE;
     };
+    let version = Versioned {
+        number,
+        crates: on_the_workspace_version(Path::new("crates")),
+    };
 
-    let mut regions: BTreeMap<String, String> = BTreeMap::new();
+    let mut marks = shown::Marks::new();
     for probe in probe_files(Path::new(PROBES)) {
         let Ok(source) = fs::read_to_string(&probe) else {
             continue;
         };
-        regions.extend(shown(&source));
+        if let Err(why) = marks.read(&probe, &source) {
+            eprintln!("{why}");
+            return ExitCode::FAILURE;
+        }
     }
 
     let mut wanted: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -680,7 +648,14 @@ fn book() -> ExitCode {
         let Ok(source) = fs::read_to_string(page) else {
             continue;
         };
-        for (field, stem) in asked_to_print(&source) {
+        let requests = match asked_to_print(page, &source) {
+            Ok(requests) => requests,
+            Err(why) => {
+                eprintln!("{why}");
+                return ExitCode::FAILURE;
+            }
+        };
+        for (field, stem) in requests {
             wanted.entry(stem).or_default().push(field);
         }
     }
@@ -709,7 +684,13 @@ fn book() -> ExitCode {
             continue;
         };
 
-        let done = fill(&source, &regions, &printed, &version);
+        let done = match fill(page, &source, &marks, &printed, &version) {
+            Ok(done) => done,
+            Err(why) => {
+                eprintln!("{why}");
+                return ExitCode::FAILURE;
+            }
+        };
 
         for name in unknown_names(&done.page, &declared, &crates) {
             renamed.push(format!("{}: `{name}`", page.display()));
@@ -1109,45 +1090,52 @@ fn declared_version() -> Option<String> {
     Some(format!("{}.{}", parts.next()?, parts.next()?))
 }
 
-/// Every line naming this crate as a dependency, carrying the version the
-/// manifest declares rather than one somebody typed.
-fn with_version(line: &str, version: &str) -> String {
-    if !line.contains("amethystate") {
-        return line.to_string();
+/// The published crates that carry the workspace's version, so a dependency
+/// line naming any of them in the book carries it too.
+///
+/// The adapters are left out: each is versioned after its framework.
+fn on_the_workspace_version(at: &Path) -> Vec<String> {
+    let mut found = Vec::new();
+    let Ok(entries) = fs::read_dir(at) else {
+        return found;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        if let Ok(manifest) = fs::read_to_string(path.join("Cargo.toml")) {
+            let lines: Vec<&str> = manifest.lines().map(str::trim).collect();
+            let shares_it = lines.contains(&"version.workspace = true");
+            let published = !lines.contains(&"publish = false");
+            let name = lines
+                .iter()
+                .find_map(|line| line.strip_prefix("name = "))
+                .map(|name| name.trim_matches('"').to_string());
+
+            if let (true, true, Some(name)) = (shares_it, published, name) {
+                found.push(name);
+            }
+        }
+        found.extend(on_the_workspace_version(&path));
     }
 
-    let Some(at) = line
-        .find("version = \"")
-        .map(|at| at + "version = \"".len())
-        .or_else(|| {
-            line.find("amethystate = \"")
-                .map(|at| at + "amethystate = \"".len())
-        })
-    else {
-        return line.to_string();
-    };
-
-    let Some(end) = line[at..].find('"').map(|end| at + end) else {
-        return line.to_string();
-    };
-
-    format!("{}{version}{}", &line[..at], &line[end..])
+    found.sort();
+    found
 }
 
-/// The page with every `<!-- shown: name -->` block replaced by what the test
-/// marked, plus how many were asked for and which had nothing to fill them.
 /// What a page asks a run to print into it, as `(field, test)` pairs.
-fn asked_to_print(source: &str) -> Vec<(String, String)> {
-    source
-        .lines()
-        .filter_map(|line| {
-            line.trim()
-                .strip_prefix("<!-- printed:")
-                .and_then(|rest| rest.strip_suffix("-->"))
-        })
-        .filter_map(|rest| rest.trim().rsplit_once(" from "))
+fn asked_to_print(page: &Path, source: &str) -> Result<Vec<(String, String)>, shown::Error> {
+    let regions = shown::fill(page, source, &["printed"], |_| None)?;
+
+    Ok(regions
+        .unanswered
+        .iter()
+        .filter_map(|asked| asked.arg.rsplit_once(" from "))
         .map(|(field, stem)| (field.trim().to_string(), stem.trim().to_string()))
-        .collect()
+        .collect())
 }
 
 /// One value a run printed, with the fence language it asked for.
@@ -1196,6 +1184,13 @@ fn run_for(wanted: &BTreeMap<String, Vec<String>>) -> Result<Printed, String> {
     Ok(printed)
 }
 
+/// The version the workspace declares, and the crates a dependency line in
+/// the book carries it for.
+struct Versioned {
+    number: String,
+    crates: Vec<String>,
+}
+
 struct Filled {
     page: String,
     asked: usize,
@@ -1203,88 +1198,62 @@ struct Filled {
     no_run_prints: Vec<String>,
 }
 
+/// The page with every dependency line on the workspace's version, every
+/// `<!-- shown: name -->` block replaced by what the test marked and every
+/// `<!-- printed: field from test -->` by what the run printed, plus how many
+/// were asked for and which had nothing to fill them.
 fn fill(
+    file: &Path,
     source: &str,
-    regions: &BTreeMap<String, String>,
+    marks: &shown::Marks,
     printed: &Printed,
-    version: &str,
-) -> Filled {
-    let mut out: Vec<String> = Vec::new();
-    let mut asked = 0;
+    version: &Versioned,
+) -> Result<Filled, shown::Error> {
+    let mut versioned = source
+        .lines()
+        .map(|line| {
+            version.crates.iter().fold(line.to_string(), |line, krate| {
+                shown::with_version(&line, krate, &version.number)
+            })
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if source.ends_with('\n') {
+        versioned.push('\n');
+    }
+
+    let done = shown::fill(file, &versioned, &["shown", "printed"], |asked| {
+        if asked.kind == "shown" {
+            return marks.block(&asked.arg, "rust");
+        }
+
+        let (field, stem) = asked.arg.rsplit_once(" from ")?;
+        printed
+            .get(&(stem.trim().to_string(), field.trim().to_string()))
+            .map(|(value, lang)| shown::Block::new(lang.as_str(), value.as_str()))
+    })?;
+
     let mut no_test_marks = Vec::new();
     let mut no_run_prints = Vec::new();
-    let mut closing: Option<&str> = None;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        if let Some(end) = closing {
-            if trimmed == end {
-                out.push(line.to_string());
-                closing = None;
-            }
-            continue;
-        }
-
-        out.push(with_version(line, version));
-
-        if let Some(name) = trimmed
-            .strip_prefix("<!-- shown:")
-            .and_then(|rest| rest.strip_suffix("-->"))
-            .map(str::trim)
-        {
-            asked += 1;
-            closing = Some("<!-- /shown -->");
-
-            match regions.get(name) {
-                Some(code) => {
-                    out.push("```rust".to_string());
-                    out.push(code.clone());
-                    out.push("```".to_string());
-                }
-                None => no_test_marks.push(name.to_string()),
-            }
-            continue;
-        }
-
-        let Some(request) = trimmed
-            .strip_prefix("<!-- printed:")
-            .and_then(|rest| rest.strip_suffix("-->"))
-            .map(str::trim)
-        else {
-            continue;
-        };
-
-        asked += 1;
-        closing = Some("<!-- /printed -->");
-
-        let Some((field, stem)) = request.rsplit_once(" from ") else {
-            no_run_prints.push(format!("{request} (say which test: `<field> from <test>`)"));
-            continue;
-        };
-
-        let key = (stem.trim().to_string(), field.trim().to_string());
-        match printed.get(&key) {
-            Some((value, lang)) => {
-                out.push(format!("```{lang}"));
-                out.push(value.clone());
-                out.push("```".to_string());
-            }
-            None => no_run_prints.push(request.to_string()),
+    for asked in done.unanswered {
+        if asked.kind == "shown" {
+            no_test_marks.push(asked.arg);
+        } else if asked.arg.contains(" from ") {
+            no_run_prints.push(asked.arg);
+        } else {
+            no_run_prints.push(format!(
+                "{} (say which test: `<field> from <test>`)",
+                asked.arg
+            ));
         }
     }
 
-    let mut page = out.join("\n");
-    if source.ends_with('\n') {
-        page.push('\n');
-    }
-
-    Filled {
-        page,
-        asked,
+    Ok(Filled {
+        page: done.text,
+        asked: done.asked,
         no_test_marks,
         no_run_prints,
-    }
+    })
 }
 
 #[cfg(test)]
