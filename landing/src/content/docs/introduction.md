@@ -50,10 +50,13 @@ thing it draws changed and not because something near it did.
 **Where the file goes.** A store opened by name lands where the platform keeps
 application data, with the extension its engine wants.
 
-**When to write.** Writes settle in memory and reach disk once per window,
-counted from the first of them, so a slider dragged across its range costs a
-flush every few hundred milliseconds rather than one per frame. Closing
-the store writes down whatever it was still holding.
+**When to write.** The way an operating system treats a file through its page
+cache: a write lands in memory, reads see it at once, and the disk catches up
+later. Here that is once per window, counted from the first unsaved write, so a
+slider dragged across its range costs a flush every few hundred milliseconds
+rather than one per frame. There is an `fsync` too - `save_now` waits until
+everything the store holds is on disk. Closing the store writes down whatever it
+was still holding.
 
 **What a value is on disk.** Five engines, three answers: redb keeps it as
 MessagePack, SQLite as JSON, and the text engines write it into the document
