@@ -74,6 +74,7 @@ exceptions = [
     { crate = "i-slint-renderer-femtovg", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
     { crate = "i-slint-renderer-skia", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
     { crate = "i-slint-renderer-software", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
+    { crate = "ksni", allow = ["Unlicense"] },
     { crate = "libbz2-rs-sys", allow = ["bzip2-1.0.6"] },
     { crate = "libfuzzer-sys", allow = ["NCSA"] },
     { crate = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },

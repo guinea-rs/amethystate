@@ -26,6 +26,7 @@ fn test_macro_expansion_compilation() {
     t.compile_fail("tests/fails/check_is_spelled_rule.rs");
     t.compile_fail("tests/fails/rule_on_a_nested_field.rs");
     t.compile_fail("tests/fails/a_rule_on_a_struct.rs");
+    #[cfg(windows)]
     t.compile_fail("tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs");
     t.compile_fail("tests/fails/a_struct_that_opens_its_own_way_with_no_way_written.rs");
     t.compile_fail("tests/fails/open_said_of_what_cannot_open.rs");
