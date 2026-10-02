@@ -11,10 +11,10 @@ period at once, without waiting out the old one.
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.18"
+amethystate-guinea = "0.23"
 ```
 
-The crate's version follows guinea's, and like guinea it needs Rust 1.95.
+The crate's version is amethystate's. It builds against guinea 0.18, and like guinea it needs Rust 1.95.
 
 ## A period that follows a field
 

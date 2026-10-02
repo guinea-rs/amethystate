@@ -11,10 +11,10 @@ title: guinea
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.18"
+amethystate-guinea = "0.23"
 ```
 
-Версия крейта идёт за версией guinea, и, как и guinea, он требует Rust 1.95.
+Версия у крейта та же, что у amethystate. Собирается он с guinea 0.18 и, как и guinea, требует Rust 1.95.
 
 ## Период по полю
 

@@ -15,7 +15,7 @@ GPUI использует модель сущностей с отложенны�
 
 ```toml
 [dependencies]
-amethystate-gpui = "*"
+amethystate-gpui = "0.23"
 ```
 
 Откройте store до того, как открывать окна:

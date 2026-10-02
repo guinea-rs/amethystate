@@ -9,7 +9,7 @@ title: Dioxus
 
 ```toml
 [dependencies]
-amethystate-dioxus = "*"
+amethystate-dioxus = "0.23"
 ```
 
 ## Defining state
