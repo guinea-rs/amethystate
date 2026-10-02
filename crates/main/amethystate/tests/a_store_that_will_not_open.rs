@@ -135,6 +135,63 @@ fn starting_fresh_leaves_a_file_another_store_holds(backend: Backend) {
     );
 }
 
+#[cfg(unix)]
+#[backends(files)]
+fn starting_fresh_leaves_a_file_it_may_not_read(backend: Backend) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let at = TempPath::new("will_not_open_forbidden");
+    let data = written(backend, &at);
+    let mode = std::fs::metadata(&data).unwrap().permissions().mode();
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let opened = StoreBuilder::new(at.path())
+        .backend(backend)
+        .when_it_will_not_open(WillNotOpen::StartFresh)
+        .build();
+    drop(opened);
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(mode)).unwrap();
+
+    let store = StoreBuilder::new(at.path())
+        .backend(backend)
+        .build()
+        .unwrap_or_else(|why| panic!("{backend:?}: {why}"));
+    assert_eq!(
+        Cache::new_with(&store).unwrap().generation().get(),
+        42,
+        "{backend:?}"
+    );
+}
+
+#[cfg(feature = "sqlite")]
+#[test]
+fn starting_fresh_leaves_another_applications_database_alone() {
+    let at = TempPath::new("will_not_open_foreign.sqlite");
+    {
+        let theirs = rusqlite::Connection::open(at.path()).unwrap();
+        theirs
+            .execute_batch(
+                "PRAGMA application_id = 123;
+                 CREATE TABLE theirs (x INTEGER);
+                 INSERT INTO theirs VALUES (1);",
+            )
+            .unwrap();
+    }
+
+    let opened = StoreBuilder::new(at.path())
+        .backend(Backend::Sqlite)
+        .when_it_will_not_open(WillNotOpen::StartFresh)
+        .build();
+    assert!(opened.is_err());
+    drop(opened);
+
+    let theirs = rusqlite::Connection::open(at.path()).unwrap();
+    let kept: i64 = theirs
+        .query_row("SELECT x FROM theirs", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(kept, 1);
+}
+
 #[backends(files)]
 fn starting_fresh_is_about_the_files_and_not_about_the_directory(backend: Backend) {
     let at = TempPath::new("will_not_open_directory");

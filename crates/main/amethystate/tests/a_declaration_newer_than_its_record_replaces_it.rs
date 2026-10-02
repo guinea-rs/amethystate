@@ -4,6 +4,8 @@ use amethystate::amethystate;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 
+mod common;
+
 #[amethystate(prefix = "profile", version = 2)]
 pub struct Profile {
     #[amestate(default = String::new())]
@@ -17,7 +19,7 @@ fn recorded(meta: &std::path::Path) -> serde_json::Value {
 #[test]
 fn a_declaration_newer_than_its_record_replaces_it() {
     let at = TempPath::new("newer_than_record");
-    let meta = at.path().with_extension("meta");
+    let meta = common::bookkeeping_of(at.path());
 
     {
         let store = StoreBuilder::new(at.path())
@@ -57,7 +59,7 @@ fn a_declaration_newer_than_its_record_replaces_it() {
 #[test]
 fn a_record_that_disagrees_at_the_same_version_is_replaced() {
     let at = TempPath::new("disagrees_with_record");
-    let meta = at.path().with_extension("meta");
+    let meta = common::bookkeeping_of(at.path());
 
     {
         let store = StoreBuilder::new(at.path())

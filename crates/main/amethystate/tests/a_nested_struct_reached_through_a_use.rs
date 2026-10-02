@@ -15,7 +15,7 @@ mod inner {
 
 use inner::Window;
 
-#[amethystate(prefix = "ui", mode = "both")]
+#[amethystate(prefix = "ui")]
 pub struct Ui {
     #[amestate(nested)]
     pub window: Window,

@@ -14,6 +14,7 @@ fn test_macro_expansion_compilation() {
     t.pass("tests/expand/nested_under_a_dotted_prefix.rs");
     t.pass("tests/expand/map_syntax.rs");
     t.pass("tests/expand/flattened_and_renamed.rs");
+    t.pass("tests/expand/flattened_beside_a_path_of_its_own.rs");
     t.pass("tests/expand/map_through_an_alias.rs");
     t.pass("tests/expand/a_type_named_like_a_map_is_one_value.rs");
     #[cfg(feature = "tauri")]
@@ -22,8 +23,13 @@ fn test_macro_expansion_compilation() {
     t.compile_fail("tests/fails/subscription_not_clone.rs");
     t.compile_fail("tests/fails/field_loosens_the_struct_rule.rs");
     t.compile_fail("tests/fails/nested_loosens_the_holder_rule.rs");
-    t.compile_fail("tests/fails/check_on_a_volatile_field.rs");
-    t.compile_fail("tests/fails/check_on_a_nested_field.rs");
+    t.compile_fail("tests/fails/check_is_spelled_rule.rs");
+    t.compile_fail("tests/fails/rule_on_a_nested_field.rs");
+    t.compile_fail("tests/fails/a_rule_on_a_struct.rs");
+    #[cfg(windows)]
+    t.compile_fail("tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs");
+    t.compile_fail("tests/fails/a_struct_that_opens_its_own_way_with_no_way_written.rs");
+    t.compile_fail("tests/fails/open_said_of_what_cannot_open.rs");
     t.compile_fail("tests/fails/a_rule_said_of_the_wrong_kind.rs");
 
     t.compile_fail("tests/fails/prefix_empty.rs");
@@ -52,11 +58,16 @@ fn test_macro_expansion_compilation() {
     t.compile_fail("tests/fails/flatten_beside_a_name.rs");
     t.compile_fail("tests/fails/two_flattened_children_meet.rs");
     t.compile_fail("tests/fails/a_flattened_child_meets_a_field.rs");
+    t.compile_fail("tests/fails/a_flattened_node_meets_a_path_written_here.rs");
+    t.compile_fail("tests/fails/a_flattened_path_meets_a_leaf_written_here.rs");
+    t.compile_fail("tests/fails/two_flattened_children_meet_a_level_down.rs");
     t.compile_fail("tests/fails/two_fields_on_one_path.rs");
     t.compile_fail("tests/fails/volatile_and_nested.rs");
     t.compile_fail("tests/fails/volatile_map.rs");
     t.compile_fail("tests/fails/unreadable_rule_misspelt.rs");
     t.compile_fail("tests/fails/wasm_asked_to_persist.rs");
+    t.compile_fail("tests/fails/a_rule_on_a_frontend_field.rs");
+    t.compile_fail("tests/fails/a_mode_that_is_not_one.rs");
     t.compile_fail("tests/fails/a_modifier_said_twice.rs");
     t.compile_fail("tests/fails/a_field_behind_a_cfg.rs");
     t.compile_fail("tests/fails/with_on_a_type_serde_cannot_write.rs");

@@ -42,7 +42,8 @@ can draw. `try_get` is the same read with the doubt kept.
 
 It answers `Err` when a change arrived that would not decode into this field's
 type - a file edited outside the process, a migration that left something
-behind, a codec that accepted a value it cannot read back.
+behind, a codec that accepted a value it cannot read back - or when a declared
+rule turned the value down.
 
 The field goes on reporting the last value the store agreed with, and nothing
 is delivered to subscribers. What is on screen was true a moment ago; the
@@ -56,14 +57,16 @@ for exactly as long as it is true.
 
 A value that was already unreadable when the struct opened is a different
 moment, and one the declaration decides:
-[what a value going wrong does](/amethystate/state/defining-structs/#what-a-value-going-wrong-does).
+[When a value will not read](/amethystate/state/unreadable-values/).
 
 ## Writing
 
 `update` and `modify` are read-modify-write and are **not atomic**. Two of them
 racing on the same field can lose one of the two results, the same way two
-`get`-then-`set` pairs would. Where that matters, the store's own write is the
-one to reach for.
+`get`-then-`set` pairs would. Nothing in the store makes them atomic. Where that
+matters, give the field one writer: one thread, or a lock of your own around the
+read and the write -
+[Concurrent access](/amethystate/concepts/durability/#concurrent-access).
 
 `update` returning the stored value is the difference worth knowing: it saves
 the `get` you would otherwise write on the next line, and it is the value that
@@ -76,15 +79,16 @@ about it, and the flush happens on the debounce - so a field written every
 frame costs a buffer write per frame and one commit per debounce interval.
 
 To wait for the disk instead: [Durability](/amethystate/concepts/durability/).
-Waiting commits more than this one field, and how much more is the engine's
+Waiting can commit more than this one field, and how much more is the engine's
 answer — the same page says which.
 
 ## What a write is refused for
 
-Three things refuse a write: a value the running engine's codec cannot encode, a
-path deeper than the store allows, and an interceptor that says no.
+Four things refuse a write: a value the running engine's codec cannot encode, a
+path deeper than the store allows, an interceptor that says no, and the
+field's declared [rule](/amethystate/state/rules/).
 
-All three answer at the `set` that made them. The value is encoded where it is
+All four answer at the `set` that made them. The value is encoded where it is
 written, so the refusal arrives in the caller's own control flow and the value
 never reaches the buffer.
 

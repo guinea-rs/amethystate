@@ -6,7 +6,7 @@ title: Leptos
 
 Хендлы полей - это `Copy`-индексы, поэтому их можно передавать вниз через пропсы компонентов без клонирования и без времён жизни.
 
-*Примечание: эта интеграция рассчитана на фронтенды на WASM (CSR), в первую очередь для приложений Tauri.*
+*Примечание: эта интеграция — для фронтендов на WASM (CSR): фронтенда приложения Tauri или приложения, которое живёт только в браузере и держит состояние в `localStorage`.*
 
 ## Установка
 
@@ -17,7 +17,7 @@ amethystate-leptos = "0.8"
 
 ## Объявление состояния
 
-Структуры фронтенда генерируются автоматически из ваших типов бэкенда через `amethystate-codegen`. Не пишите их руками.
+В приложении Tauri структуры фронтенда генерирует из ваших типов бэкенда `amethystate-codegen`. Не пишите их руками.
 
 ```rust
 // src/bindings/amethystate.rs
@@ -36,9 +36,11 @@ pub struct AppSettings {
 
 Настройка кодогенерации - в главе [Интеграция с Tauri](/amethystate/ru/integrations/tauri/).
 
+В приложении, которое живёт только в браузере, генерировать не из чего: бэкенда нет. Состояние — обычная структура с `#[amethystate]`, над которой стоит `#[amethystate_framework_arena]`; store собирают прямо на странице, на `Backend::LocalStorage`, и отдают его `AmeStateProvider`. Так сделано в [`web-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-leptos).
+
 ## Провайдер и инициализация
 
-Состояние загружается асинхронно по IPC. Оберните приложение в `AmeStateProvider` и объявите через `preload_slices!`, какие срезы загружать. Отрисовка приостановлена, пока не готовы все срезы.
+Состояние загружается асинхронно по IPC. Оберните приложение в `AmeStateProvider` и объявите через `preload_slices!`, какие структуры загружать. Отрисовка приостановлена, пока не готовы все.
 
 ```rust
 use amethystate::tauri::TauriBackend;
@@ -65,7 +67,7 @@ pub fn App() -> impl IntoView {
 
 ## Доступ к состоянию
 
-Внутри компонента вызовите `use_amethystate::<S>()`, чтобы получить корневой хендл среза. Хендл - это `Copy`-структура с полем на каждое поле состояния, и её можно передавать вниз как пропсы.
+Внутри компонента вызовите `use_amethystate::<S>()`, чтобы получить корневой хендл структуры. Хендл - это `Copy`-структура с полем на каждое поле состояния, и её можно передавать вниз как пропсы.
 
 ```rust
 #[component]
@@ -161,5 +163,5 @@ view! {
 
 ## Примеры
 
-- [`web-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-leptos) — приложение в браузере на localStorage.
-- [`tauri-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-leptos) — полноценное приложение Tauri v2 с фронтендом на Leptos и WASM.
+- [`web-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-leptos) — приложение в браузере на localStorage.
+- [`tauri-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-leptos) — полноценное приложение Tauri v2 с фронтендом на Leptos и WASM.

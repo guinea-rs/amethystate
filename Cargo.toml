@@ -15,7 +15,7 @@ members = [
     "crates/adapters/amethystate-dioxus",
     "crates/adapters/amethystate-yew",
     "crates/adapters/amethystate-slint",
-    "crates/amethystate-cli",
+    "crates/adapters/amethystate-guinea",
     "crates/test/amethystate-test-macros",
     "crates/test/amethystate-page-insta",
     "crates/test/amethystate-page-tracing-test",
@@ -23,12 +23,12 @@ members = [
 ]
 
 [workspace.package]
-version = "0.22.1"
+version = "0.23.0"
 authors = ["Tam1SH <ignatternyev54@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/uniproc-dev/amethystate"
-homepage = "https://github.com/uniproc-dev/amethystate"
+repository = "https://github.com/guinea-rs/amethystate"
+homepage = "https://github.com/guinea-rs/amethystate"
 description = "A state manager for Rust applications"
 keywords = ["state", "state-managment", "reactive", "persistence", "gui"]
 categories = ["config", "data-structures", "gui"]
@@ -37,14 +37,14 @@ rust-version = "1.90.0"
 
 [workspace.dependencies]
 # internal
-amethystate = { path = "crates/main/amethystate", version = "0.22.1" }
-amethystate-core = { path = "crates/core/amethystate-core", version = "0.22.1" }
-amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.22.1" }
-amethystate-arena = { path = "crates/main/amethystate-arena", version = "0.22.1" }
-amethystate-tauri = { path = "crates/adapters/amethystate-tauri", version = "0.22.1" }
-amethystate-codegen = { path = "crates/tauri/amethystate-codegen", version = "0.22.1" }
-amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.22.1" }
-amethystate-macros-arena = { path = "crates/main/amethystate-macros-arena", version = "0.22.1" }
+amethystate = { path = "crates/main/amethystate", version = "0.23.0" }
+amethystate-core = { path = "crates/core/amethystate-core", version = "0.23.0" }
+amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.23.0" }
+amethystate-arena = { path = "crates/main/amethystate-arena", version = "0.23.0" }
+amethystate-tauri = { path = "crates/adapters/amethystate-tauri", version = "0.23.0" }
+amethystate-codegen = { path = "crates/tauri/amethystate-codegen", version = "0.23.0" }
+amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.23.0" }
+amethystate-macros-arena = { path = "crates/main/amethystate-macros-arena", version = "0.23.0" }
 
 # external
 anyhow = "1.0"

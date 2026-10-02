@@ -30,6 +30,6 @@ amethystate-tauri = { workspace = true, optional = true }
 
 [dev-dependencies]
 dioxus = { version = "0.7", default-features = false, features = ["macro", "signals", "hooks", "html"] }
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
 amethystate-macros-arena.workspace = true
 amethystate = { workspace = true, features = ["test-utils", "redb"] }

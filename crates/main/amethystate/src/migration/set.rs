@@ -2,6 +2,7 @@ use super::MigrationPlan;
 use crate::migration::fields::FieldDescriptor;
 use crate::migration::provided::Provided;
 use crate::schema::Lineage;
+use crate::store::OnUndeclared;
 use amethystate_core::path::StorePath;
 use std::collections::HashMap;
 
@@ -14,6 +15,11 @@ pub struct MigrationSet {
     /// step is a bare `fn` with nothing to capture, and because these exist
     /// for the migrations and nothing else.
     provided: Provided,
+
+    /// What the pass does with a key under a declared prefix that nothing
+    /// declares. Carried here because the pass is where it has to happen:
+    /// before drift is looked for, inside the transaction that would record it.
+    on_undeclared: OnUndeclared,
 }
 
 impl MigrationSet {
@@ -29,6 +35,14 @@ impl MigrationSet {
 
     pub(crate) fn provided(&self) -> &Provided {
         &self.provided
+    }
+
+    pub(crate) fn take_on_undeclared(&mut self, rule: OnUndeclared) {
+        self.on_undeclared = rule;
+    }
+
+    pub(crate) fn on_undeclared(&self) -> OnUndeclared {
+        self.on_undeclared
     }
 
     /// Steps for one line of declarations - a prefix alone for its unnamed

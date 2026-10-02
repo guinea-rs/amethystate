@@ -4,6 +4,8 @@ use amethystate::amethystate;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 
+mod common;
+
 #[amethystate(prefix = "alpha")]
 pub struct Alpha {
     pub width: u32,
@@ -34,7 +36,7 @@ fn an_older_shape(struct_name: &str) -> serde_json::Value {
 #[test]
 fn every_prefix_without_a_step_is_judged_for_drift() {
     let at = TempPath::new("drift_every_prefix");
-    let meta = at.path().with_extension("meta");
+    let meta = common::bookkeeping_of(at.path());
 
     {
         let store = StoreBuilder::new(at.path())

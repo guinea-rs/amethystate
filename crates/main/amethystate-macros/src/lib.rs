@@ -18,16 +18,16 @@ mod ts_mapping;
 ///   * `prefix` (String): Sets the top-level namespace path in the store.
 ///     Generates `pub fn new() -> Result<Self, OpenStruct>`, which opens on the
 ///     global store, and `pub fn new_with(store: &Store) -> Result<Self, OpenStruct>`
-///     for a store the caller holds.
+///     for a store the caller holds, both through the struct's `Open`, and
+///     implements `Schema` and `Open`.
+///   * `open = manual` (optional): The struct's `Open` is written by hand,
+///     starting from `<Self as Schema>::open(store)`. There is then no `new()`
+///     or `load()` over the global store, and `new_with`, `load_with` and
+///     `AmeStateSlice::load_slice` go through the hand-written impl.
 ///   * `version` (optional u32): Schema version for migrations (defaults to 0).
 ///   * `mode` (optional String): Controls the generated code paradigm. One of:
 ///     * `"reactive"` (default): Generates fine-grained reactive `Field<T>` accessors.
 ///     * `"persistent"`: Generates a flat struct with plain-type fields and synchronous `.save()` / `.save_lazy()` methods.
-///     * `"both"`: Generates both reactive accessors on `#name` and a separate `#name_Persistent` flat struct.
-///   * `check` (optional path): A `fn(&Data, &CheckContext) -> Result<(), Invalid>`
-///     run over the whole struct as it is built. By reference, unlike a field's
-///     own `check`: this one is handed a snapshot of the built fields, and a
-///     rule between them is a verdict rather than a repair.
 ///   * `on_unreadable` / `on_delete` / `unreadable_entries` (optional paths):
 ///     What every field of this struct falls back to when it says nothing
 ///     itself - see `store::OnUnreadable`, `store::OnDelete` and
@@ -83,7 +83,7 @@ mod ts_mapping;
 /// | :--- | :--- | :--- |
 /// | `default` | `= Expr` | Initial value if not present in store. Falls back to `Default::default()`. |
 /// | `path` | `= String` | Where the field sits, instead of its own name. A dot in it is a level. |
-/// | `check` | `= path` | A `fn(&mut T, &CheckContext) -> Result<(), Invalid>` every value coming in from the store has to pass. It takes the value by `&mut`, so a rule that knows what the value should have been may put it right and answer `Ok`; the correction is held in memory and the next ordinary write settles the file. |
+/// | `rule` | `= path` | A `fn(&mut T, &RuleContext) -> Result<(), Invalid>` every value the field takes has to pass: read from the store, brought in by an edit, or written. It takes the value by `&mut`, so a rule that knows what the value should have been may put it right and answer `Ok`; a write lands as the rule left it, and a value read is written back the way the rule left it. |
 /// | `on_unreadable` | `= path` | What this field does about a stored value it will not accept - see `store::OnUnreadable`. |
 /// | `on_delete` | `= path` | What this field does when its key is deleted under it - see `store::OnDelete`. |
 /// | `unreadable_entries` | `= path` | On a `ReactiveMap`: what it does with an entry it cannot read - see `store::UnreadableEntries`. |
@@ -184,7 +184,8 @@ pub fn amethystate(args: TokenStream, input: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// Manual key cleanup via `MigrationContext`:
+/// A map whose entries change shape. The step builds the new map from the old
+/// one; the old `routes` go with the step, so nothing has to delete them:
 ///
 /// ```rust,ignore
 /// #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -212,14 +213,15 @@ pub fn amethystate(args: TokenStream, input: TokenStream) -> TokenStream {
 /// #[migrate]
 /// fn migrate_proxy_config_v1_to_v2(
 ///     old: AmeData<v1::ProxyConfig>,
-///     ctx: &mut amethystate::migration::MigrationContext,
+///     _ctx: &mut amethystate::migration::MigrationContext,
 /// ) -> amethystate::MigrationResult<AmeData<ProxyConfig>> {
-///     for key in old.routes.keys() {
-///         ctx.delete(&format!("routes.{}", key))?;
-///     }
-///     let endpoints = old.routes.into_iter()
+///     let endpoints = old
+///         .routes
+///         .into_iter()
+///         .filter(|(k, _)| k != "obsolete")
 ///         .map(|(k, v)| (k, ProxyEndpoint { url: v, timeout_ms: 5000 }))
 ///         .collect();
+///
 ///     Ok(AmeData::<ProxyConfig> { name: old.name, endpoints })
 /// }
 /// ```

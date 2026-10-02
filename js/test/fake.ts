@@ -5,13 +5,26 @@ type Heard = (payload: unknown) => void;
 
 export class FakeStore implements Transport {
   readonly values = new Map<string, unknown>();
+  readonly resetTo = new Map<string, unknown>();
   readonly watchers = new Map<string, Set<Heard>>();
   refuse = false;
   hold = false;
-  #held: (() => void)[] = [];
+  #held: ({ go: () => void; deny: () => void } | null)[] = [];
 
   release(): void {
-    for (const go of this.#held.splice(0)) go();
+    for (const held of this.#held.splice(0)) held?.go();
+  }
+
+  grant(at: number): void {
+    const held = this.#held[at];
+    this.#held[at] = null;
+    held?.go();
+  }
+
+  deny(at: number): void {
+    const held = this.#held[at];
+    this.#held[at] = null;
+    held?.deny();
   }
 
   watching(path: Path): number {
@@ -33,7 +46,8 @@ export class FakeStore implements Transport {
     const key = joined(path);
     const old = this.values.get(key);
     this.values.set(key, value);
-    this.#announce(path, value, old === undefined
+    this.#tell(key, { type: "Value", value, source });
+    this.#tell(joined(path.slice(0, -1)), old === undefined
       ? { type: "Insert", key: path.at(-1), value, source }
       : { type: "Update", key: path.at(-1), oldValue: old, newValue: value, source });
   }
@@ -43,7 +57,10 @@ export class FakeStore implements Transport {
     const key = joined(path);
     const old = this.values.get(key);
     this.values.delete(key);
-    this.#announce(path, undefined, { type: "Remove", key: path.at(-1), oldValue: old, source });
+    this.#tell(key, this.resetTo.has(key)
+      ? { type: "Deleted", value: this.resetTo.get(key), source }
+      : { type: "Deleted", source });
+    this.#tell(joined(path.slice(0, -1)), { type: "Remove", key: path.at(-1), oldValue: old, source });
   }
 
   async clear(prefix: Path, source: string | null): Promise<void> {
@@ -74,13 +91,10 @@ export class FakeStore implements Transport {
   }
 
   async #answer(): Promise<void> {
-    if (this.hold) await new Promise<void>((go) => this.#held.push(go));
+    if (this.hold) {
+      await new Promise<void>((go, deny) => this.#held.push({ go, deny: () => deny(new Error("refused")) }));
+    }
     if (this.refuse) throw new Error("refused");
-  }
-
-  #announce(path: Path, value: unknown, change: unknown): void {
-    if (value !== undefined) this.#tell(joined(path), value);
-    this.#tell(joined(path.slice(0, -1)), change);
   }
 
   #tell(key: string, payload: unknown): void {

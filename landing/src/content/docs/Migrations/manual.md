@@ -4,7 +4,7 @@ sidebar:
   order: 22
 ---
 
-Codegen migrations cover the common case: rename fields, change types, fill in defaults. When that isn't enough — cross-node reads, data backfills, key cleanup inside a `ReactiveMap` — you can write migration steps by hand.
+Codegen migrations cover the common case: rename fields, change types, fill in defaults. When that isn't enough — reads from another struct, data backfills, key cleanup inside a `ReactiveMap` — you can write migration steps by hand.
 
 ## Entry point
 
@@ -23,7 +23,7 @@ let (store, report) = StoreBuilder::new(app)
 ```
 <!-- /shown -->
 
-`migrate` runs these and every step declared with `#[migrate]`, and hands back what the pass did. `build` runs none of them, which is why `.migrations()` leaves a builder that has no `build` at all: steps handed over and then dropped would be a mistake nothing reports. Set everything else about the store before it.
+`migrate` runs these and every step declared with `#[migrate]`, and hands back a report of what it did. `build` runs none of them, which is why `.migrations()` leaves a builder that has no `build` at all: steps handed over and then dropped would be a mistake nothing reports. Set everything else about the store before it.
 
 Steps for one line run in version order. Nothing orders the prefixes up front: a step that reads another prefix brings that one up to date first — see [Reading across prefixes](#reading-across-prefixes).
 
@@ -43,11 +43,11 @@ m.for_node::<Profile>()
 
 `for_node::<T>()` targets the struct by its prefix and its `id`. By hand, `for_prefix("net")` names a prefix's unnamed line and `for_named("ui", "panels")` the line declared with that `id`.
 
-One version is reached by one step. A step written by hand to a version a `#[migrate]` step already reaches is refused as the pass starts, with `MigrationError::StepTwice` naming both. And a `#[migrate]` step keeps its struct where it stands: one between two prefixes, or two `id`s, is a compile error, because it would read the new place, find nothing and write the defaults. Moving what is stored is a step of its own, through `global_get` and `global_set`. `.step(version, description, closure)` registers the transformation that brings it from `version - 1` to `version`.
+One version is reached by one step. A step written by hand to a version a `#[migrate]` step already reaches is refused before any step of that prefix runs, with `MigrationError::StepTwice` naming both. And a `#[migrate]` step keeps its struct where it stands: one between two prefixes, or two `id`s, is a compile error, because it would read the new place, find nothing and write the defaults. Moving what is stored is a step of its own, through `global_get` and `global_set`. `.step(version, description, closure)` registers the transformation that brings it from `version - 1` to `version`.
 
 ## The context API
 
-Inside a step closure, `ctx` gives you low-level access to the node's stored keys. All key arguments are relative to the node's prefix unless noted.
+Inside a step closure, `ctx` gives you low-level access to the line's stored keys. All key arguments are relative to its prefix unless noted.
 
 ### Basic operations
 
@@ -120,7 +120,7 @@ Every entry has to come back. A step reads the map, changes it and writes it bac
 | `ctx.global_get::<T>(path)` | Read any key from the store by its full path. |
 | `ctx.global_set(path, value)` | Write any key in the store by its full path. |
 
-`global_get` and `global_set` bypass the node's prefix entirely. Useful when a step needs to read from a node that has already migrated:
+`global_get` and `global_set` bypass the line's prefix entirely. Useful when a step needs to read from a struct that has already migrated:
 
 ```rust
 let plan = ctx.global_get::<String>("identity.plan")?.unwrap();
@@ -180,7 +180,7 @@ The same context is available to a generated step: a `#[migrate]` function can t
 
 ## Failure and rollback
 
-One pass — the prefix it started at and every prefix its steps reached — is one transaction. A step that fails rolls the pass back and leaves the rest of the store alone.
+`migrate` works through the store in passes. A pass starts at one prefix that has steps due and holds it and every prefix its steps reached; it is one transaction, and the report calls it a component. A step that fails rolls back its own pass and nothing else: the passes before and after it commit as usual.
 
 The open is refused, with `OpenStore::Migrating` carrying the whole report: the data under that prefix is not what the code now declares, and a store opened over it would hand new code old data.
 
@@ -204,7 +204,7 @@ else {
 ```
 <!-- /shown -->
 
-The report says which prefixes failed and why; they stay at the version they were at, and everything else the pass reached was migrated. An application that would rather run on the data as it stands opens it with `build`, which runs no step - or puts `or_in_memory()` in front of `migrate` and runs on an empty store in memory instead.
+The report says which prefixes failed and why; they stay at the version they were at, and every other pass was migrated. An application that would rather run on the data as it stands opens it with `build`, which runs no step - or puts `or_in_memory()` in front of `migrate` and runs on an empty store in memory instead.
 
 <!-- shown: reading what failed, then opening without the steps -->
 ```rust

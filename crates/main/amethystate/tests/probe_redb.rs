@@ -525,7 +525,7 @@ fn a_path_of_many_levels_round_trips() {
 /// Two paths that are not the same path must never become the same key.
 #[test]
 fn no_two_paths_share_a_key() {
-    let distinct = vec![
+    let distinct = [
         ("two_levels", StorePath::from_segments(["a", "b"])),
         ("dotted_name", StorePath::from_segments(["a.b"])),
         ("escape_level", StorePath::from_segments(["a\\", "b"])),

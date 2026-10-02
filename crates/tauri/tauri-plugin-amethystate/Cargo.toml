@@ -19,6 +19,9 @@ sqlite = ["amethystate/sqlite"]
 json = ["amethystate/json"]
 toml = ["amethystate/toml"]
 ron = ["amethystate/ron"]
+leptos = ["amethystate-codegen/leptos"]
+yew = ["amethystate-codegen/yew"]
+dioxus = ["amethystate-codegen/dioxus"]
 
 [dependencies]
 serde = { workspace = true }

@@ -4,6 +4,7 @@ pub use backends::*;
 use amethystate_core::{FieldKind, SchemaExportEntry};
 use heck::ToLowerCamelCase;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::io;
 use std::path::Path;
 
@@ -23,19 +24,58 @@ pub struct CodegenRegistry {
     registry: BTreeMap<&'static str, &'static SchemaExportEntry>,
 }
 
-impl Default for CodegenRegistry {
-    fn default() -> Self {
-        Self::new()
+/// Two structs the bindings would give one name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Collision {
+    pub name: &'static str,
+    pub modules: [&'static str; 2],
+}
+
+impl fmt::Display for Collision {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let [first, second] = self.modules;
+        write!(
+            f,
+            "`{first}::{name}` and `{second}::{name}` would both be written as `{name}`; \
+             the bindings name a struct by its own name, so one of them needs another",
+            name = self.name,
+        )
     }
 }
 
+impl std::error::Error for Collision {}
+
 impl CodegenRegistry {
-    pub fn new() -> Self {
-        let mut registry = BTreeMap::new();
-        for entry in amethystate_core::exports() {
-            registry.insert(entry.struct_name, *entry);
+    /// Every struct with a place of its own, at the newest version of its
+    /// line, and every struct those hold.
+    pub fn new() -> Result<Self, Collision> {
+        let mut registry: BTreeMap<&'static str, &'static SchemaExportEntry> = BTreeMap::new();
+        let mut waiting: Vec<&'static SchemaExportEntry> = amethystate_core::exports().to_vec();
+
+        while let Some(entry) = waiting.pop() {
+            match registry.get(entry.struct_name) {
+                Some(kept) if kept.is(entry) => continue,
+                Some(kept) => {
+                    let mut modules = [kept.module_path, entry.module_path];
+                    modules.sort();
+                    return Err(Collision {
+                        name: entry.struct_name,
+                        modules,
+                    });
+                }
+                None => {
+                    registry.insert(entry.struct_name, entry);
+                }
+            }
+
+            for field in entry.fields {
+                if let FieldKind::Nested { entry: held } = field.kind {
+                    waiting.push(held);
+                }
+            }
         }
-        Self { registry }
+
+        Ok(Self { registry })
     }
 
     /// Writes the TypeScript bindings: a class per struct over the `amethystate` npm package.
@@ -108,7 +148,7 @@ impl CodegenRegistry {
                     self.ts_note_types(field.full_ts_type, used);
                     format!("Field<{}>", field.full_ts_type)
                 }
-                FieldKind::Nested { struct_name } => struct_name.to_string(),
+                FieldKind::Nested { entry } => entry.struct_name.to_string(),
                 FieldKind::ReactiveMap { value_type, .. } => {
                     used.map = true;
                     self.ts_note_types(value_type, used);
@@ -129,11 +169,14 @@ impl CodegenRegistry {
         for field in entry.fields {
             let path = ts_path(at, field.stored);
             let built = match &field.kind {
-                FieldKind::Plain => format!("loaded.field({path})"),
+                FieldKind::Plain => match (field.default)() {
+                    Some(default) => format!("loaded.field({path}, {default})"),
+                    None => format!("loaded.field({path})"),
+                },
                 FieldKind::ReactiveMap { .. } => format!("loaded.map({path})"),
-                FieldKind::Nested { struct_name } => {
+                FieldKind::Nested { entry } => {
                     used.path = true;
-                    format!("new {struct_name}(loaded, {path})")
+                    format!("new {}(loaded, {path})", entry.struct_name)
                 }
                 FieldKind::Volatile => continue,
             };
@@ -217,6 +260,14 @@ fn ts_string(level: &str) -> String {
     format!("\"{}\"", level.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+fn rust_raw_string(text: &str) -> String {
+    let hashes = (1..)
+        .map(|count| "#".repeat(count))
+        .find(|hashes| !text.contains(&format!("\"{hashes}")))
+        .unwrap_or_default();
+    format!("r{hashes}\"{text}\"{hashes}")
+}
+
 fn ts_items(levels: &[&str]) -> String {
     let spelled: Vec<String> = levels.iter().map(|level| ts_string(level)).collect();
     spelled.join(", ")
@@ -247,14 +298,14 @@ impl CodegenRegistry {
                 code.push_str(&format!("{}\n", attr));
             }
 
-            if let Some(prefix) = entry.prefix {
-                code.push_str(&format!(
-                    "#[::amethystate::amethystate(prefix = \"{}\", target = \"tauri-wasm\")]\n",
-                    prefix
-                ));
-            } else {
-                code.push_str("#[::amethystate::amethystate(target = \"tauri-wasm\")]\n");
-            }
+            let placed = match entry.prefix {
+                Some(".") => "as_root, ".to_string(),
+                Some(prefix) => format!("prefix = {prefix:?}, "),
+                None => String::new(),
+            };
+            code.push_str(&format!(
+                "#[::amethystate::amethystate({placed}target = \"tauri-wasm\")]\n"
+            ));
 
             for derive in fw.extra_derives() {
                 code.push_str(&format!("#[derive({})]\n", derive));
@@ -273,9 +324,15 @@ impl CodegenRegistry {
                     (FieldKind::Volatile, _) => {}
                     (FieldKind::Nested { .. }, "") => attributes.push("flatten".to_string()),
                     (_, stored) if stored != field.name => {
-                        attributes.push(format!("path = \"{stored}\""))
+                        attributes.push(format!("path = {stored:?}"))
                     }
                     _ => {}
+                }
+                if let (FieldKind::Plain, Some(default)) = (&field.kind, (field.default)()) {
+                    attributes.push(format!(
+                        "default = ::amethystate::serde_json::from_str({}).unwrap_or_default()",
+                        rust_raw_string(&default)
+                    ));
                 }
 
                 if !attributes.is_empty() {
@@ -314,14 +371,14 @@ macro_rules! amethystate_codegen {
 
     (@run_ts $ts_out:expr) => {
         {
-            let reg = $crate::CodegenRegistry::new();
+            let reg = $crate::CodegenRegistry::new().unwrap_or_else(|why| panic!("{why}"));
             reg.export_ts($ts_out).expect("TS codegen failed");
         }
     };
 
     (@exec $rs_out:expr, dioxus, $ts_opt:expr) => {
         {
-            let reg = $crate::CodegenRegistry::new();
+            let reg = $crate::CodegenRegistry::new().unwrap_or_else(|why| panic!("{why}"));
             reg.export_rust($rs_out, &$crate::TauriDioxusCodegen).expect("Rust codegen failed");
             if let Some(ts) = $ts_opt {
                 reg.export_ts(ts).expect("TS codegen failed");
@@ -331,7 +388,7 @@ macro_rules! amethystate_codegen {
 
     (@exec $rs_out:expr, yew, $ts_opt:expr) => {
         {
-            let reg = $crate::CodegenRegistry::new();
+            let reg = $crate::CodegenRegistry::new().unwrap_or_else(|why| panic!("{why}"));
             reg.export_rust($rs_out, &$crate::TauriYewCodegen).expect("Rust codegen failed");
             if let Some(ts) = $ts_opt {
                 reg.export_ts(ts).expect("TS codegen failed");
@@ -341,7 +398,7 @@ macro_rules! amethystate_codegen {
 
     (@exec $rs_out:expr, leptos, $ts_opt:expr) => {
         {
-            let reg = $crate::CodegenRegistry::new();
+            let reg = $crate::CodegenRegistry::new().unwrap_or_else(|why| panic!("{why}"));
             reg.export_rust($rs_out, &$crate::TauriLeptosCodegen).expect("Rust codegen failed");
             if let Some(ts) = $ts_opt {
                 reg.export_ts(ts).expect("TS codegen failed");
@@ -351,7 +408,7 @@ macro_rules! amethystate_codegen {
 
     (@exec $rs_out:expr, vanilla, $ts_opt:expr) => {
         {
-            let reg = $crate::CodegenRegistry::new();
+            let reg = $crate::CodegenRegistry::new().unwrap_or_else(|why| panic!("{why}"));
             reg.export_rust($rs_out, &$crate::TauriVanillaCodegen).expect("Rust codegen failed");
             if let Some(ts) = $ts_opt {
                 reg.export_ts(ts).expect("TS codegen failed");

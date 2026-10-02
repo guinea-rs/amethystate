@@ -3,9 +3,7 @@
 use amethystate::amethystate;
 use amethystate::migration::MigrationError;
 use amethystate::store::builder::{Backend, StoreBuilder};
-use amethystate::store::{
-    CheckContext, Invalid, OpenStore, StorageError, StoreLayout, WillNotOpen,
-};
+use amethystate::store::{Invalid, OpenStore, RuleContext, StorageError, StoreLayout, WillNotOpen};
 use amethystate::{Store, StoreBackend, StoreOp, SubscriptionKind};
 use amethystate_core::Source;
 use amethystate_core::path::StorePath;
@@ -405,7 +403,7 @@ fn a_change_another_page_made_reaches_a_subscriber_as_one_from_outside() {
     );
 }
 
-fn a_size_that_renders(size: &mut u8, _cx: &CheckContext) -> Result<(), Invalid> {
+fn a_size_that_renders(size: &mut u8, _cx: &RuleContext) -> Result<(), Invalid> {
     match *size >= 6 {
         true => Ok(()),
         false => Err(Invalid::new("a font size below 6 renders nothing")),
@@ -414,12 +412,12 @@ fn a_size_that_renders(size: &mut u8, _cx: &CheckContext) -> Result<(), Invalid>
 
 #[amethystate(prefix = "page_checked", on_unreadable = UseDefault)]
 pub struct PageUi {
-    #[amestate(default = 14u8, check = a_size_that_renders)]
+    #[amestate(default = 14u8, rule = a_size_that_renders)]
     pub font_size: u8,
 }
 
 #[wasm_bindgen_test]
-fn a_change_another_page_made_is_judged_by_the_check() {
+fn a_change_another_page_made_is_judged_by_the_rule() {
     let store = opened("page_checked");
     let ui = PageUi::new_with(&store).unwrap();
     ui.font_size().set(42).unwrap();

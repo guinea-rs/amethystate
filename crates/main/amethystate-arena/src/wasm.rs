@@ -32,22 +32,26 @@ impl<B: AsyncSubscriptionBackend> Arena<B> {
         }
     }
 
+    /// Hands `f` the item under `key`, holding the arena's lock only while the
+    /// handle is cloned - see the native arena's `with_item`.
     pub fn with_item<Item, R, F>(&self, key: DefaultKey, type_name: &str, f: F) -> R
     where
-        Item: Any,
+        Item: Any + Clone,
         F: FnOnce(&Item) -> R,
     {
-        let storage = self.storage.read();
-        let item = storage.get(key).unwrap_or_else(|| {
-            panic!(
-                "amethystate-arena: Attempted to access a dropped {}",
-                type_name
-            )
-        });
-        let target = item
-            .downcast_ref::<Item>()
-            .unwrap_or_else(|| panic!("amethystate-arena: Type mismatch for {}", type_name));
-        f(target)
+        let target = {
+            let storage = self.storage.read();
+            let item = storage.get(key).unwrap_or_else(|| {
+                panic!(
+                    "amethystate-arena: Attempted to access a dropped {}",
+                    type_name
+                )
+            });
+            item.downcast_ref::<Item>()
+                .unwrap_or_else(|| panic!("amethystate-arena: Type mismatch for {}", type_name))
+                .clone()
+        };
+        f(&target)
     }
 
     fn field<T: FieldValue>(&self, handle: FieldHandle<T>) -> Field<T, B> {

@@ -3,8 +3,8 @@ use crate::store::config::{Disk, FileWritePolicy, StoreConfig, WriteLimits};
 use crate::store::facts::Facts;
 use crate::store::traits::StoreLayout;
 use crate::store::{
-    CheckContext, CodecFormat, Fallbacks, OpenStore, StorageError, StorageResult,
-    WhenItWillNotRead, WillNotOpen,
+    CodecFormat, Fallbacks, OpenStore, RuleContext, StorageError, StorageResult, WhenItWillNotRead,
+    WillNotOpen,
 };
 use crate::{MigrationReport, Store};
 use amethystate_core::path::StorePathError;
@@ -525,7 +525,7 @@ pub struct StoreBuilder {
     backend: Option<Backend>,
     config: StoreConfig,
     migration_builder: MigrationBuilder,
-    check_context: CheckContext,
+    rule_context: RuleContext,
     fallbacks: Fallbacks,
     /// Whether the extension on the path was spelled by the caller.
     ///
@@ -721,7 +721,7 @@ impl StoreBuilder {
             backend,
             config: StoreConfig::new(path),
             migration_builder: MigrationBuilder::default(),
-            check_context: CheckContext::default(),
+            rule_context: RuleContext::default(),
             fallbacks: Fallbacks::default(),
             caller_named_extension,
         }
@@ -890,19 +890,19 @@ impl StoreBuilder {
         self
     }
 
-    /// Hands a value to every check this store's declared structs run.
+    /// Hands a value to every rule this store's declared structs run.
     ///
-    /// A check written with `#[amestate(check = ..)]` is a bare `fn` and
+    /// A rule written with `#[amestate(rule = ..)]` is a bare `fn` and
     /// captures nothing, so the world it has to judge a value against - which
     /// monitors exist, which themes are installed, what this machine allows -
-    /// arrives here. One value per type; the check asks for it back with
-    /// [`CheckContext::get`] or [`CheckContext::require`].
+    /// arrives here. One value per type; the rule asks for it back with
+    /// [`RuleContext::get`] or [`RuleContext::require`].
     ///
     /// The `Send + Sync` bound is what separates this from
     /// [`StoreBuilder::provide`]. A migration step runs once, inside
-    /// [`build`](StoreBuilder::build), on the thread that called it. A check
-    /// runs every time a value arrives, including from the thread that watches
-    /// the file, so what it reads has to be readable from there.
+    /// [`build`](StoreBuilder::build), on the thread that called it. A rule
+    /// runs every time a value arrives or is written, including on the thread
+    /// that watches the file, so what it reads has to be readable from there.
     ///
     /// ```
     /// # use amethystate::StoreBuilder;
@@ -919,10 +919,10 @@ impl StoreBuilder {
     /// assert_eq!(store.context().get::<Monitors>().unwrap().count, 2);
     /// ```
     ///
-    /// [`CheckContext::get`]: crate::store::CheckContext::get
-    /// [`CheckContext::require`]: crate::store::CheckContext::require
+    /// [`RuleContext::get`]: crate::store::RuleContext::get
+    /// [`RuleContext::require`]: crate::store::RuleContext::require
     pub fn context<T: Any + Send + Sync>(mut self, value: T) -> Self {
-        self.check_context.insert(value);
+        self.rule_context.insert(value);
         self
     }
 
@@ -1084,14 +1084,14 @@ impl StoreBuilder {
     }
 
     fn opening(mut self, steps: Steps) -> Result<(Store, MigrationReport), OpenStore> {
-        let context = Arc::new(std::mem::take(&mut self.check_context));
+        let context = Arc::new(std::mem::take(&mut self.rule_context));
         self.opening_with(steps, context)
     }
 
     fn opening_with(
         self,
         steps: Steps,
-        context: Arc<CheckContext>,
+        context: Arc<RuleContext>,
     ) -> Result<(Store, MigrationReport), OpenStore> {
         let fallbacks = self.fallbacks;
         let (store, report) = self.on_disk(steps)?;
@@ -1113,7 +1113,7 @@ impl StoreBuilder {
             .ok_or_else(no_engine_built_in)
             .map_err(OpenStore::from_store)?;
 
-        let migration_set = match steps {
+        let mut migration_set = match steps {
             Steps::None => MigrationBuilder::default(),
             Steps::All => {
                 self.migration_builder.collect_codegen();
@@ -1122,6 +1122,7 @@ impl StoreBuilder {
         }
         .into_set()
         .map_err(refused_prefix)?;
+        migration_set.take_on_undeclared(self.fallbacks.on_undeclared);
 
         let (store, report) = backend
             .open_public(self.config, migration_set)
@@ -1223,7 +1224,7 @@ impl WithSteps {
 
 #[cfg(feature = "memory")]
 fn falling_back(mut builder: StoreBuilder, steps: Steps) -> (Store, MigrationReport, Persistence) {
-    let context = Arc::new(std::mem::take(&mut builder.check_context));
+    let context = Arc::new(std::mem::take(&mut builder.rule_context));
     let fallbacks = builder.fallbacks;
     let mut memory = StoreConfig::new(PathBuf::new());
     memory.limits = builder.config.limits.clone();

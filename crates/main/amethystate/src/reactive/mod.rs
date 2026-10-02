@@ -17,7 +17,7 @@
 //! reaches the buffer at all.
 //!
 //! The book works through the whole picture in
-//! [Durability](https://uniproc-dev.github.io/amethystate/concepts/durability).
+//! [Durability](https://guinea-rs.github.io/amethystate/concepts/durability).
 
 pub mod cell;
 pub mod entry_cell;

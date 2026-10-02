@@ -2,8 +2,13 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `serde::Serialize`:
              &'a T
              &'a mut T
@@ -15,15 +20,20 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `Deserialize<'de>`:
              &'a [u8]
              &'a ron::value::raw::RawValue
@@ -36,15 +46,22 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | --------------------------------- in this attribute macro expansion
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -58,7 +75,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -67,15 +84,23 @@ note: required because it appears within the type `Holder`
 note: required by a bound in `Clone`
   --> $RUST/core/src/clone.rs
    |
-   | pub trait Clone: Sized {
-   |                  ^^^^^ required by this bound in `Clone`
+   | pub const trait Clone: Sized {
+   |                        ^^^^^ required by this bound in `Clone`
+   = note: this error originates in the derive macro `Clone` which comes from the expansion of the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | --------------------------------- in this attribute macro expansion
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -90,7 +115,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -99,15 +124,21 @@ note: required because it appears within the type `Holder`
 note: required by a bound in `Clone`
   --> $RUST/core/src/clone.rs
    |
-   | pub trait Clone: Sized {
-   |                  ^^^^^ required by this bound in `Clone`
+   | pub const trait Clone: Sized {
+   |                        ^^^^^ required by this bound in `Clone`
+   = note: this error originates in the derive macro `Clone` which comes from the expansion of the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -121,7 +152,313 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `StateScope`
+  --> src/store/state_slice.rs
+   |
+   | / pub trait StateScope {
+   | |     const PATH: StorePath;
+   | |
+   | |     /// `PATH` as one string, for the places that need it before the program
+...  |
+   | |     const ID: Option<&'static str> = None;
+   | | }
+   | |_^ required by this bound in `StateScope`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `StateScope`
+  --> src/store/state_slice.rs
+   |
+   | / pub trait StateScope {
+   | |     const PATH: StorePath;
+   | |
+   | |     /// `PATH` as one string, for the places that need it before the program
+...  |
+   | |     const ID: Option<&'static str> = None;
+   | | }
+   | |_^ required by this bound in `StateScope`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `Schema`
+  --> src/store/opening.rs
+   |
+   | pub trait Schema: Sized {
+   |                   ^^^^^ required by this bound in `Schema`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `Schema`
+  --> src/store/opening.rs
+   |
+   | pub trait Schema: Sized {
+   |                   ^^^^^ required by this bound in `Schema`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `amethystate::Open`
+  --> src/store/opening.rs
+   |
+   | pub trait Open: Sized {
+   |                 ^^^^^ required by this bound in `Open`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `amethystate::Open`
+  --> src/store/opening.rs
+   |
+   | pub trait Open: Sized {
+   |                 ^^^^^ required by this bound in `Open`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -137,8 +474,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -153,7 +495,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -166,11 +508,16 @@ note: required by a bound in `AmeStateNode`
    |                         ^^^^^ required by this bound in `AmeStateNode`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -184,7 +531,92 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder_Data`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `serde::Serialize`
+  --> $CARGO/serde_core-$VERSION/src/ser/mod.rs
+   |
+   | / pub trait Serialize {
+   | |     /// Serialize this value into the given Serde serializer.
+   | |     ///
+   | |     /// See the [Implementing `Serialize`] section of the manual for more
+...  |
+   | |         S: Serializer;
+   | | }
+   | |_^ required by this bound in `Serialize`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder_Data`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `serde::Serialize`
+  --> $CARGO/serde_core-$VERSION/src/ser/mod.rs
+   |
+   | / pub trait Serialize {
+   | |     /// Serialize this value into the given Serde serializer.
+   | |     ///
+   | |     /// See the [Implementing `Serialize`] section of the manual for more
+...  |
+   | |         S: Serializer;
+   | | }
+   | |_^ required by this bound in `Serialize`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -201,8 +633,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -217,7 +654,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -234,8 +671,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -249,7 +691,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -265,8 +707,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -281,7 +728,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -297,8 +744,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -312,7 +764,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -328,8 +780,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -344,7 +801,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -357,11 +814,18 @@ note: required by a bound in `serde::de::Visitor::Value`
    |     ^^^^^^^^^^^ required by this bound in `Visitor::Value`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | --------------------------------- in this attribute macro expansion
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -375,7 +839,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -384,15 +848,23 @@ note: required because it appears within the type `Holder_Data`
 note: required by a bound in `Clone`
   --> $RUST/core/src/clone.rs
    |
-   | pub trait Clone: Sized {
-   |                  ^^^^^ required by this bound in `Clone`
+   | pub const trait Clone: Sized {
+   |                        ^^^^^ required by this bound in `Clone`
+   = note: this error originates in the derive macro `Clone` which comes from the expansion of the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | --------------------------------- in this attribute macro expansion
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -407,7 +879,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -416,15 +888,21 @@ note: required because it appears within the type `Holder_Data`
 note: required by a bound in `Clone`
   --> $RUST/core/src/clone.rs
    |
-   | pub trait Clone: Sized {
-   |                  ^^^^^ required by this bound in `Clone`
+   | pub const trait Clone: Sized {
+   |                        ^^^^^ required by this bound in `Clone`
+   = note: this error originates in the derive macro `Clone` which comes from the expansion of the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -438,7 +916,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -455,8 +933,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -471,7 +954,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -488,8 +971,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -503,7 +991,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -519,8 +1007,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -535,7 +1028,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -551,8 +1044,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -566,7 +1064,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -585,8 +1083,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -601,7 +1104,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -617,11 +1120,16 @@ note: required by a bound in `amethystate::AmeState::Data`
    |           ^^^^ required by this bound in `AmeState::Data`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -635,25 +1143,35 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-note: required by an implicit `Sized` bound in `Result`
-  --> $RUST/core/src/result.rs
+note: required by a bound in `AmeState`
+  --> src/migration/node.rs
    |
-   | pub enum Result<T, E> {
-   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
-   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | / pub trait AmeState {
+   | |     type Data: AmeStateFields
+   | |         + Serialize
+   | |         + for<'de> Deserialize<'de>
+...  |
+   | |         + 'static;
+   | | }
+   | |_^ required by this bound in `AmeState`
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -668,25 +1186,35 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-note: required by an implicit `Sized` bound in `Result`
-  --> $RUST/core/src/result.rs
+note: required by a bound in `AmeState`
+  --> src/migration/node.rs
    |
-   | pub enum Result<T, E> {
-   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
-   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | / pub trait AmeState {
+   | |     type Data: AmeStateFields
+   | |         + Serialize
+   | |         + for<'de> Deserialize<'de>
+...  |
+   | |         + 'static;
+   | | }
+   | |_^ required by this bound in `AmeState`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -700,7 +1228,84 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `Exported`
+  --> $WORKSPACE/crates/core/amethystate-core/src/scheme.rs
+   |
+   | / pub trait Exported {
+   | |     const EXPORT: SchemaExportEntry;
+   | | }
+   | |_^ required by this bound in `Exported`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `Exported`
+  --> $WORKSPACE/crates/core/amethystate-core/src/scheme.rs
+   |
+   | / pub trait Exported {
+   | |     const EXPORT: SchemaExportEntry;
+   | | }
+   | |_^ required by this bound in `Exported`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -716,8 +1321,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -732,7 +1342,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -745,11 +1355,16 @@ note: required by a bound in `AmeStateSlice`
    |                          ^^^^^ required by this bound in `AmeStateSlice`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -763,20 +1378,33 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-   = note: the return type of a function must have a statically known size
+note: required by a bound in `DeclaredPolicy`
+  --> src/store/rules.rs
+   |
+   | / pub trait DeclaredPolicy {
+   | |     const ON_UNREADABLE: Option<OnUnreadable>;
+   | |     const ON_DELETE: Option<OnDelete>;
+   | |     const UNREADABLE_ENTRIES: Option<UnreadableEntries>;
+   | | }
+   | |_^ required by this bound in `DeclaredPolicy`
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -791,20 +1419,33 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-   = note: the return type of a function must have a statically known size
+note: required by a bound in `DeclaredPolicy`
+  --> src/store/rules.rs
+   |
+   | / pub trait DeclaredPolicy {
+   | |     const ON_UNREADABLE: Option<OnUnreadable>;
+   | |     const ON_DELETE: Option<OnDelete>;
+   | |     const UNREADABLE_ENTRIES: Option<UnreadableEntries>;
+   | | }
+   | |_^ required by this bound in `DeclaredPolicy`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
-19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -818,7 +1459,153 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `amethystate::observability::Inspect`
+  --> src/observability/introspect.rs
+   |
+   | / pub trait Inspect {
+   | |     /// Where this struct's fields hang.
+   | |     fn at(&self) -> StorePath;
+...  |
+   | | }
+   | |_^ required by this bound in `Inspect`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `amethystate::observability::Inspect`
+  --> src/observability/introspect.rs
+   |
+   | / pub trait Inspect {
+   | |     /// Where this struct's fields hang.
+   | |     fn at(&self) -> StorePath;
+...  |
+   | | }
+   | |_^ required by this bound in `Inspect`
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+   = note: the return type of a function must have a statically known size
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+   = note: the return type of a function must have a statically known size
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -831,8 +1618,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -847,7 +1639,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -860,8 +1652,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -875,7 +1672,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -887,8 +1684,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -903,20 +1705,74 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
    = note: the return type of a function must have a statically known size
+
+error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+
+error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
-20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -930,20 +1786,32 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
-note: required because it appears within the type `Holder_Data`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-   = note: the return type of a function must have a statically known size
+note: required by a bound in `new_with`
+  --> src/store/opening.rs
+   |
+   | pub trait Open: Sized {
+   |                 ^^^^^ required by this bound in `Open::new_with`
+   |     fn new_with(store: &crate::Store) -> Result<Self, OpenStruct>;
+   |        -------- required by a bound in this associated function
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
-20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -958,20 +1826,34 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
-note: required because it appears within the type `Holder_Data`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
    |            ^^^^^^
-   = note: the return type of a function must have a statically known size
+note: required by a bound in `new_with`
+  --> src/store/opening.rs
+   |
+   | pub trait Open: Sized {
+   |                 ^^^^^ required by this bound in `Open::new_with`
+   |     fn new_with(store: &crate::Store) -> Result<Self, OpenStruct>;
+   |        -------- required by a bound in this associated function
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
              &'a T
              &'a mut T
@@ -983,14 +1865,32 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `std::any::type_name`
+  --> $RUST/core/src/any.rs
+   |
+   | pub const fn type_name<T: ?Sized>() -> &'static str {
+   |                        ^ required by this bound in `type_name`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
              &'a [u8]
              &'a ron::value::raw::RawValue
@@ -1003,7 +1903,18 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `std::any::type_name`
+  --> $RUST/core/src/any.rs
+   |
+   | pub const fn type_name<T: ?Sized>() -> &'static str {
+   |                        ^ required by this bound in `type_name`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0599]: the method `fork_with_id` exists for struct `amethystate::Field<Opaque>`, but its trait bounds were not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
@@ -1026,12 +1937,17 @@ note: the trait `serde::Serialize` must be implemented
    | ^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `Opaque: Kind` is not satisfied
+error[E0277]: the trait bound `Opaque: amethystate::shape::Kind` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:22:16
    |
 22 |     pub value: Opaque,
-   |                ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |                ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `serde::Serialize`:
              &'a T
              &'a mut T
@@ -1043,14 +1959,19 @@ error[E0277]: the trait bound `Opaque: Kind` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 
-error[E0277]: the trait bound `Opaque: Kind` is not satisfied
+error[E0277]: the trait bound `Opaque: amethystate::shape::Kind` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:22:16
    |
 22 |     pub value: Opaque,
-   |                ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |                ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `Deserialize<'de>`:
              &'a [u8]
              &'a ron::value::raw::RawValue
@@ -1063,7 +1984,7 @@ error[E0277]: the trait bound `Opaque: Kind` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 
 error[E0599]: the method `subscription_with` exists for struct `amethystate::Field<Opaque>`, but its trait bounds were not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
@@ -1087,11 +2008,16 @@ note: the trait `serde::Serialize` must be implemented
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
-  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
-20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -1105,7 +2031,86 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `open`
+  --> src/store/opening.rs
+   |
+   | pub trait Schema: Sized {
+   |                   ^^^^^ required by this bound in `Schema::open`
+   |     fn open(store: &crate::Store) -> Result<Self, OpenStruct>;
+   |        ---- required by a bound in this associated function
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
+   |
+19 | #[amethystate(prefix = "opaque")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `open`
+  --> src/store/opening.rs
+   |
+   | pub trait Schema: Sized {
+   |                   ^^^^^ required by this bound in `Schema::open`
+   |     fn open(store: &crate::Store) -> Result<Self, OpenStruct>;
+   |        ---- required by a bound in this associated function
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -1124,8 +2129,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -1140,7 +2150,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -1159,8 +2169,13 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `serde::Serialize`:
              &'a T
              &'a mut T
@@ -1172,15 +2187,20 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
    = note: this error originates in the derive macro `::amethystate::serde::Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = help: the following other types implement trait `Deserialize<'de>`:
              &'a [u8]
              &'a ron::value::raw::RawValue
@@ -1193,15 +2213,20 @@ error[E0277]: the trait bound `Opaque: FieldValue` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
    = note: this error originates in the derive macro `::amethystate::serde::Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -1228,8 +2253,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1
    |
 19 | #[amethystate(prefix = "opaque")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `Opaque`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
+help: the trait `Deserialize<'_>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -1256,8 +2286,13 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `serde::Serialize` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `serde::Serialize`:
@@ -1271,7 +2306,7 @@ error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
              (T0, T1, T2, T3, T4)
            and $N others
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -1289,8 +2324,13 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
 20 | pub struct Holder {
-   |            ^^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+   |            ^^^^^^ unsatisfied trait bound
    |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag
    = help: the following other types implement trait `Deserialize<'de>`:
@@ -1305,7 +2345,7 @@ error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
            and $N others
    = note: required for `Opaque` to implement `DeserializeOwned`
    = note: required for `Opaque` to implement `FieldValue`
-   = note: required for `Opaque` to implement `Kind`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
 note: required because it appears within the type `Holder_Data`
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
    |
@@ -1318,6 +2358,83 @@ note: required by a bound in `amethystate::migration::fields::AmeStateFields::FI
    |                           ^^^^^ required by this bound in `AmeStateFields::FIELDS`
    |     const FIELDS: &'static [FieldDescriptor];
    |           ------ required by a bound in this associated constant
+
+error[E0277]: the trait bound `Opaque: serde::Serialize` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `serde::Serialize` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `serde::Serialize`:
+             &'a T
+             &'a mut T
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+             (T0, T1, T2, T3)
+             (T0, T1, T2, T3, T4)
+           and $N others
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `EXPORT`
+  --> $WORKSPACE/crates/core/amethystate-core/src/scheme.rs
+   |
+   | / pub trait Exported {
+   | |     const EXPORT: SchemaExportEntry;
+   | | }
+   | |_^ required by this bound in `Exported::EXPORT`
+
+error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^ unsatisfied trait bound
+   |
+help: the trait `for<'de> Deserialize<'de>` is not implemented for `Opaque`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:4:1
+   |
+ 4 | pub struct Opaque(u64);
+   | ^^^^^^^^^^^^^^^^^
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `Opaque` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a ron::value::raw::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and $N others
+   = note: required for `Opaque` to implement `DeserializeOwned`
+   = note: required for `Opaque` to implement `FieldValue`
+   = note: required for `Opaque` to implement `amethystate::shape::Kind`
+note: required because it appears within the type `Holder`
+  --> tests/fails/with_on_a_type_serde_cannot_write.rs:20:12
+   |
+20 | pub struct Holder {
+   |            ^^^^^^
+note: required by a bound in `EXPORT`
+  --> $WORKSPACE/crates/core/amethystate-core/src/scheme.rs
+   |
+   | / pub trait Exported {
+   | |     const EXPORT: SchemaExportEntry;
+   | | }
+   | |_^ required by this bound in `Exported::EXPORT`
 
 error[E0599]: the method `path` exists for struct `amethystate::Field<Opaque>`, but its trait bounds were not satisfied
   --> tests/fails/with_on_a_type_serde_cannot_write.rs:19:1

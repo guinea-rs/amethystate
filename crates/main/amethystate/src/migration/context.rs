@@ -354,8 +354,11 @@ impl MigrationContext<'_> {
     ///
     /// Nothing is decoded, so this works whatever the value's type and cannot
     /// fail on a type it does not know. A `from` that holds nothing is a
-    /// no-op rather than an error.
+    /// no-op rather than an error, and so is a `to` that is `from`.
     pub fn rename(&mut self, from: &str, to: &str) -> StepResult<()> {
+        if from == to {
+            return Ok(());
+        }
         if let Some(bytes) = self.get_raw(from)? {
             self.set_raw(to, &bytes)?;
             self.delete(from)?;
@@ -385,7 +388,8 @@ impl MigrationContext<'_> {
     }
 
     /// Folds two keys into one: reads both, hands them to `f`, writes the
-    /// result at `into` and drops the sources.
+    /// result at `into` and drops the sources. A source that is `into` holds
+    /// the result and stays.
     ///
     /// Neither source there is nothing to merge, and nothing is written. Only
     /// one of them there is refused, and the one that is there stays where it
@@ -406,8 +410,11 @@ impl MigrationContext<'_> {
             (Some(v1), Some(v2)) => {
                 let new_val = f(v1, v2)?;
                 self.set(into, &new_val)?;
-                self.delete(from.0)?;
-                self.delete(from.1)?;
+                for source in [from.0, from.1] {
+                    if source != into {
+                        self.delete(source)?;
+                    }
+                }
                 Ok(())
             }
             (None, None) => Ok(()),
@@ -424,7 +431,8 @@ impl MigrationContext<'_> {
     }
 
     /// The inverse of [`MigrationContext::merge`]: reads one key, hands it to
-    /// `f`, and writes the pair it returns to two keys, dropping the source.
+    /// `f`, and writes the pair it returns to two keys, dropping the source
+    /// unless it is one of them.
     pub fn split<TOld, TNew1, TNew2>(
         &mut self,
         from: &str,
@@ -440,7 +448,9 @@ impl MigrationContext<'_> {
             let (v1, v2) = f(old_val)?;
             self.set(into.0, &v1)?;
             self.set(into.1, &v2)?;
-            self.delete(from)?;
+            if from != into.0 && from != into.1 {
+                self.delete(from)?;
+            }
         }
         Ok(())
     }
@@ -1188,6 +1198,52 @@ mod tests {
         assert_eq!(ctx.get::<String>("p1").unwrap(), Some("a".into()));
         assert_eq!(ctx.get::<String>("p2").unwrap(), Some("b".into()));
         assert!(ctx.get::<String>("full").unwrap().is_none());
+    }
+
+    #[test]
+    fn a_split_that_keeps_one_half_where_it_read_keeps_it() {
+        let mut storage = MemoryStorage {
+            data: HashMap::new(),
+        };
+        let mut ctx = MigrationContext::new(StorePath::segment("p"), &mut storage);
+        ctx.set("color", &"ff8800cc".to_string()).unwrap();
+
+        ctx.split::<String, String, String>("color", ("color", "alpha"), |s| {
+            Ok((s[..6].to_string(), s[6..].to_string()))
+        })
+        .unwrap();
+
+        assert_eq!(ctx.get::<String>("color").unwrap(), Some("ff8800".into()));
+        assert_eq!(ctx.get::<String>("alpha").unwrap(), Some("cc".into()));
+    }
+
+    #[test]
+    fn a_merge_into_one_of_its_sources_keeps_what_it_wrote() {
+        let mut storage = MemoryStorage {
+            data: HashMap::new(),
+        };
+        let mut ctx = MigrationContext::new(StorePath::segment("p"), &mut storage);
+        ctx.set("width", &3u32).unwrap();
+        ctx.set("height", &4u32).unwrap();
+
+        ctx.merge::<u32, u32, u32>(("width", "height"), "width", |w, h| Ok(w * h))
+            .unwrap();
+
+        assert_eq!(ctx.get::<u32>("width").unwrap(), Some(12));
+        assert_eq!(ctx.get::<u32>("height").unwrap(), None);
+    }
+
+    #[test]
+    fn a_rename_onto_itself_keeps_the_value() {
+        let mut storage = MemoryStorage {
+            data: HashMap::new(),
+        };
+        let mut ctx = MigrationContext::new(StorePath::segment("p"), &mut storage);
+        ctx.set("a", &100i32).unwrap();
+
+        ctx.rename("a", "a").unwrap();
+
+        assert_eq!(ctx.get::<i32>("a").unwrap(), Some(100));
     }
 
     #[test]

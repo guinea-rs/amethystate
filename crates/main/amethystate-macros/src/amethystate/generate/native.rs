@@ -20,6 +20,7 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
     let node = accessors::node_impl(crate_name, schema);
     let slice = accessors::slice_impl(crate_name, schema);
     let global_new = accessors::global_new(crate_name, schema);
+    let opening = accessors::opening(crate_name, schema);
 
     let data = data::data_impl(crate_name, schema);
     let declared_policy = policy::declared(crate_name, schema);
@@ -32,6 +33,7 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
         #scope
         #inherent
         #global_new
+        #opening
         #node
         #data
         #exported

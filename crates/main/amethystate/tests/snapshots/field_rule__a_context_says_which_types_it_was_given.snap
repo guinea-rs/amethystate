@@ -1,0 +1,6 @@
+---
+source: crates/main/amethystate/tests/field_rule.rs
+assertion_line: 76
+expression: "format!(\"{:?}\", store.context())"
+---
+RuleContext { types: "given: field_rule::InstalledThemes, field_rule::Monitors" }

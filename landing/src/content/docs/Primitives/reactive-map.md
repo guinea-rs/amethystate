@@ -120,6 +120,27 @@ is a large struct.
 `remove` sends one `MapChange::Remove` carrying this handle's id, and one store
 write. `clear` is the other shape: one event, one delete, whatever the map held.
 
+When the new value depends on the old one and the key may not be there yet - a
+counter, a list that grows - `upsert` takes both cases in one function:
+
+<!-- shown: writing an entry whether or not it is there -->
+```rust
+for page in ["home", "about", "home"] {
+    hits.upsert(page, |seen| seen.map_or(1, |count| count + 1))?;
+}
+
+let now = hits
+    .durable()
+    .upsert("home", |seen| seen.map_or(1, |count| count + 1))?;
+```
+<!-- /shown -->
+
+The function is handed `Some` of the value or `None`, and what it returns is
+written and handed back. The key is borrowed, so the caller makes no `String`
+for a key that is already there. Subscribers see an `Insert` the first time and
+an `Update` after, as with `insert`. Reading and writing are two steps, as in
+`modify`: a write from another thread that lands between them is written over.
+
 To drop a subset, walk and remove - the walk reads its own version, so the loop
 is the plain one:
 

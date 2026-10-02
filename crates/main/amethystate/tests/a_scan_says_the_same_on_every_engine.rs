@@ -124,6 +124,31 @@ fn a_key_nothing_declares_is_listed_beside_the_declared_ones(backend: Backend) {
 }
 
 #[backends(all)]
+fn a_map_under_a_prefix_deleted_whole_stays_empty_after_a_reopen(backend: Backend) {
+    let path = TempPath::new("scan_same_prefix_deleted");
+    {
+        let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
+        let shape = Shape::new_with(&store).unwrap();
+        store.delete_prefix(["shape"]).unwrap();
+        shape.leaf().set(5).unwrap();
+        store.save_now().unwrap();
+    }
+
+    let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
+    let shape = Shape::new_with(&store).unwrap();
+
+    assert_eq!(
+        (shape.items().len(), listed(&store)),
+        (
+            0,
+            vec!["shape.leaf".to_string(), "shape.part.inner".to_string()]
+        ),
+        "on {}",
+        backend.extension()
+    );
+}
+
+#[backends(all)]
 fn a_shape_that_survives_a_reopen_lists_the_same(backend: Backend) {
     let path = TempPath::new("scan_same_reopen");
     {

@@ -6,8 +6,11 @@ use dioxus::hooks::{try_use_context, use_callback, use_context};
 use dioxus::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 
 pub type Handle<S> = <S as AmeStateFrameworkNested>::Handle;
@@ -53,17 +56,86 @@ where
     });
 
     let handle = use_hook(|| {
-        let state = S::load_slice(&store).unwrap_or_else(|err| {
-            panic!(
-                "amethystate-dioxus: Failed to load state slice '{}': {err}",
-                std::any::type_name::<S>()
-            );
-        });
-        state.register(&arena)
+        arena
+            .slice(|arena| S::load_slice(&store).map(|state| state.register(arena)))
+            .unwrap_or_else(|err| {
+                panic!(
+                    "amethystate-dioxus: Failed to load state slice '{}': {err}",
+                    std::any::type_name::<S>()
+                );
+            })
     });
 
     use_context_provider(|| handle);
     handle
+}
+
+type Tell<V> = Box<dyn Fn(V) + Send + Sync>;
+
+/// Holds what `watch` returned for `at`, and watches again when `at` changes.
+fn use_rewatch<A, S>(at: A, watch: impl FnOnce(&A) -> S) -> bool
+where
+    A: Clone + PartialEq + 'static,
+    S: 'static,
+{
+    let watched = use_hook(|| Rc::new(RefCell::new(None::<(A, S)>)));
+    let mut watched = watched.borrow_mut();
+    if matches!(&*watched, Some((was, _)) if *was == at) {
+        return false;
+    }
+    let renewed = watched.take().is_some();
+    let held = watch(&at);
+    *watched = Some((at, held));
+    renewed
+}
+
+/// The value `read` finds at `at`, kept in step by what `watch` tells it,
+/// and read afresh whenever the component is handed another `at`.
+///
+/// A value told by a watch that has since been replaced is dropped, so a
+/// change to what the component looked at before cannot land after the switch.
+fn use_watched<A, V, S>(
+    at: A,
+    read: impl Fn(&A) -> V,
+    watch: impl FnOnce(&A, Tell<V>) -> S,
+) -> Signal<V>
+where
+    A: Clone + PartialEq + 'static,
+    V: Send + 'static,
+    S: 'static,
+{
+    let mut value = use_signal(|| read(&at));
+    let generation = use_hook(|| Arc::new(AtomicU64::new(0)));
+    let tx = use_hook(|| {
+        let (tx, mut rx) = mpsc::unbounded_channel::<(u64, V)>();
+        let current = generation.clone();
+        spawn(async move {
+            while let Some((told_at, told)) = rx.recv().await {
+                if told_at == current.load(Ordering::Acquire) {
+                    value.set(told);
+                }
+            }
+        });
+        tx
+    });
+
+    let mut fresh = None;
+    let renewed = use_rewatch(at, |at| {
+        let now = generation.fetch_add(1, Ordering::AcqRel) + 1;
+        let held = watch(
+            at,
+            Box::new(move |told| {
+                let _ = tx.send((now, told));
+            }),
+        );
+        fresh = Some(read(at));
+        held
+    });
+    if let (true, Some(fresh)) = (renewed, fresh) {
+        value.set(fresh);
+    }
+
+    value
 }
 
 pub fn use_field<T>(handle: FieldHandle<T>) -> (ReadSignal<T>, Callback<T>)
@@ -71,28 +143,15 @@ where
     T: DeserializeOwned + Serialize + Clone + Send + Sync + PartialEq + 'static,
 {
     let arena = use_context::<DefaultArena>();
-    let mut signal = use_signal(|| arena.get_field(handle));
-
-    let tx = use_hook(|| {
-        let (tx, mut rx) = mpsc::unbounded_channel::<T>();
-
-        spawn(async move {
-            while let Some(val) = rx.recv().await {
-                signal.set(val);
-            }
-        });
-
-        tx
-    });
+    let reading = arena.clone();
+    let watching = arena.clone();
+    let signal = use_watched(
+        handle,
+        move |handle| reading.get_field(*handle),
+        move |handle, tell| watching.subscribe_field(*handle, move |val: &T| tell(val.clone())),
+    );
 
     let arena_clone = arena.clone();
-
-    use_hook(move || {
-        let sub = arena.subscribe_field(handle, move |val| {
-            let _ = tx.send(val.clone());
-        });
-        Arc::new(sub)
-    });
 
     let setter = use_callback(move |val: T| {
         #[cfg(all(target_arch = "wasm32", feature = "tauri-backend"))]
@@ -116,28 +175,13 @@ where
     T: DeserializeOwned + Serialize + Clone + Send + Sync + PartialEq + 'static,
 {
     let arena = use_context::<DefaultArena>();
-    let mut signal = use_signal(|| arena.get_field(handle));
-
-    let tx = use_hook(|| {
-        let (tx, mut rx) = mpsc::unbounded_channel::<T>();
-
-        spawn(async move {
-            while let Some(val) = rx.recv().await {
-                signal.set(val);
-            }
-        });
-
-        tx
-    });
-
-    use_hook(move || {
-        let sub = arena.subscribe_field(handle, move |val| {
-            let _ = tx.send(val.clone());
-        });
-        Arc::new(sub)
-    });
-
-    signal.into()
+    let reading = arena.clone();
+    use_watched(
+        handle,
+        move |handle| reading.get_field(*handle),
+        move |handle, tell| arena.subscribe_field(*handle, move |val: &T| tell(val.clone())),
+    )
+    .into()
 }
 
 pub fn use_map<K, V>(handle: MapHandle<K, V>) -> MapSignal<K, V>
@@ -146,32 +190,24 @@ where
     V: ReactiveMapValue,
 {
     let arena = use_context::<DefaultArena>();
-    let mut signal = use_signal(|| {
-        arena
-            .get_map_entries(handle)
-            .into_iter()
-            .collect::<HashMap<K, V>>()
-    });
-
-    let tx = use_hook(|| {
-        let (tx, mut rx) = mpsc::unbounded_channel::<HashMap<K, V>>();
-        spawn(async move {
-            while let Some(val) = rx.recv().await {
-                signal.set(val);
-            }
-        });
-        tx
-    });
-
-    let arena_sub = arena.clone();
-    use_hook(move || {
-        let arena_sub_sub = arena_sub.clone();
-        let sub = arena_sub.subscribe_map_any(handle, move |_| {
-            let entries = arena_sub_sub.get_map_entries(handle).into_iter().collect();
-            let _ = tx.send(entries);
-        });
-        Arc::new(sub)
-    });
+    let reading = arena.clone();
+    let watching = arena.clone();
+    let signal = use_watched(
+        handle,
+        move |handle| {
+            reading
+                .get_map_entries(*handle)
+                .into_iter()
+                .collect::<HashMap<K, V>>()
+        },
+        move |handle, tell| {
+            let handle = *handle;
+            let entries = watching.clone();
+            watching.subscribe_map_any(handle, move |_| {
+                tell(entries.get_map_entries(handle).into_iter().collect())
+            })
+        },
+    );
 
     let arena_set = arena.clone();
     let _set = use_callback(move |(key, val): (K, V)| {
@@ -242,37 +278,21 @@ where
     V: ReactiveMapValue,
 {
     let arena = use_context::<DefaultArena>();
-    let mut signal = use_signal(|| arena.get_map_entry(handle, &key));
-
-    let tx = use_hook(|| {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Option<V>>();
-
-        spawn(async move {
-            while let Some(val) = rx.recv().await {
-                signal.set(val);
-            }
-        });
-
-        tx
-    });
-
-    let key_clone = key.clone();
-    use_hook(move || {
-        let sub = arena.subscribe_map_key(handle, key_clone, move |change| match change {
-            MapChange::Insert { value, .. }
-            | MapChange::Update {
-                new_value: value, ..
-            } => {
-                let _ = tx.send(Some(value.clone()));
-            }
-            MapChange::Remove { .. } | MapChange::Clear { .. } => {
-                let _ = tx.send(None);
-            }
-        });
-        Arc::new(sub)
-    });
-
-    signal.into()
+    let reading = arena.clone();
+    use_watched(
+        (handle, key),
+        move |(handle, key)| reading.get_map_entry(*handle, key),
+        move |(handle, key), tell| {
+            arena.subscribe_map_key(*handle, key.clone(), move |change| match change {
+                MapChange::Insert { value, .. }
+                | MapChange::Update {
+                    new_value: value, ..
+                } => tell(Some(value.clone())),
+                MapChange::Remove { .. } | MapChange::Clear { .. } => tell(None),
+            })
+        },
+    )
+    .into()
 }
 
 pub fn use_map_subscribe_any<K, V, F>(handle: MapHandle<K, V>, callback: F)
@@ -282,9 +302,8 @@ where
     F: Fn(&MapChange<K, V>) + Send + Sync + 'static,
 {
     let arena = use_context::<DefaultArena>();
-    use_hook(move || {
-        let sub = arena.subscribe_map_any(handle, callback);
-        Arc::new(sub)
+    use_rewatch(handle, move |handle| {
+        arena.subscribe_map_any(*handle, callback)
     });
 }
 
@@ -295,8 +314,7 @@ where
     F: Fn(&MapChange<K, V>) + Send + Sync + 'static,
 {
     let arena = use_context::<DefaultArena>();
-    use_hook(move || {
-        let sub = arena.subscribe_map_key(handle, key, callback);
-        Arc::new(sub)
+    use_rewatch((handle, key), move |(handle, key)| {
+        arena.subscribe_map_key(*handle, key.clone(), callback)
     });
 }

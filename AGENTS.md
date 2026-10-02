@@ -10,7 +10,7 @@ reference cannot: what the pieces are for, how they fit, and why the design is
 shaped the way it is. Read it from the repository — it is markdown, and the
 checkout is already here:
 
-[`landing/src/content/docs/introduction.md`](https://github.com/uniproc-dev/amethystate/blob/master/landing/src/content/docs/introduction.md)
+[`landing/src/content/docs/introduction.md`](https://github.com/guinea-rs/amethystate/blob/master/landing/src/content/docs/introduction.md)
 
 Everything else sits beside it under `landing/src/content/docs/`:
 
@@ -74,10 +74,12 @@ have no Rust API to compare. The tool is installed separately, with
 the same check on every push and pull request, and `publish.yml` will not
 publish a tag that fails it.
 
-`amethystate-gpui` sits outside the workspace runs, here and in the GitHub
-workflow: it builds on `gpui-pre`, which needs Rust 1.95 against the
-workspace's 1.90. `ci.ps1` lints it on its own with `cargo +1.95.0`; the
-workflow does not build it at all.
+The toolchain is pinned at 1.95, which `gpui-pre` and guinea need, and every
+library crate but `amethystate-gpui` and `amethystate-guinea` declares
+`rust-version = "1.90"`. That floor is checked rather than trusted: `ci.ps1`
+and the `msrv` job build the workspace without those two on `cargo +1.90.0`. The GitHub workflow lints gpui in a job of
+its own, since it needs system libraries the other jobs do not install, and
+leaves it out of the test runs.
 
 `sqlite` compiles SQLite in from source, so building it needs a C toolchain.
 
@@ -171,7 +173,7 @@ name the old one.
 
 The grammar itself - the marks, the regions, `//@hide` / `//@unhide` for lines
 a block runs but does not show - is the
-[`shown`](https://github.com/uniproc-dev/shown) crate's, and so are the errors
+[`shown`](https://github.com/guinea-rs/shown) crate's, and so are the errors
 it names by file and line: a mark or a region left open, a name marked twice, a
 fence on a page never closed.
 

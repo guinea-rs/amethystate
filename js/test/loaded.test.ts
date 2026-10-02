@@ -30,6 +30,14 @@ test("a field the store does not hold is refused by name", async () => {
   expect(() => loaded.field<boolean>(["todos", "hide_done"])).toThrow("todos.hide_done");
 });
 
+test("a field the store does not hold starts from the default it is given", async () => {
+  const loaded = await Loaded.under(stocked(), ["todos"]);
+  const loading = () => loaded.field<boolean>(["todos", "hide_done"], false);
+
+  expect(loading).not.toThrow();
+  expect(loading().get()).toBe(false);
+});
+
 test("disposing what was loaded releases every watch it took", async () => {
   const store = stocked();
   const loaded = await Loaded.under(store, ["todos"]);

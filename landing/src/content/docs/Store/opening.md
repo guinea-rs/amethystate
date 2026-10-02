@@ -39,8 +39,11 @@ let state = NetworkState::new()?;
 <!-- /shown -->
 
 `NetworkState::new()` is `new_with` with the global store filled in, so a
-struct declared anywhere can build itself with nothing passed to it. The store
-itself is reachable too:
+struct declared anywhere can build itself with nothing passed to it. A struct
+declared with `open = manual` has no `new()`, so that a program moving off the
+global store has the compiler find every call that still reaches for it - see
+[Opening a struct your own way](/amethystate/state/opening-structs/).
+The store itself is reachable too:
 
 <!-- shown: reaching the global store from anywhere -->
 ```rust
@@ -295,7 +298,7 @@ and the struct that cared is the one that decides.
 
 Left alone, a value that will not decode refuses the open, and a field whose key
 was removed goes on reporting what it last held. Which is which, and why:
-[Defining structs](/amethystate/state/defining-structs/).
+[When a value will not read](/amethystate/state/unreadable-values/).
 
 ## What to do when the file itself will not read
 
@@ -323,9 +326,12 @@ of what would not read is not a recovery. It is said at `warn` before anything
 is removed, and nothing is undone afterwards. That is a trade for a store whose
 contents can be rebuilt: a cache, an index, anything derived.
 
-Neither answer is about a directory that cannot be created or a file something
-else holds. Those are refused whatever this says, because starting fresh would
-neither help nor be able to.
+Neither answer is about a directory that cannot be created, a file something
+else holds, or one this process may not read. Nor is it about a SQLite database
+another application marked as its own, or one a newer SQLite wrote. Those are
+refused whatever this says: each is somebody's data that reads fine where it
+belongs, and taking it away would lose it because of where this process
+stands.
 
 ### Or running in memory
 
@@ -378,7 +384,7 @@ let store = StoreBuilder::new(path)
 
 | answer | what the save does |
 | --- | --- |
-| `TryAgainFor(window)` | leaves the file alone and comes round again for as long as the window; past it, behaves as `SetAside` |
+| `TryAgainFor(duration)` | leaves the file alone and comes round again until the duration runs out; past it, behaves as `SetAside` |
 | `SetAside` | moves the file to `<name>.unreadable` and writes at once |
 | `Refuse` | writes nothing, for as long as the file stays broken |
 | `Overwrite` | writes the document whole, and what was in the file is gone |
@@ -387,7 +393,7 @@ let store = StoreBuilder::new(path)
 not read is usually an editor mid-keystroke and is a document again a moment
 later. Nothing is decided while it might still fix itself: the save is refused,
 the debouncer retries at its own interval, and what the store holds waits in
-memory. The window is measured from the first save that met the broken file
+memory. The duration is counted from the first save that met the broken file
 rather than from each attempt, and it starts over once the file parses again.
 
 Which answer is right depends on whose the file is. A settings file somebody
@@ -399,7 +405,8 @@ half-finished edit.
 `SetAside` is the middle: nothing is lost and the application keeps running,
 since what was typed is still on disk under `<name>.unreadable`. A second one
 replaces the first - two copies of a file that will not read are worth no more
-than one.
+than one. Behind a link it is the file the link points at that moves, and the
+link stays where it was.
 
 A save that writes nothing reports it the way any failed flush does, so
 `save_now` hands it back and a drop puts it in the log.
@@ -416,7 +423,7 @@ A store is finished one of two ways, and the difference is only this.
 `.migrations()` nor the ones written with `#[migrate]`. What the declarations
 look like is still written down, and drift is still reported.
 
-`migrate` opens it and runs them all, then hands back what the pass did
+`migrate` opens it and runs them all, then hands back a report of what it did
 alongside the store. A step that fails refuses the open with
 `OpenStore::Migrating`, which carries the same report - a store opened over
 data that did not come up to date would hand the code old data.
@@ -487,11 +494,6 @@ written whole by whichever store writes it last. Neither is a migration: two
 stores opening at once, both with steps to run, copy to the same `.bak`, and one
 of them is refused. Give the file to one process at a time, and close the store
 before another takes it.
-
-A field goes on answering `get` from memory, so a screen drawn from the last
-values keeps drawing them. [`try_get`](/amethystate/concepts/errors/) is where
-that shows: it reports that the store was closed and what the field holds is the
-last thing it was told.
 
 **The global store closes the same way.** Dropping the guard closes it, and a
 failure there goes to `tracing::error!` under the `amethystate` target - nowhere

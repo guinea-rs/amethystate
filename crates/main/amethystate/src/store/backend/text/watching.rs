@@ -162,7 +162,7 @@ pub(super) fn take_outside_edit<D: TextDocument>(
         match look(file, writes, persisted, settled) {
             Taken::Applied(events) => {
                 for event in events {
-                    if let Err(refused) = utils::emit_events(subscriptions, event) {
+                    if let Err(refused) = utils::emit_found_events(subscriptions, event) {
                         warn!(
                             file = %file.path.display(),
                             "an outside edit was taken and somebody could not read it back, and \
@@ -245,10 +245,23 @@ impl Coalescing {
     /// in between reads the old file as an edit and puts back what the pass took
     /// out. An event that arrives before this waits for it rather than being
     /// lost, and what it looks at afterwards is the file the open wrote.
+    ///
+    /// A debounced save is the same look from the other side: laying the file
+    /// under the document puts the old file back over the pass. One that comes
+    /// due before this is passed over, and the open schedules another once it
+    /// has called this.
     pub(super) fn opened(&self) {
         let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
         waiting.opened = true;
         self.woken.notify_all();
+    }
+
+    /// Whether [`Coalescing::opened`] has been called.
+    pub(super) fn has_opened(&self) -> bool {
+        self.waiting
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .opened
     }
 
     /// Ends the wait in progress and refuses the ones after it.

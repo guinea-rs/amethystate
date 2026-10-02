@@ -1,0 +1,64 @@
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directories:
+      - /
+      - /examples/dioxus
+      - /examples/egui
+      - /examples/gpui
+      - /examples/iced
+      - /examples/ratatui
+      - /examples/slint
+      - /examples/tauri-leptos
+      - /examples/tauri-typescript/src-tauri
+      - /examples/tauri-yew
+      - /examples/web-dioxus
+      - /examples/web-leptos
+      - /examples/web-yew
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "guinea*"
+      - dependency-name: "amethystate*"
+      - dependency-name: "ogurpchik*"
+      - dependency-name: "uniproc-protocol"
+      - dependency-name: "uniproc-agent-kit"
+      - dependency-name: "guicons*"
+      - dependency-name: "shown"
+      - dependency-name: "windows-reactor*"
+      - dependency-name: "windows-canvas*"
+      - dependency-name: "notify"
+    groups:
+      cargo:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directories:
+      - /js
+      - /landing
+      - /examples/tauri-typescript
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    groups:
+      actions:
+        patterns: ["*"]

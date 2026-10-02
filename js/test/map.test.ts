@@ -47,6 +47,39 @@ test("a refused update puts the old value back", async () => {
   expect(map.get("3")).toBe("milk");
 });
 
+test("a refused write does not take back a later one the store kept", async () => {
+  const store = new FakeStore();
+  const { map } = watched(store, [["k", "x"]]);
+  store.hold = true;
+
+  const first = map.insert("k", "a");
+  const second = map.insert("k", "b");
+  store.deny(0);
+  store.grant(1);
+
+  await expect(first).rejects.toThrow("refused");
+  await second;
+  expect(store.values.get("todos.items.k")).toBe("b");
+  expect(map.get("k")).toBe("b");
+});
+
+test("a write made elsewhere before this map's own lands gives way to it", async () => {
+  const store = new FakeStore();
+  const { map } = watched(store, [["k", "x"]]);
+  store.hold = true;
+
+  const mine = map.insert("k", "mine");
+  store.write([...at, "k"], "theirs");
+  store.grant(1);
+  await new Promise((go) => setTimeout(go));
+  expect(store.values.get("todos.items.k")).toBe("theirs");
+  store.grant(0);
+
+  await mine;
+  expect(store.values.get("todos.items.k")).toBe("mine");
+  expect(map.get("k")).toBe("mine");
+});
+
 test("updating a key the map does not have is refused without touching it", async () => {
   const store = new FakeStore();
   const { map, seen } = watched(store);

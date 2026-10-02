@@ -35,6 +35,10 @@ pub use crate::store::{OnDelete, OnUnreadable};
 
 /// A struct that can be loaded whole, and where anything is stored.
 pub use crate::store::AmeStateSlice;
+
+/// Opening a struct over a store, and what an opening written by hand starts
+/// from.
+pub use crate::store::{Open, OpenStruct, Schema};
 pub use amethystate_core::path::StorePath;
 
 /// What comes back when something goes wrong, and what carries it.

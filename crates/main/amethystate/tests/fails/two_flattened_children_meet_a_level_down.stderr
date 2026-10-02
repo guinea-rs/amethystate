@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: `layout` and `sizes` are both flattened into `Ui`, and fields of the two land on one place, or one inside the other. Flattened, each stores its fields at this level, so the two would write over each other
+  --> tests/fails/two_flattened_children_meet_a_level_down.rs:21:1
+   |
+21 | #[amethystate(prefix = "ui")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `<Ui_Data as amethystate::migration::fields::AmeStateFields>::FIELDS::_` failed here

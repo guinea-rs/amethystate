@@ -31,9 +31,9 @@ use crate::store::meta::SchemaSnapshot;
 use crate::store::places::Places;
 use crate::store::traits::StoreLayout;
 use crate::store::{
-    CheckContext, Fallbacks, Flush, FlushResult, InitState, ReadResult, ScanKeys, ScanResult,
+    Fallbacks, Flush, FlushResult, InitState, ReadResult, RuleContext, ScanKeys, ScanResult,
     StorageError, StorageResult, StoreBackend, StoreCallback, StoreExt, StoreSubscription,
-    SubscriptionId, WriteValue, to_path,
+    SubscriptionId, WriteValue, Writer, to_path,
 };
 use amethystate_core::path::{IntoStorePath, PathRef, StorePath};
 use error_stack::Report;
@@ -62,7 +62,7 @@ use std::sync::Arc;
 pub struct Store {
     backend: Arc<dyn StoreBackend>,
     places: Arc<Places>,
-    context: Arc<CheckContext>,
+    context: Arc<RuleContext>,
     fallbacks: Fallbacks,
 }
 
@@ -75,7 +75,7 @@ impl Store {
         Self {
             backend: inner,
             places: Arc::new(Places::default()),
-            context: Arc::new(CheckContext::default()),
+            context: Arc::new(RuleContext::default()),
             fallbacks: Fallbacks::default(),
         }
     }
@@ -91,16 +91,16 @@ impl Store {
         self
     }
 
-    /// What the application handed this store for its declared checks, put
+    /// What the application handed this store for its declared rules, put
     /// there by [`StoreBuilder::context`](crate::StoreBuilder::context).
     ///
-    /// A store opened any other way carries an empty one, and a check asking
+    /// A store opened any other way carries an empty one, and a rule asking
     /// it for something is refused with what was on offer.
-    pub fn context(&self) -> &CheckContext {
+    pub fn context(&self) -> &RuleContext {
         &self.context
     }
 
-    pub(crate) fn with_context(mut self, context: Arc<CheckContext>) -> Self {
+    pub(crate) fn with_context(mut self, context: Arc<RuleContext>) -> Self {
         self.context = context;
         self
     }
@@ -362,17 +362,17 @@ impl StoreBackend for Store {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.backend.set_erased(path, value, source)
+        self.backend.set_erased(path, value, by)
     }
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.backend.set_owned_erased(path, value, source)
+        self.backend.set_owned_erased(path, value, by)
     }
     fn get_erased(
         &self,

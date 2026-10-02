@@ -120,7 +120,7 @@ fn migrate_proxy_config_v1_to_v2(
 }
 ```
 
-The `ctx` is scoped to the node's prefix — `ctx.delete("routes.api")` deletes `network.routes.api`, and `ctx.delete_prefix("routes")` takes the level and everything under it in one call. See [Manual Migrations](/amethystate/migrations/manual/) for the full context API.
+The `ctx` is scoped to the line's prefix — `ctx.delete("routes.api")` deletes `network.routes.api`, and `ctx.delete_prefix("routes")` takes the level and everything under it in one call. See [Manual Migrations](/amethystate/migrations/manual/) for the full context API.
 
 ## Multi-step paths
 

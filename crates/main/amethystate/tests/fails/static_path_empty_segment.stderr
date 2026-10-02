@@ -10,7 +10,12 @@ note: inside `StorePath::from_static`
   |         check_static(segments, joined);
   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: inside `amethystate_core::path::check_static`
- --> $WORKSPACE/crates/core/amethystate-core/src/path.rs
+ --> $RUST/core/src/panic.rs
+  |
+  |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
+  |
+ ::: $WORKSPACE/crates/core/amethystate-core/src/path.rs
   |
   |         panic!("a path segment cannot be empty");
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
+  |         ---------------------------------------- in this macro invocation

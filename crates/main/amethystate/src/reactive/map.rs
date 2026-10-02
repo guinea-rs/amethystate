@@ -22,6 +22,7 @@ pub(crate) struct MapInner<K, V> {
     pub(crate) store: Store,
     pub(crate) store_sub: Arc<StoreSubscription>,
     pub(crate) unreadable: Arc<parking_lot::Mutex<Vec<StorePath>>>,
+    pub(crate) streams: Arc<crate::reactive::watch::Streams>,
 }
 
 /// A keyed collection in the store, with subscriptions per key.
@@ -78,7 +79,7 @@ where
     ///
     /// Provenance travels with the id, so a subscription can tell its own
     /// writes from someone else's. [`Clone`] keeps the id instead; the book
-    /// covers the pair in [clone and fork](https://uniproc-dev.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
+    /// covers the pair in [clone and fork](https://guinea-rs.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
     pub fn fork(&self) -> Self {
         self.fork_with_id(Uuid::new_v4())
     }
@@ -123,6 +124,7 @@ where
                 store: self.inner.store.clone(),
                 store_sub: self.inner.store_sub.clone(),
                 unreadable: self.inner.unreadable.clone(),
+                streams: self.inner.streams.clone(),
             }),
         }
     }
@@ -419,6 +421,10 @@ where
                 callback(change, change.source())
             })
     }
+
+    fn streams(&self) -> Option<&crate::reactive::watch::Streams> {
+        Some(&self.map.inner.streams)
+    }
 }
 
 impl<K, V> Watchable for ReactiveMap<K, V>
@@ -444,6 +450,10 @@ where
         self.inner
             .core
             .subscribe_any(move |change| callback(change, change.source()))
+    }
+
+    fn streams(&self) -> Option<&crate::reactive::watch::Streams> {
+        Some(&self.inner.streams)
     }
 }
 
@@ -491,6 +501,46 @@ where
                 at: self.inner.path.entry(key.as_ref()),
             })
         }
+    }
+
+    /// Writes what `f` makes of the key's value, or of its absence, and yields
+    /// it.
+    ///
+    /// The key is borrowed: an owned one is made from it only when the entry
+    /// is new. Subscribers see [`MapChange::Insert`] for a new key and
+    /// [`MapChange::Update`] for one that was there, as with
+    /// [`ReactiveMap::insert`].
+    ///
+    /// The read and the write are two steps, as in
+    /// [`ReactiveMap::update_with`]: a write from another thread between them
+    /// is written over.
+    ///
+    /// ```
+    /// # use amethystate::StoreBuilder;
+    /// # let path = amethystate_core::test_utils::TempPath::new("doc");
+    /// # let store = StoreBuilder::new(&*path).build().unwrap();
+    /// let hits = store.kv().map::<String, u64>("hits").unwrap();
+    ///
+    /// hits.upsert("home", |seen| seen.map_or(1, |count| count + 1)).unwrap();
+    /// let now = hits.upsert("home", |seen| seen.map_or(1, |count| count + 1)).unwrap();
+    ///
+    /// assert_eq!(now, 2);
+    /// ```
+    pub fn upsert<Q, F>(&self, key: &Q, f: F) -> ReactiveMapResult<V>
+    where
+        K: Borrow<Q>,
+        Q: AsRef<str> + ToOwned<Owned = K> + ?Sized,
+        F: FnOnce(Option<&V>) -> V,
+    {
+        let held = self.get(key);
+        let value = f(held.as_ref());
+        let owned = match self.inner.core.cache.owned_key(key.as_ref()) {
+            Some(owned) => owned,
+            None => key.to_owned(),
+        };
+
+        self.insert(owned, &value)?;
+        Ok(value)
     }
 
     /// The same writes, each returning only once the change is on disk.
@@ -822,6 +872,38 @@ where
         F: FnOnce(V) -> V,
     {
         let value = self.0.update_with(key, f)?;
+        self.commit_async().await?;
+        Ok(value)
+    }
+
+    /// Writes what `f` makes of the key's value, or of its absence, and yields
+    /// it.
+    ///
+    /// Returns only once the change is on disk rather than buffered.
+    pub fn upsert<Q, F>(&self, key: &Q, f: F) -> ReactiveMapResult<V>
+    where
+        K: Borrow<Q>,
+        Q: AsRef<str> + ToOwned<Owned = K> + ?Sized,
+        F: FnOnce(Option<&V>) -> V,
+    {
+        let value = self.0.upsert(key, f)?;
+        self.commit()?;
+        Ok(value)
+    }
+
+    /// Writes what `f` makes of the key's value, or of its absence, and yields
+    /// it.
+    ///
+    /// Resolves once the change is on disk rather than buffered.
+    /// Like every future, this does nothing until awaited - the write
+    /// included. See [`Durable::set_async`].
+    pub async fn upsert_async<Q, F>(&self, key: &Q, f: F) -> ReactiveMapResult<V>
+    where
+        K: Borrow<Q>,
+        Q: AsRef<str> + ToOwned<Owned = K> + ?Sized,
+        F: FnOnce(Option<&V>) -> V,
+    {
+        let value = self.0.upsert(key, f)?;
         self.commit_async().await?;
         Ok(value)
     }

@@ -86,7 +86,7 @@ a fresh one, so two racing writes are ordered once and everyone sees the same
 order. An edit that arrives from the file rather than from a caller comes back
 along the very same edge.
 
-`Durable` is not a component of its own — it is what any of the four handles
+`Durable` is not a box of its own — it is what any of the four handles
 gets from `.durable()`. Both of its edges point both ways, and that is the whole
 of what it does: it tells the debouncer not to wait its window out, and it blocks
 until the commit answers. The answer comes back the same way, to the handle that
@@ -152,7 +152,7 @@ a declared value — goes in a plane of whole keys beside the tree, one level
 named by the whole path. A map's entries nest; a key nobody declared does not.
 
 The three text engines share one traversal and one diff. What differs between
-them is only what a single node can hold, which is the format's business and
+them is only what a single level of the tree can hold, which is the format's business and
 shows up as the limits each one has.
 
 ## A write goes down and comes back up
@@ -182,10 +182,11 @@ not how long it keeps trying — it keeps trying until it lands or the store is
 dropped. Outliving the budget reports once, hands back every path written since
 the last flush that landed, and asks what writers should be told from then on.
 
-Closing writes down whatever was still held. A write that cannot wait asks for
-the disk directly — and what that buys differs by family: on a text engine one
-commit covers the whole store, so everything buffered becomes durable with it;
-on redb and SQLite it covers that write.
+Closing writes down whatever was still held. A write that cannot wait goes into
+the same buffer, then asks for a flush of its own path and waits for it to land
+— and what that buys differs by family: on a text engine one commit covers the
+whole store, so everything buffered becomes durable with it; on redb and SQLite
+it covers what is buffered at that path and below it.
 
 ## The disk, and the second writer
 
@@ -223,8 +224,8 @@ and must not be read as one.
 
 A pass starts at a prefix and opens one transaction covering it and everything
 it reaches. Failure rolls that back and leaves the rest of the store alone, so
-one prefix's bad step is something the report can name rather than something
-that stops the open.
+one prefix's bad step does not stop the passes after it, and the report names
+it. The open is still refused, with that report.
 
 Nothing declares an order. A step that reads across into another prefix brings
 that prefix up to date first, inside the same transaction — so the order is the

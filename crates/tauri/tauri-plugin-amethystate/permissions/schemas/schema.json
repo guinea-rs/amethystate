@@ -403,10 +403,22 @@
           "markdownDescription": "Denies the amethystate_unsubscribe command without any pre-configured scope."
         },
         {
-          "description": "Allows access to the default amethystate commands\n#### This default permission set includes:\n\n- `allow-amethystate-get`\n- `allow-amethystate-set`\n- `allow-amethystate-delete`\n- `allow-amethystate-delete-prefix`\n- `allow-amethystate-scan-keys`\n- `allow-amethystate-subscribe`\n- `allow-amethystate-unsubscribe`\n- `allow-amethystate-get-prefix`\n- `allow-amethystate-flush`",
+          "description": "Reads and writes the fields and maps the exported structs declare\n#### This default permission set includes:\n\n- `read`\n- `write`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allows access to the default amethystate commands\n#### This default permission set includes:\n\n- `allow-amethystate-get`\n- `allow-amethystate-set`\n- `allow-amethystate-delete`\n- `allow-amethystate-delete-prefix`\n- `allow-amethystate-scan-keys`\n- `allow-amethystate-subscribe`\n- `allow-amethystate-unsubscribe`\n- `allow-amethystate-get-prefix`\n- `allow-amethystate-flush`"
+          "markdownDescription": "Reads and writes the fields and maps the exported structs declare\n#### This default permission set includes:\n\n- `read`\n- `write`"
+        },
+        {
+          "description": "Reads the fields and maps the exported structs declare, and hears them change\n#### This permission set includes:\n\n- `allow-amethystate-get`\n- `allow-amethystate-get-prefix`\n- `allow-amethystate-scan-keys`\n- `allow-amethystate-subscribe`\n- `allow-amethystate-unsubscribe`",
+          "type": "string",
+          "const": "read",
+          "markdownDescription": "Reads the fields and maps the exported structs declare, and hears them change\n#### This permission set includes:\n\n- `allow-amethystate-get`\n- `allow-amethystate-get-prefix`\n- `allow-amethystate-scan-keys`\n- `allow-amethystate-subscribe`\n- `allow-amethystate-unsubscribe`"
+        },
+        {
+          "description": "Writes and removes the values and map entries the exported structs declare, and saves them\n#### This permission set includes:\n\n- `allow-amethystate-set`\n- `allow-amethystate-delete`\n- `allow-amethystate-delete-prefix`\n- `allow-amethystate-flush`",
+          "type": "string",
+          "const": "write",
+          "markdownDescription": "Writes and removes the values and map entries the exported structs declare, and saves them\n#### This permission set includes:\n\n- `allow-amethystate-set`\n- `allow-amethystate-delete`\n- `allow-amethystate-delete-prefix`\n- `allow-amethystate-flush`"
         }
       ]
     }

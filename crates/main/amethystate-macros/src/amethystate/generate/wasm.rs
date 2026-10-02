@@ -22,7 +22,7 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
             .unwrap_or_default(),
     );
 
-    let backend_ty = quote! { ::amethystate::tauri::TauriBackend };
+    let backend_ty = quote! { #crate_name::tauri::TauriBackend };
     let path_ty = quote! { #crate_name::store::StorePath };
     let raw_ty = quote! { <#backend_ty as #crate_name::client::AmeBackendAsync>::Raw };
 
@@ -83,9 +83,14 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
             };
 
             match &field.shape {
-                Shape::Node { .. } => {
+                Shape::Node { flattened } => {
                     let nested_type = get_type_ident(ty);
-                    quote! { #fname: #nested_type::new_with_id(&at.join(&#key), initial, store, instance_id) }
+                    let under = if *flattened {
+                        quote! { at.clone() }
+                    } else {
+                        quote! { at.join(&#key) }
+                    };
+                    quote! { #fname: #nested_type::new_with_id(&#under, initial, store, instance_id) }
                 }
                 Shape::Stored { default, .. } => match crate::amethystate::model::written_map(ty) {
                     Some((key_ty, value_ty)) => quote! {
@@ -111,7 +116,9 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
                     },
                     None => read(super::seed_tokens(default)),
                 },
-                Shape::Volatile { default } => read(quote! { #default }),
+                Shape::Volatile { default } => quote! {
+                    #fname: #crate_name::client::Field::new_volatile_with_id(at.join(&#key), #default, instance_id)
+                },
             }
         })
         .collect();
@@ -177,11 +184,21 @@ pub(crate) fn generate(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
         quote! { #fname: self.#fname.fork_with_id(new_id) }
     });
 
+    let named = name.to_string();
+
     quote! {
-        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[derive(Clone, Eq, PartialEq)]
         #(#attrs)* #vis struct #name {
             __amethystate_instance_id: #crate_name::uuid::Uuid,
             #(#struct_fields,)*
+        }
+
+        impl ::core::fmt::Debug for #name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.debug_struct(#named)
+                    .field("instance_id", &self.__amethystate_instance_id)
+                    .finish_non_exhaustive()
+            }
         }
 
         #load_impl

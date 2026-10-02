@@ -1,0 +1,48 @@
+error[E0599]: no function or associated item named `new` found for struct `Agent` in the current scope
+  --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:29:20
+   |
+ 4 | #[amethystate(prefix = "agent", open = manual)]
+   | ----------------------------------------------- function or associated item `new` not found for this struct
+...
+29 |     let _ = Agent::new();
+   |                    ^^^ function or associated item not found in `Agent`
+   |
+note: if you're trying to build a new `Agent` consider using one of the following associated functions:
+      Agent::new_with
+      Agent::new_with_id
+      Agent::new_with_id_under
+  --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:4:1
+   |
+ 4 | #[amethystate(prefix = "agent", open = manual)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `new`, perhaps you need to implement one of them:
+           candidate #1: `ahash::HashMapExt`
+           candidate #2: `ahash::HashSetExt`
+           candidate #3: `archery::shared_pointer::kind::SharedPointerKind`
+           candidate #4: `notify::Watcher`
+           candidate #5: `parking_lot_core::thread_parker::ThreadParkerT`
+           candidate #6: `rand::distr::uniform::UniformSampler`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no function or associated item named `load` found for struct `KeptAgent` in the current scope
+  --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:30:24
+   |
+16 | #[amethystate(prefix = "kept_agent", mode = "persistent", open = manual)]
+   | ------------------------------------------------------------------------- function or associated item `load` not found for this struct
+...
+30 |     let _ = KeptAgent::load();
+   |                        ^^^^ function or associated item not found in `KeptAgent`
+   |
+note: if you're trying to build a new `KeptAgent`, consider using `KeptAgent::load_with` which returns `Result<KeptAgent, OpenStruct>`
+  --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:16:1
+   |
+16 | #[amethystate(prefix = "kept_agent", mode = "persistent", open = manual)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `load`, perhaps you need to implement one of them:
+           candidate #1: `arc_swap::access::Access`
+           candidate #2: `arc_swap::access::DynAccess`
+           candidate #3: `arc_swap::cache::Access`
+           candidate #4: `arc_swap::strategy::sealed::InnerStrategy`
+   = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -6,8 +6,8 @@ use crate::migration::{
     AppliedStep, ComponentOutcome, ComponentResult, NaggingRecord, NotMigrated, SchemaDiff,
 };
 use crate::schema::Lineage;
-use crate::store::MigrationBackendAdapter;
 use crate::store::moved::{self, Moved, Verdict};
+use crate::store::{MigrationBackendAdapter, OnUndeclared};
 use crate::store::{StorageError, StorageResult};
 use crate::{MigrationContext, MigrationError, MigrationPlan, MigrationReport};
 use amethystate_core::path::StorePath;
@@ -103,6 +103,9 @@ struct Pass<'a, P: StorageProvider> {
     /// Lines an earlier pass already committed.
     settled: &'a HashSet<Lineage>,
 
+    /// Lines an earlier pass rolled back, which stand where they stood.
+    failed: &'a HashSet<Lineage>,
+
     covered: RefCell<Vec<Lineage>>,
     running: RefCell<Vec<Lineage>>,
     steps: RefCell<Vec<AppliedStep>>,
@@ -114,11 +117,13 @@ impl<'a, P: StorageProvider> Pass<'a, P> {
         engine: &'a MigrationEngine<'a, P>,
         mset: &'a MigrationSet,
         settled: &'a HashSet<Lineage>,
+        failed: &'a HashSet<Lineage>,
     ) -> Self {
         Self {
             engine,
             mset,
             settled,
+            failed,
             covered: RefCell::new(Vec::new()),
             running: RefCell::new(Vec::new()),
             steps: RefCell::new(Vec::new()),
@@ -184,6 +189,13 @@ impl<'a, P: StorageProvider> Pass<'a, P> {
             return Err(
                 Report::new(MigrationError::Cycle(chain)).change_context(StorageError::Migrate)
             );
+        }
+
+        if self.failed.contains(lineage) {
+            return Err(Report::new(MigrationError::ReachedAFailure {
+                prefix: lineage.to_string(),
+            })
+            .change_context(StorageError::Migrate));
         }
 
         if self.settled.contains(lineage) || self.covered.borrow().iter().any(|at| at == lineage) {
@@ -331,6 +343,86 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
         })
     }
 
+    /// Deletes the keys under each declared prefix that no declaration of this
+    /// build owns, and records the shape it declares there in place of the
+    /// old one - what [`OnUndeclared::Drop`] asks for.
+    ///
+    /// Run once every pass has committed, so a step has read whatever it
+    /// reaches for - in its own line or another's - before anything goes; after
+    /// a pass that failed it does not run at all. A prefix where a line still
+    /// has not reached the version this build declares is passed over, and so
+    /// is everything under it. The root is never a prefix here: a struct
+    /// declared `as_root` owns its own places, and everything else stored at
+    /// the top belongs to nobody this build declares.
+    ///
+    /// Swept on both sides of the new record, because a document engine lays a
+    /// key out by what the record says, and a key written under the old one is
+    /// found only while the old one stands.
+    fn let_go_of_the_undeclared(&self) -> StorageResult<()> {
+        let owned: Vec<StorePath> = crate::schema::current()
+            .flat_map(|entry| {
+                moved::owned(entry.fields)
+                    .into_iter()
+                    .map(|place| entry.prefix.join(&place.at))
+            })
+            .collect();
+
+        let mut prefixes: Vec<StorePath> = crate::schema::current()
+            .map(|entry| entry.prefix.clone())
+            .filter(|prefix| !prefix.is_root())
+            .collect();
+        prefixes.sort();
+        prefixes.dedup();
+
+        self.provider.atomic(|storage| {
+            let mut due = Vec::new();
+            for prefix in &prefixes {
+                for entry in crate::schema::current_at(prefix) {
+                    let recorded = storage
+                        .get_meta(prefix)?
+                        .and_then(|meta| meta.version_of(entry.id))
+                        .unwrap_or(0);
+                    if recorded != entry.version {
+                        due.push(prefix.clone());
+                    }
+                }
+            }
+
+            let undeclared = |key: &StorePath| {
+                !owned.iter().any(|at| key.starts_with(at))
+                    && !due.iter().any(|at| key.starts_with(at))
+            };
+
+            for prefix in prefixes.iter().filter(|prefix| !due.contains(prefix)) {
+                let sweep = |storage: &mut dyn MigrationBackendAdapter| -> StorageResult<()> {
+                    for (key, _) in storage.scan_prefix(prefix)? {
+                        if undeclared(&key) {
+                            storage.delete(&key)?;
+                        }
+                    }
+                    Ok(())
+                };
+
+                sweep(storage)?;
+
+                let declared: Vec<SchemaSnapshot> = crate::schema::current_at(prefix)
+                    .into_iter()
+                    .map(|entry| SchemaSnapshot {
+                        version: entry.version,
+                        id: entry.id.map(str::to_string),
+                        struct_name: Some(entry.struct_name.to_string()),
+                        fields: entry.fields.iter().map(StoredFieldEntry::from).collect(),
+                    })
+                    .collect();
+                storage.set_schema_snapshots(prefix, &declared)?;
+
+                sweep(storage)?;
+            }
+
+            Ok(())
+        })
+    }
+
     /// Migrates every prefix the code knows about, each with whatever it
     /// reaches into.
     ///
@@ -390,13 +482,14 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
 
         let mut report = MigrationReport::default();
         let mut done: HashSet<Lineage> = HashSet::new();
+        let mut failed: HashSet<Lineage> = HashSet::new();
 
         for lineage in mset.known_lineages() {
-            if done.contains(&lineage) {
+            if done.contains(&lineage) || failed.contains(&lineage) {
                 continue;
             }
 
-            let pass = Pass::new(self, &mset, &done);
+            let pass = Pass::new(self, &mset, &done, &failed);
 
             let outcome_res = self.provider.atomic(|storage| {
                 if pass.version_is_lost(storage, &lineage.prefix)? {
@@ -425,7 +518,10 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
             });
 
             let covered = pass.covered();
-            done.extend(covered.iter().cloned());
+            match &outcome_res {
+                Ok(_) => done.extend(covered.iter().cloned()),
+                Err(_) => failed.extend(covered.iter().cloned()),
+            }
 
             let mut named: Vec<StorePath> = covered.iter().map(|one| one.prefix.clone()).collect();
             if named.is_empty() {
@@ -448,6 +544,10 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
                     });
                 }
             }
+        }
+
+        if mset.on_undeclared() == OnUndeclared::Drop && failed.is_empty() {
+            self.let_go_of_the_undeclared()?;
         }
 
         report
@@ -492,10 +592,14 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
     /// where `migrate` was meant - and telling that reader to raise
     /// a version and write a step names the wrong thing; the step is written.
     ///
+    /// The version is looked at first. A line with no steps here may have had
+    /// them in a newer release, and a record past what this build declares is
+    /// refused as a downgrade, as it is where steps run.
+    ///
     /// One transaction for all of it, and a prefix that fails is a `Failed`
     /// component rather than the end of the pass. This is a comparison that
-    /// changes nothing, and it should not be able to stop a store opening or
-    /// throw away what the prefixes before it found.
+    /// changes nothing, and it should not throw away what the prefixes before
+    /// it found.
     pub(crate) fn drift_where_no_step_runs(
         &self,
         mset: &MigrationSet,
@@ -503,13 +607,13 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
         let with_steps = mset.known_lineages();
         let compiled = crate::migration::registry::compiled_steps();
 
-        let mut to_look: Vec<(Lineage, &'static [FieldDescriptor])> = Vec::new();
+        let mut to_look: Vec<(Lineage, u32, &'static [FieldDescriptor])> = Vec::new();
 
         for entry in crate::schema::declarations() {
             let lineage = entry.lineage();
 
             if with_steps.contains(&lineage)
-                || to_look.iter().any(|(looked, _)| *looked == lineage)
+                || to_look.iter().any(|(looked, _, _)| *looked == lineage)
                 || compiled
                     .iter()
                     .any(|step| step.prefix.path() == lineage.prefix && step.id == lineage.id())
@@ -517,8 +621,8 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
                 continue;
             }
 
-            let (_, declared) = mset.get_target(&lineage);
-            to_look.push((lineage, declared));
+            let (version, declared) = mset.get_target(&lineage);
+            to_look.push((lineage, version, declared));
         }
 
         if to_look.is_empty() {
@@ -528,8 +632,12 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
         self.provider.atomic(|storage| {
             let mut found = Vec::new();
 
-            for (lineage, declared) in &to_look {
-                match self.drift_at(storage, lineage, declared) {
+            for (lineage, version, declared) in &to_look {
+                let looked = self
+                    .refuse_a_newer_record(storage, lineage, *version)
+                    .and_then(|()| self.drift_at(storage, lineage, declared));
+
+                match looked {
                     Ok(None) => {}
                     Ok(Some(record)) => found.push(ComponentResult {
                         prefixes: vec![lineage.prefix.clone()],
@@ -546,6 +654,60 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
 
             Ok(found)
         })
+    }
+
+    /// Drops the records of a line whose steps have taken it to its version
+    /// and which declares nothing there.
+    ///
+    /// That is a section being retired: the steps say what becomes of every
+    /// place the old declarations held, and there is no shape left to record.
+    /// Its own record goes whatever version it stands at, since no declaration
+    /// arrived in its place, and the records nothing standing answers for go
+    /// as they do after any run of steps.
+    fn retire_a_line_that_declares_nothing(
+        &self,
+        storage: &mut dyn MigrationBackendAdapter,
+        lineage: &Lineage,
+        arrived_at: u32,
+    ) -> StorageResult<()> {
+        let mut recorded = storage.get_schema_snapshots(&lineage.prefix)?;
+        let before = recorded.len();
+
+        recorded.retain(|was| was.id.as_deref() != lineage.id());
+        retire_what_the_steps_answered_for(&mut recorded, lineage, arrived_at);
+
+        match recorded.len() == before {
+            true => Ok(()),
+            false => storage.set_schema_snapshots(&lineage.prefix, &recorded),
+        }
+    }
+
+    /// Refuses a line no step will touch where the store records it past the
+    /// version this build declares.
+    ///
+    /// A release that had steps for the line wrote that version, and its steps
+    /// may have changed what the keys mean without changing where they are.
+    /// This build reads them by the meaning it declares, and its writes would
+    /// go back in that meaning under a record that says the newer one.
+    fn refuse_a_newer_record(
+        &self,
+        storage: &mut dyn MigrationBackendAdapter,
+        lineage: &Lineage,
+        declared: u32,
+    ) -> StorageResult<()> {
+        let recorded = storage
+            .get_meta(&lineage.prefix)?
+            .and_then(|meta| meta.version_of(lineage.id()));
+
+        match recorded {
+            Some(recorded) if recorded > declared => Err(Report::new(MigrationError::Downgrade {
+                prefix: lineage.to_string(),
+                db_version: recorded,
+                code_version: declared,
+            })
+            .change_context(StorageError::Migrate)),
+            _ => Ok(()),
+        }
     }
 
     /// What the places of `lineage` say, for a line no step will touch.
@@ -725,6 +887,7 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
         };
 
         let mut nagging = Vec::new();
+        let declares_nothing = target_fields.is_empty();
 
         if target_v < version {
             return Err(Report::new(MigrationError::Downgrade {
@@ -733,6 +896,10 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
                 code_version: target_v,
             })
             .change_context(StorageError::Migrate));
+        }
+
+        if target_v == version && declares_nothing {
+            self.retire_a_line_that_declares_nothing(storage, lineage, target_v)?;
         }
 
         if target_v == version {
@@ -773,7 +940,11 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
 
         let may_record = nagging.is_empty() || !applied_steps.is_empty();
 
-        if version == target_v && !target_fields.is_empty() && may_record {
+        if version == target_v && declares_nothing && !applied_steps.is_empty() {
+            self.retire_a_line_that_declares_nothing(storage, lineage, target_v)?;
+        }
+
+        if version == target_v && !declares_nothing && may_record {
             let holds = SchemaSnapshot {
                 version: target_v,
                 id: lineage.id.clone(),
@@ -879,6 +1050,19 @@ impl<'a, P: StorageProvider> MigrationEngine<'a, P> {
 
             *version = sv;
             new_steps.push(applied);
+        }
+
+        if *version < target_v {
+            return Err(Report::new(MigrationError::Gap {
+                prefix: lineage.to_string(),
+                reached_version: *version,
+                expected_version: *version + 1,
+            })
+            .change_context(StorageError::Migrate)
+            .attach(format!(
+                "the line declares v{target_v} and its last step reaches v{}",
+                *version
+            )));
         }
 
         Ok(new_steps)
@@ -1154,6 +1338,67 @@ mod tests {
                 .get_decoded::<i32>(&StorePath::parse_joined("a.v").unwrap())
                 .unwrap(),
             1
+        );
+    }
+
+    #[test]
+    fn a_step_reaching_into_a_line_that_failed_this_run_fails_with_it() {
+        let storage = RefCell::new(InMemoryStorage::default());
+        let held = encode(storage.borrow().deref(), &5).unwrap();
+        storage
+            .borrow_mut()
+            .data
+            .insert(StorePath::parse_joined("a.timeout").unwrap(), held);
+
+        let mset = MigrationSet::default()
+            .add(
+                p("a"),
+                MigrationPlan::new().step(1, "seconds to milliseconds", |_| {
+                    Err(MigrationError::Custom("the step is wrong".into()).into())
+                }),
+                EMPTY_FIELDS,
+            )
+            .add(
+                p("b"),
+                MigrationPlan::new().step(1, "derived from a", |ctx| {
+                    let timeout = ctx.global_get::<i32>("a.timeout")?.unwrap_or_default();
+                    ctx.set("deadline", &(timeout + 1))
+                }),
+                EMPTY_FIELDS,
+            );
+
+        let report = MigrationEngine::new(&storage).run(mset).unwrap();
+
+        let outcomes: Vec<(String, bool)> = report
+            .components
+            .iter()
+            .map(|component| {
+                (
+                    MigrationReport::named(&component.prefixes),
+                    matches!(component.outcome, ComponentOutcome::Failed { .. }),
+                )
+            })
+            .collect();
+        assert_eq!(
+            outcomes,
+            [("a".to_string(), true), ("b".to_string(), true)],
+            "b read a before a was migrated and was let through"
+        );
+        assert_eq!(
+            storage
+                .borrow()
+                .get_decoded::<i32>(&StorePath::parse_joined("b.deadline").unwrap()),
+            None,
+            "b committed a value worked out from a's unmigrated one"
+        );
+        assert_eq!(
+            storage
+                .borrow()
+                .get_meta(&p("b"))
+                .unwrap()
+                .and_then(|meta| meta.version_of(None)),
+            None,
+            "b was recorded as migrated"
         );
     }
 
@@ -1783,25 +2028,13 @@ mod tests {
 
             report.log_to_tracing();
 
+            insta::assert_snapshot!(report.drift_lines().join("\n"));
+
             #[cfg(not(feature = "diagnostics"))]
-            {
-                assert!(
-                    logs_contain("Schema drift detected in prefix 'app_settings'"),
-                    "the drift was reported and the log did not name the prefix"
-                );
-                assert!(
-                    logs_contain("+ field 'timeout'"),
-                    "the log did not name the place the code added"
-                );
-                assert!(
-                    logs_contain("- field 'host'"),
-                    "the log did not name the place the store still holds"
-                );
-                assert!(
-                    !logs_contain("field 'port'"),
-                    "port kept its place and only changed type, which is not drift"
-                );
-            }
+            assert!(
+                logs_contain("Schema drift detected in prefix 'app_settings'"),
+                "the drift was reported and the log did not carry it"
+            );
 
             #[cfg(feature = "diagnostics")]
             {
@@ -1830,5 +2063,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn drifted_from_a_leaf_to_a_map() -> MigrationReport {
+        let storage = RefCell::new(InMemoryStorage::default());
+        let prefix = &p("processes");
+
+        static AS_A_LEAF: &[FieldDescriptor] = &[FieldDescriptor::leaf(&["seen"], "seen", "u64")];
+        static AS_A_MAP: &[FieldDescriptor] = &[FieldDescriptor {
+            role: crate::migration::fields::Role::Map,
+            ..FieldDescriptor::leaf(&["seen"], "seen", "u64")
+        }];
+
+        let run = |fields| {
+            let mset = MigrationSet::default().add(
+                prefix.clone(),
+                MigrationPlan::new().step(1, "v1", |_| Ok(())),
+                fields,
+            );
+            MigrationEngine::new(&storage).run(mset).unwrap()
+        };
+
+        run(AS_A_LEAF);
+        run(AS_A_MAP)
+    }
+
+    #[test]
+    fn a_place_that_changed_role_is_named_under_its_drift_heading() {
+        let report = drifted_from_a_leaf_to_a_map();
+
+        insta::assert_snapshot!(report.drift_lines().join("\n"));
     }
 }

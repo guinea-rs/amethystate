@@ -3,7 +3,7 @@ use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 use amethystate_test_macros::backends;
 
-#[amethystate(prefix = "network", mode = "both")]
+#[amethystate(prefix = "network", mode = "persistent")]
 pub struct NetworkState {
     #[amestate(default = "localhost".to_string())]
     pub host: String,
@@ -17,9 +17,8 @@ fn persistent_only_load_save_and_mutate(backend: Backend) {
     let path = TempPath::new("persistent-only");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let state = NetworkState::new_with(&store).unwrap();
-    state.host().set("10.0.0.1".to_string()).unwrap();
-    state.port().set(3030).unwrap();
+    store.set(["network", "host"], &"10.0.0.1").unwrap();
+    store.set(["network", "port"], &3030u16).unwrap();
 
     let mut data = NetworkState::load_with(&store).unwrap();
     assert_eq!(data.host, "10.0.0.1");

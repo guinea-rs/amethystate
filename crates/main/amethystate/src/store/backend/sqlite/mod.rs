@@ -18,7 +18,7 @@ use crate::store::screening::Screening;
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
     InitState, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent, StoreOp,
-    SubscriptionEntry, SubscriptionId, SubscriptionKind,
+    SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
 };
 use amethystate_core::path::StorePath;
 use error::SqliteStoreError;
@@ -46,6 +46,28 @@ const FLOOR: i32 = 3_007_000;
 ///
 /// ASCII `AMES`.
 const APPLICATION_ID: i32 = 0x414D_4553;
+
+/// Whether an open failed because the file is not a database SQLite reads, as
+/// against one that is held, forbidden, another application's, or written by
+/// a newer SQLite than this build links.
+///
+/// Only the first is worth starting fresh over. The others are somebody's
+/// data that reads perfectly well where it belongs, and a lock held by another
+/// store is the worst of them: on Linux the file can be removed from under it.
+fn will_not_read(why: &error_stack::Report<StorageError>) -> bool {
+    why.frames()
+        .filter_map(|frame| frame.downcast_ref::<SqliteStoreError>())
+        .any(|failed| {
+            matches!(
+                failed,
+                SqliteStoreError::Sqlite(rusqlite::Error::SqliteFailure(failure, _))
+                    if matches!(
+                        failure.code,
+                        rusqlite::ErrorCode::NotADatabase | rusqlite::ErrorCode::DatabaseCorrupt
+                    )
+            )
+        })
+}
 
 /// Reads the floor from the header and refuses below it, then records ours.
 ///
@@ -249,10 +271,12 @@ impl SqliteStoreInner {
 
     pub fn flush_prefix(&self, prefix: &StorePath) -> StorageResult<()> {
         let _write_guard = self.write_lock.lock();
-        let flush = self.commits.begin();
+        let flush = prefix.is_root().then(|| self.commits.begin());
 
         let flushed = self.flush_locked(prefix);
-        self.commits.settle(flush, &flushed);
+        if let Some(flush) = flush {
+            self.commits.settle(flush, &flushed);
+        }
         flushed
     }
 
@@ -382,16 +406,16 @@ impl SqliteStoreInner {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, source)
+        self.set_owned_erased(path.clone(), value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
         self.check_debouncer()?;
         self.budget
@@ -430,20 +454,21 @@ impl SqliteStoreInner {
             lock.insert(path.clone(), utils::PendingOp::Set(vec.clone()));
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path,
                 op: StoreOp::Set,
                 old: old_bytes,
                 new: Some(vec),
-                source: source.into(),
+                source: by.handle.into(),
                 at: settled,
+                judged: by.judged,
             },
-        )?;
+        );
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn save_now(&self) -> StorageResult<()> {
@@ -563,7 +588,7 @@ impl SqliteStoreInner {
             lock.insert(path.clone(), utils::PendingOp::Delete);
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -572,11 +597,12 @@ impl SqliteStoreInner {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn delete_prefix(&self, prefix: &StorePath, source: Option<uuid::Uuid>) -> StorageResult<()> {
@@ -594,7 +620,7 @@ impl SqliteStoreInner {
             }
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -603,11 +629,12 @@ impl SqliteStoreInner {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn subscribe(&self, kind: SubscriptionKind, callback: StoreCallback) -> SubscriptionId {
@@ -834,7 +861,9 @@ impl SqliteStore {
     ) -> StorageResult<(Self, MigrationReport)> {
         let conn = match Self::connect(&config) {
             Ok(conn) => conn,
-            Err(why) if utils::start_fresh(&config, Backend::Sqlite, &why) => {
+            Err(why)
+                if will_not_read(&why) && utils::start_fresh(&config, Backend::Sqlite, &why) =>
+            {
                 Self::connect(&config)?
             }
             Err(why) => return Err(why),
@@ -963,18 +992,18 @@ impl StoreBackend for SqliteStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_erased(path, value, source)
+        self.inner.set_erased(path, value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_owned_erased(path, value, source)
+        self.inner.set_owned_erased(path, value, by)
     }
 
     #[cfg(feature = "test-utils")]
@@ -1121,6 +1150,29 @@ mod tests {
             let mut stmt = conn.prepare("SELECT 1 FROM data WHERE key = ?").unwrap();
             assert!(stmt.exists([at(["config", "port"]).as_bytes()]).unwrap());
         }
+    }
+
+    #[test]
+    fn a_flush_of_another_prefix_does_not_answer_a_wait_for_the_whole_buffer() {
+        use std::future::Future;
+        use std::task::{Context, Poll};
+
+        let path = TempPath::new("sqlite_partial_answers");
+        let mut config = StoreConfig::new(&path);
+        config.save_debounce = Duration::from_secs(60);
+        let (store, _) = SqliteStore::open(config, MigrationSet::default()).unwrap();
+
+        store.set(["a"], &1u32).unwrap();
+        store.set(["b"], &2u32).unwrap();
+        let mut whole = Commit::awaiting(store.inner.commits.clone());
+        store
+            .inner
+            .flush_prefix(&StorePath::from_segments(["a"]))
+            .unwrap();
+
+        let waker = futures::task::noop_waker();
+        let answered = std::pin::Pin::new(&mut whole).poll(&mut Context::from_waker(&waker));
+        assert!(matches!(answered, Poll::Pending), "{answered:?}");
     }
 
     #[test]

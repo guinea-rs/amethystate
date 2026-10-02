@@ -6,28 +6,66 @@ expression: rust_content
 
 #[::amethystate::amethystate(prefix = "editor", target = "tauri-wasm")]
 pub struct Editor {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"{"title":""}"#).unwrap_or_default())]
     pub pinned: Tab,
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"null"#).unwrap_or_default())]
     pub last_closed: Option < Tab >,
     pub open_tabs: amethystate :: ReactiveMap < String, Tab >,
 }
 
+#[::amethystate::amethystate(prefix = "lined", target = "tauri-wasm")]
+pub struct Lined {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#""""#).unwrap_or_default())]
+    pub address: String,
+}
+
+#[::amethystate::amethystate(prefix = "said \"so\"", target = "tauri-wasm")]
+pub struct Quoted {
+    #[amestate(path = "a \"b\"", default = ::amethystate::serde_json::from_str(r#"0"#).unwrap_or_default())]
+    pub level: u8,
+}
+
 #[::amethystate::amethystate(prefix = "renamed", target = "tauri-wasm")]
 pub struct Renamed {
-    #[amestate(path = "dark-mode")]
+    #[amestate(path = "dark-mode", default = ::amethystate::serde_json::from_str(r#"false"#).unwrap_or_default())]
     pub dark_mode: bool,
-    #[amestate(path = "window.width")]
+    #[amestate(path = "window.width", default = ::amethystate::serde_json::from_str(r#"1"#).unwrap_or_default())]
     pub width: u32,
     #[amestate(nested, flatten)]
     pub inner: TestNested,
 }
 
+#[::amethystate::amethystate(as_root, target = "tauri-wasm")]
+pub struct Rooted {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"0"#).unwrap_or_default())]
+    pub launches: u8,
+}
+
+#[::amethystate::amethystate(prefix = "shapes", target = "tauri-wasm")]
+pub struct Shapes {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"[]"#).unwrap_or_default())]
+    pub gaps: Vec < Option < u8 > >,
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"{}"#).unwrap_or_default())]
+    pub counts: std :: collections :: HashMap < String, u32 >,
+    #[amestate(default = ::amethystate::serde_json::from_str(r#""""#).unwrap_or_default())]
+    pub boxed: Box < String >,
+    #[amestate(default = ::amethystate::serde_json::from_str(r#""\u0000""#).unwrap_or_default())]
+    pub initial: char,
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"[0,""]"#).unwrap_or_default())]
+    pub pair: (u8, String),
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"[0,0,0,0]"#).unwrap_or_default())]
+    pub color: [u8; 4],
+}
+
 #[::amethystate::amethystate(target = "tauri-wasm")]
 pub struct TestNested {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#""nested_val""#).unwrap_or_default())]
     pub name: String,
 }
 
 #[::amethystate::amethystate(prefix = "test_root", target = "tauri-wasm")]
 pub struct TestRoot {
+    #[amestate(default = ::amethystate::serde_json::from_str(r#"42"#).unwrap_or_default())]
     pub value: i32,
     #[amestate(volatile)]
     pub session: String,

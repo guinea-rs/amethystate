@@ -13,7 +13,17 @@ jobs:
   version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify the tagged commit is on master
+        run: |
+          git fetch --no-tags origin master
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on master: a release is cut from what master holds, after its checks passed there"
+            exit 1
+          fi
 
       - name: Verify tag matches workspace version
         run: |
@@ -27,7 +37,7 @@ jobs:
   semver:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -35,7 +45,7 @@ jobs:
             libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
           package: amethystate-macros-core,amethystate-core,amethystate-tauri,amethystate,amethystate-codegen,amethystate-arena,tauri-plugin-amethystate
           feature-group: all-features
@@ -44,7 +54,7 @@ jobs:
     needs: [version, semver]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install system dependencies
         run: |
@@ -54,11 +64,11 @@ jobs:
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       # Publish order follows the internal dependency graph (leaves first).
       # amethystate-dioxus/gpui/leptos/slint/yew are NOT published here - they
@@ -79,7 +89,16 @@ jobs:
             amethystate-arena
             tauri-plugin-amethystate
           )
+          VERSION="${GITHUB_REF_NAME#v}"
           for crate in "${CRATES[@]}"; do
+            # A rerun after a partial failure picks up where the last run
+            # stopped: a version crates.io already holds cannot be published
+            # again, and is the one this tag asked for.
+            if curl -sf -A "amethystate-publish (https://github.com/${GITHUB_REPOSITORY})" \
+                "https://crates.io/api/v1/crates/$crate/$VERSION" > /dev/null; then
+              echo "$crate $VERSION is on crates.io already"
+              continue
+            fi
             echo "::group::cargo publish -p $crate"
             for attempt in 1 2 3; do
               if cargo publish -p "$crate" --locked; then

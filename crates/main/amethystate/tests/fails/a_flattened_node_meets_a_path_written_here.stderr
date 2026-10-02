@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: `layout` is flattened into `Ui`, so its own fields are stored at this level - and one of them lands on the place of a field written here, or inside it. A place is a path and everything under it: rename one, or drop the flatten and let `layout` keep its segment
+  --> tests/fails/a_flattened_node_meets_a_path_written_here.rs:15:1
+   |
+15 | #[amethystate(prefix = "ui")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `<Ui_Data as amethystate::migration::fields::AmeStateFields>::FIELDS::_` failed here

@@ -28,6 +28,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 #![allow(dead_code)]
 
+use amethystate::store::StoreLayout;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate::{Store, amethystate};
 use amethystate_core::path::StorePath;
@@ -1748,8 +1749,12 @@ fn the_shape_a_text_store_recorded() {
                 store.save_now().unwrap();
             }
 
-            let meta = std::fs::read_to_string(file.path().with_extension("meta"))
-                .unwrap_or_else(|e| format!("<unreadable: {e}>"));
+            let meta = match StoreLayout::of(file.path(), backend) {
+                StoreLayout::Sidecars { meta, .. } => {
+                    std::fs::read_to_string(meta).unwrap_or_else(|e| format!("<unreadable: {e}>"))
+                }
+                _ => "<no sibling file>".to_string(),
+            };
 
             let inspector = snapshot_names(&file, backend);
 

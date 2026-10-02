@@ -6,7 +6,7 @@ sidebar:
 ---
 
 **Each point in the API fails with the set that is possible there.** A
-constructor answers with the five ways a struct can refuse to open; a `Kv` write
+constructor answers with the six ways a struct can refuse to open; a `Kv` write
 with the six ways a raw write can be turned down. The set lists them, so a
 `match` over it is complete and the compiler keeps it that way.
 
@@ -28,6 +28,7 @@ let said = match refused {
     OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
     OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
     OpenStruct::Store(disk) => format!("the store: {disk}"),
+    OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
 };
 ```
 <!-- /shown -->
@@ -71,7 +72,7 @@ plain `?`, and giving up costs nothing.
 
 | set | raised by |
 | --- | --- |
-| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Kv::cell` |
+| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Open::new_with`, `Schema::open`, `Kv::cell` |
 | `OpenStore` | `StoreBuilder::build`, `migrate`, `located` |
 | `LoadMap` | `Kv::map`, and a map field's own constructor |
 | `ReadValue` | `Store::get` |
@@ -98,7 +99,7 @@ against *the disk is broken*, which it cannot - has nowhere else to live.
 not the store's failure, but what this field and the store do not agree about.
 It answers with a `Disagreement` - a path and one of four reasons - which is an
 ordinary `Error` too. What each reason means:
-[Defining structs](/amethystate/state/defining-structs/#what-a-value-going-wrong-does).
+[Rules](/amethystate/state/rules/#a-stored-value-it-turns-down).
 
 ## The report is still there
 

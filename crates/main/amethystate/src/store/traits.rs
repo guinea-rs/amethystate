@@ -11,7 +11,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::store::meta::{PrefixMeta, SchemaSnapshot};
-use crate::store::{CodecFormat, Kv, StoreCallback, SubscriptionId};
+use crate::store::{CodecFormat, Kv, StoreCallback, SubscriptionId, Writer};
 use crate::{MigrationReport, Store, SubscriptionKind};
 use error_stack::{Report, ResultExt};
 use serde::{Serialize, de::DeserializeOwned};
@@ -82,14 +82,37 @@ impl StoreLayout {
 
     /// The copy an engine keeps beside a file while it rewrites it.
     pub fn rewrite_copy_of(file: &Path) -> PathBuf {
-        match file.file_name() {
-            Some(name) => {
-                let mut name = name.to_os_string();
-                name.push(".bak");
-                file.with_file_name(name)
-            }
-            None => file.with_extension("bak"),
-        }
+        appended(file, "bak")
+    }
+
+    /// The bookkeeping a text engine keeps beside its data file.
+    #[cfg_attr(
+        not(any(feature = "json", feature = "toml", feature = "ron")),
+        allow(dead_code)
+    )]
+    pub(crate) fn bookkeeping_of(data: &Path) -> PathBuf {
+        appended(data, "meta")
+    }
+
+    /// Where a text store written by a release before 0.23 kept its
+    /// bookkeeping: the data file's name with its extension swapped, which two
+    /// files differing only after the last dot share.
+    #[cfg_attr(
+        not(any(feature = "json", feature = "toml", feature = "ron")),
+        allow(dead_code)
+    )]
+    pub(crate) fn former_bookkeeping_of(data: &Path) -> PathBuf {
+        data.with_extension("meta")
+    }
+
+    /// Where a text engine sets aside a file it could not read, so that what
+    /// was in it is not lost with it.
+    #[cfg_attr(
+        not(any(feature = "json", feature = "toml", feature = "ron")),
+        allow(dead_code)
+    )]
+    pub(crate) fn set_aside_copy_of(file: &Path) -> PathBuf {
+        appended(file, "unreadable")
     }
 
     /// Every name this store uses, whether or not the file is there.
@@ -127,7 +150,7 @@ impl StoreLayout {
         allow(dead_code)
     )]
     fn sidecars(data: PathBuf) -> Self {
-        let meta = data.with_extension("meta");
+        let meta = Self::bookkeeping_of(&data);
 
         Self::Sidecars {
             data_backup: Self::rewrite_copy_of(&data),
@@ -157,7 +180,7 @@ mod layout_tests {
         };
 
         assert_eq!(data_backup, PathBuf::from("app/settings.db.bak"));
-        assert_eq!(meta_backup, PathBuf::from("app/settings.meta.bak"));
+        assert_eq!(meta_backup, PathBuf::from("app/settings.db.meta.bak"));
 
         assert_ne!(
             data_backup, meta_backup,
@@ -178,6 +201,20 @@ mod layout_tests {
             "an extension the caller spelled is theirs, and the copy is beside it rather \
              than over a neighbour's `settings.bak`"
         );
+    }
+}
+
+/// `file` with `.suffix` added to its whole name, so that two files differing
+/// only after the last dot keep two names.
+fn appended(file: &Path, suffix: &str) -> PathBuf {
+    match file.file_name() {
+        Some(name) => {
+            let mut name = name.to_os_string();
+            name.push(".");
+            name.push(suffix);
+            file.with_file_name(name)
+        }
+        None => file.with_extension(suffix),
     }
 }
 
@@ -282,14 +319,14 @@ pub trait StoreBackend: Send + Sync + 'static {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()>;
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()>;
 
     /// Runs `f` against a deserializer positioned at `path`, in the backend's
@@ -624,12 +661,12 @@ pub trait StoreExt: StoreBackend {
 
     fn set<T: Serialize>(&self, path: impl IntoStorePath, value: &T) -> Result<(), WriteValue> {
         let path = to_path(path)?;
-        self.set_erased(&path, &value, None)
+        self.set_erased(&path, &value, Writer::default())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
     fn set_owned<T: Serialize>(&self, path: StorePath, value: &T) -> Result<(), WriteValue> {
-        self.set_owned_erased(path.clone(), &value, None)
+        self.set_owned_erased(path.clone(), &value, Writer::default())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
@@ -640,7 +677,7 @@ pub trait StoreExt: StoreBackend {
         source: Option<Uuid>,
     ) -> Result<(), WriteValue> {
         let path = to_path(path)?;
-        self.set_erased(&path, &value, source)
+        self.set_erased(&path, &value, source.into())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
@@ -650,7 +687,7 @@ pub trait StoreExt: StoreBackend {
         value: &T,
         source: Option<Uuid>,
     ) -> Result<(), WriteValue> {
-        self.set_owned_erased(path.clone(), &value, source)
+        self.set_owned_erased(path.clone(), &value, source.into())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 

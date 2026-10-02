@@ -1,18 +1,11 @@
 ## Default Permission
 
-Allows access to the default amethystate commands
+Reads and writes the fields and maps the exported structs declare
 
 #### This default permission set includes the following:
 
-- `allow-amethystate-get`
-- `allow-amethystate-set`
-- `allow-amethystate-delete`
-- `allow-amethystate-delete-prefix`
-- `allow-amethystate-scan-keys`
-- `allow-amethystate-subscribe`
-- `allow-amethystate-unsubscribe`
-- `allow-amethystate-get-prefix`
-- `allow-amethystate-flush`
+- `read`
+- `write`
 
 ## Permission Table
 
@@ -253,6 +246,32 @@ Enables the amethystate_unsubscribe command without any pre-configured scope.
 <td>
 
 Denies the amethystate_unsubscribe command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`amethystate:read`
+
+</td>
+<td>
+
+Reads the fields and maps the exported structs declare, and hears them change
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`amethystate:write`
+
+</td>
+<td>
+
+Writes and removes the values and map entries the exported structs declare, and saves them
 
 </td>
 </tr>

@@ -43,6 +43,7 @@ impl<D: TextDocument + Send + 'static> InspectorBackend for TextStore<D> {
             .attach_key(&path)
             .attach_value_bytes(value.len())?;
 
-        self.inner.set_node(path, node, None)
+        self.inner
+            .set_node(path, node, crate::store::Writer::default())
     }
 }

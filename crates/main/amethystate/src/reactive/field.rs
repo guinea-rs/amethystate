@@ -4,8 +4,7 @@ use crate::observability::{Disagreement, Reason};
 use crate::reactive::cell::CellCommit;
 use crate::reactive::watch::{Watch, Watchable};
 use crate::store::facts::Facts;
-use crate::store::sync_backend::SyncBridge;
-use crate::store::{Commit, Durable, StoreBackend, StoreSubscription, StoredAs};
+use crate::store::{Commit, Durable, StoreBackend, StoreSubscription, StoredAs, Writer};
 use amethystate_core::Signal;
 use amethystate_core::path::{IntoStorePath, StorePath};
 use amethystate_core::{Change, FieldCore, InterceptDisposer, SignalSubscription};
@@ -23,13 +22,14 @@ pub(crate) struct FieldInner<TValue> {
     pub(crate) store_sub: Option<Arc<StoreSubscription>>,
     pub(crate) unreadable: Unreadable,
     pub(crate) stored_as: StoredAs<TValue>,
+    pub(crate) streams: Arc<crate::reactive::watch::Streams>,
 }
 
 /// Why this field is not reporting what the store holds, while that is the
 /// case.
 ///
 /// Set when a change will not decode into the field's type, when a declared
-/// `check` turns one down, or when the path already held something else -
+/// `rule` turns one down, or when the path already held something else -
 /// none of which is hypothetical: a value can be edited into a document by
 /// hand, left behind by a migration, or written by a codec that accepted
 /// something it cannot read back. Cleared by the next change that does decode,
@@ -75,7 +75,7 @@ where
 /// through it are indistinguishable from writes through the original.
 ///
 /// [`Field::fork`] is the one that gives a new id, which is what a
-/// subscription uses to tell whose write it is looking at - see [clone and fork](https://uniproc-dev.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
+/// subscription uses to tell whose write it is looking at - see [clone and fork](https://guinea-rs.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
 impl<TValue> Clone for Field<TValue> {
     fn clone(&self) -> Self {
         Self {
@@ -84,18 +84,15 @@ impl<TValue> Clone for Field<TValue> {
     }
 }
 
-impl<TValue> Field<TValue> {
-    /// Records that this field is reporting something the store does not agree
-    /// with, and why.
-    ///
-    /// What a struct's own `check` reaches for: its verdict is about a
-    /// relationship, and [`Field::try_get`] is where each field it named says
-    /// so.
+impl<TValue: Clone + 'static> Field<TValue> {
+    /// Puts every write to this field past its declared rule, judged against
+    /// what the application handed `store`.
     #[doc(hidden)]
-    pub fn __ame_refused(&self, why: &str) {
-        if let Ok(mut held) = self.inner.unreadable.lock() {
-            *held = Some(Reason::Refused(Arc::from(why)));
-        }
+    pub fn __ame_rule(&self, rule: crate::store::Rule<TValue>, store: &crate::Store) {
+        let store = store.clone();
+        self.inner.core.rule(move |value| {
+            rule(value, store.context()).map_err(|invalid| invalid.reason().to_string())
+        });
     }
 }
 
@@ -141,7 +138,7 @@ where
     ///
     /// Without `external` all three would arrive; the id is what tells them
     /// apart. The book works through the pair in
-    /// [clone and fork](https://uniproc-dev.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
+    /// [clone and fork](https://guinea-rs.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
     pub fn fork(&self) -> Self {
         self.fork_with_id(Uuid::new_v4())
     }
@@ -165,6 +162,7 @@ where
                 store_sub: self.inner.store_sub.clone(),
                 unreadable: self.inner.unreadable.clone(),
                 stored_as: self.inner.stored_as,
+                streams: self.inner.streams.clone(),
             }),
         }
     }
@@ -211,13 +209,16 @@ where
     /// change that would not decode into its type - from an edit to the file
     /// outside the process, a migration that left something behind, or a codec
     /// that accepted a value it cannot read back - or a value a declared
-    /// `check` refused. The field goes on reporting the last value it agreed with,
+    /// `rule` refused. The field goes on reporting the last value it agreed with,
     /// and subscribers hear nothing, because the alternative is waking a
-    /// redraw with a value nobody chose. This is the channel that says the
-    /// store no longer agrees, and it is the only one: the write that carried
-    /// the value lands, and whoever made it is told nothing, since a value this
-    /// field cannot read is not a failed write - it is a write addressed to a
-    /// type other than this one.
+    /// redraw with a value nobody chose. The write that carried the value
+    /// lands all the same, and a writer that went through
+    /// [`Store::set`](crate::Store::set) hears that a subscriber could not take
+    /// it; this is where the field says so for as long as it is true.
+    ///
+    /// `Err` too when a declared `rule` put a stored value right and the store
+    /// would not take the correction back: the field holds the corrected value,
+    /// the store the one it was given.
     ///
     /// [`OnUnreadable`](crate::store::OnUnreadable) has no say here. It decides
     /// what *building* the field does about a value already stored; once built,
@@ -227,8 +228,8 @@ where
     /// as it is true. Nothing here fails at the moment of asking: what failed
     /// happened earlier, and this reports it.
     ///
-    /// The `Err` says which of the four it is by its variant rather than by a
-    /// sentence somebody has to read.
+    /// The `Err` says which it is by its variant rather than by a sentence
+    /// somebody has to read.
     ///
     /// ```
     /// # use amethystate::StoreBuilder;
@@ -395,6 +396,10 @@ where
     {
         self.inner.core.subscribe_with_source(callback)
     }
+
+    fn streams(&self) -> Option<&crate::reactive::watch::Streams> {
+        Some(&self.inner.streams)
+    }
 }
 
 impl<TValue> Field<TValue>
@@ -559,24 +564,19 @@ where
         );
 
         if let Some(sub) = &self.inner.store_sub {
-            if let Some(write) = self.inner.stored_as.write {
-                let change = self.intercepted(value)?;
+            let change = self.intercepted(value)?;
+            let by = Writer::judged(change.source);
 
-                write(&change.new_value, &mut |erased| {
-                    StoreBackend::set_erased(sub.store(), &self.inner.path, erased, change.source)
-                })
-                .attach_key(&self.inner.path)
-                .map_err(|why| FieldError::from_store(&self.inner.path, why))?;
-            } else {
-                let backend = SyncBridge::new(sub.store().clone());
-                amethystate_core::field_set(
-                    &backend,
-                    &self.inner.core,
-                    self.inner.path.clone(),
-                    value,
-                    Some(self.inner.instance_id),
-                )?;
+            match self.inner.stored_as.write {
+                Some(write) => write(&change.new_value, &mut |erased| {
+                    StoreBackend::set_erased(sub.store(), &self.inner.path, erased, by)
+                }),
+                None => {
+                    StoreBackend::set_erased(sub.store(), &self.inner.path, &change.new_value, by)
+                }
             }
+            .attach_key(&self.inner.path)
+            .map_err(|why| FieldError::from_store(&self.inner.path, why))?;
         } else {
             let change = self.intercepted(value)?;
             self.inner
@@ -590,7 +590,7 @@ where
     /// The same writes, each returning only once the value is on disk.
     ///
     /// `set` and friends leave the value in the write buffer, where a crash
-    /// loses it; these pay a commit to close that window. [Durability](https://uniproc-dev.github.io/amethystate/concepts/durability) in the book
+    /// loses it; these pay a commit to close that window. [Durability](https://guinea-rs.github.io/amethystate/concepts/durability) in the book
     /// covers when that window matters and what it costs to close.
     ///
     /// How much else lands with it is the engine's answer - see [`Durable`].
@@ -707,6 +707,7 @@ where
                 store_sub: None,
                 unreadable: Unreadable::default(),
                 stored_as: StoredAs::default(),
+                streams: Arc::default(),
             }),
         }
     }
@@ -967,6 +968,7 @@ mod tests {
                     instance_id: Default::default(),
                     unreadable: Unreadable::default(),
                     stored_as: StoredAs::default(),
+                    streams: Arc::default(),
                 }),
             };
 
@@ -1068,11 +1070,7 @@ mod tests {
     fn test_field_depth_guard() {
         let field = Field::<i32>::new_volatile(StorePath::from_segments(["test"]), 1);
 
-        field
-            .inner
-            .core
-            .intercept_depth
-            .store(100, Ordering::SeqCst);
+        let _deep = field.inner.core.intercept_depth.nested_on_this_thread(100);
 
         let _disp = field.intercept(|mut c| {
             c.new_value = 999;

@@ -6,7 +6,7 @@ title: Leptos
 
 Field handles are `Copy` indices, so they can be passed down through component props without cloning or lifetimes.
 
-*Note: This integration is designed for WASM frontends (CSR), primarily for Tauri applications.*
+*Note: This integration is for WASM frontends (CSR): the frontend of a Tauri application, or a browser-only app that keeps its state in `localStorage`.*
 
 ## Setup
 
@@ -17,7 +17,7 @@ amethystate-leptos = "0.8"
 
 ## Defining state
 
-The frontend structs are generated automatically from your backend types via `amethystate-codegen`. Do not write them by hand.
+In a Tauri app the frontend structs are generated from your backend types by `amethystate-codegen`. Do not write them by hand.
 
 ```rust
 // src/bindings/amethystate.rs
@@ -36,9 +36,11 @@ pub struct AppSettings {
 
 See the [Tauri integration](/amethystate/integrations/tauri/) chapter for codegen setup.
 
+In a browser-only app there is no backend to generate from. The state is an ordinary `#[amethystate]` struct with `#[amethystate_framework_arena]` above it, the store is built in the page on `Backend::LocalStorage`, and `AmeStateProvider` is handed that store, as in [`web-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-leptos).
+
 ## Provider & Initialization
 
-State is loaded asynchronously over IPC. Wrap your app in `AmeStateProvider` and declare which slices to load with `preload_slices!`. Rendering is suspended until all slices are ready.
+State is loaded asynchronously over IPC. Wrap your app in `AmeStateProvider` and declare which structs to load with `preload_slices!`. Rendering is suspended until all of them are ready.
 
 ```rust
 use amethystate::tauri::TauriBackend;
@@ -65,7 +67,7 @@ pub fn App() -> impl IntoView {
 
 ## Accessing state
 
-Use `use_amethystate::<S>()` inside a component to get the root handle for a slice. The handle is a `Copy` struct with a field for each state field, which you can pass down as props.
+Use `use_amethystate::<S>()` inside a component to get the root handle for a struct. The handle is a `Copy` struct with a field for each state field, which you can pass down as props.
 
 ```rust
 #[component]
@@ -161,5 +163,5 @@ view! {
 
 ## Examples
 
-- [`web-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-leptos) — browser app on localStorage.
-- [`tauri-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-leptos) — Full Tauri v2 app with a Leptos WASM frontend.
+- [`web-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-leptos) — browser app on localStorage.
+- [`tauri-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-leptos) — Full Tauri v2 app with a Leptos WASM frontend.

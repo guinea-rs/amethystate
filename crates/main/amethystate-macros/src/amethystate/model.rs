@@ -145,7 +145,7 @@ pub(crate) struct Rules {
     pub on_unreadable: Option<At<OnUnreadable>>,
     pub on_delete: Option<At<OnDelete>>,
     pub unreadable_entries: Option<At<UnreadableEntries>>,
-    pub check: Option<At<syn::Path>>,
+    pub rule: Option<At<syn::Path>>,
 }
 
 #[derive(Debug, Clone)]
@@ -189,14 +189,13 @@ impl Field {
 pub(crate) enum Mode {
     Reactive,
     Persistent,
-    Both,
 }
 
 impl Mode {
     /// Whether the struct's fields watch the store, which is what everything
     /// reactive is generated for.
     pub(crate) fn watches(self) -> bool {
-        matches!(self, Self::Reactive | Self::Both)
+        self == Self::Reactive
     }
 }
 
@@ -232,6 +231,11 @@ pub(crate) struct Schema {
     pub mode: Mode,
     pub target: Target,
     pub rules: Rules,
+
+    /// Where `open = manual` was written: the struct's `Open` is its author's,
+    /// and nothing opens it over the global store.
+    pub manual_open: Option<Span>,
+
     pub fields: Vec<Field>,
 }
 

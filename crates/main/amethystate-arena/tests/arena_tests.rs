@@ -47,6 +47,39 @@ fn test_arena_field() {
 }
 
 #[test]
+fn a_subscriber_reading_the_arena_while_a_registration_waits_does_not_hang() {
+    let (_at, store) = unique_store("reentrant_read");
+    let state = TestState::new_with(&store).unwrap();
+    let arena = Arena::new();
+    let username = arena.register_field(state.username());
+    let port = state.port();
+
+    let reading = arena.clone();
+    let _sub = arena.subscribe_field(username, move |_| {
+        let registering = reading.clone();
+        let port = port.clone();
+        std::thread::spawn(move || {
+            registering.register_field(port);
+        });
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        reading.get_field(username);
+    });
+
+    let (done, finished) = std::sync::mpsc::channel();
+    let writing = arena.clone();
+    std::thread::spawn(move || {
+        writing.set_field(username, "Bob".to_string()).unwrap();
+        let _ = done.send(());
+    });
+
+    assert!(
+        finished
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .is_ok()
+    );
+}
+
+#[test]
 fn test_arena_reactive_map() {
     let (_at, store) = unique_store("reactive_map");
     let state = TestState::new_with(&store).unwrap();

@@ -38,8 +38,8 @@ pub struct NetworkState {
 ```
 <!-- /shown -->
 
-Defaults, nested structs, volatile fields, read policies, and serde
-interaction: [Defining structs](/amethystate/state/defining-structs/).
+Defaults, nested structs, volatile fields, read policies, rules on a value and
+serde interaction: the [State](/amethystate/state/defining-structs/) section.
 
 ## Open the store
 
@@ -188,7 +188,8 @@ the debouncer.
 ## What else there is
 
 - **Interceptors** - a callback that sees a write before it lands and may
-  rewrite or refuse it: [Subscriptions](/amethystate/concepts/subscriptions/).
+  rewrite or refuse it:
+  [Interceptors](/amethystate/concepts/subscriptions/#interceptors).
 - **Tracing** - structured events, each write tagged with the struct that made
   it: [Observability](/amethystate/concepts/observability/).
 - **Framework integrations** - Tauri with TypeScript bindings, Leptos, Dioxus,

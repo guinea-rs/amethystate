@@ -165,7 +165,7 @@ fn the_allocation_by_itself(c: &mut Criterion) {
 /// Reading, which is where the clone actually lives.
 ///
 /// `Signal::get` is `self.value.load().as_ref().clone()`, so every read copies
-/// the whole value. A retain-mode UI does that per frame per field, and a
+/// the whole value. An immediate-mode UI does that per frame per field, and a
 /// forwarding hop does it once per source to build its own value - which is why
 /// the chain above costs what it does, and why `set` taking an `Arc` would only
 /// have fixed the smaller half.

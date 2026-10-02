@@ -62,7 +62,7 @@ pub struct FieldView<'a> {
 /// What a field and the store do not agree about.
 ///
 /// The value is not what the field reports: either the store holds something
-/// the field cannot read, or a declared check refused it. Either way the field
+/// the field cannot read, or a declared rule refused it. Either way the field
 /// is reporting its default or the last thing it held, and the stored bytes are
 /// where they were - so it can be looked at, and fixed.
 #[derive(Debug, Clone)]
@@ -82,7 +82,7 @@ pub enum Reason {
     /// What is stored will not read back as the declared type.
     WillNotRead(std::sync::Arc<str>),
 
-    /// It read, and a declared check refused it.
+    /// It read, and a declared rule refused it.
     Refused(std::sync::Arc<str>),
 
     /// The field never wrote its default, because the store already held
@@ -93,6 +93,11 @@ pub enum Reason {
     /// The store has let go of its file, so what the field holds is the last
     /// thing it heard rather than what is on disk.
     Closed,
+
+    /// A declared rule put a stored value right, and the store would not take
+    /// the correction back: the field holds what the rule made of it, the store
+    /// what it was given.
+    NotWrittenBack(std::sync::Arc<str>),
 }
 
 impl fmt::Display for Reason {
@@ -102,6 +107,12 @@ impl fmt::Display for Reason {
             Reason::Refused(why) => write!(f, "refused: {why}"),
             Reason::Occupied(why) => write!(f, "already held something else: {why}"),
             Reason::Closed => f.write_str("the store was closed, so this is the last it heard"),
+            Reason::NotWrittenBack(why) => {
+                write!(
+                    f,
+                    "put right by its rule, and the store would not take it back: {why}"
+                )
+            }
         }
     }
 }

@@ -33,10 +33,12 @@ more writes into one commit; lowering it narrows the window
 a crash can take. Reads are unaffected either way - a buffered write is visible
 at once.
 
-What a flush takes with it is the engine's answer rather than this setting's:
-`redb` and `sqlite` commit what was asked for, a text engine rewrites the whole
-file and so commits everything waiting. [Durability](/amethystate/concepts/durability/)
-has the consequences.
+The flush the window brings commits the whole buffer, on every engine. A
+durable write asks for a flush of the path it wrote, and how far that one
+reaches is the engine's answer rather than this setting's: `redb` and `sqlite`
+commit what is buffered at that path and below it, a text engine rewrites the
+whole file and so commits everything waiting.
+[Durability](/amethystate/concepts/durability/) has the consequences.
 
 `Disk::watch_every` is the other direction: how long the file has to sit still
 before a change made outside the process is read back. Nothing polls - the
@@ -75,8 +77,8 @@ let store = StoreBuilder::new(settings)
 Three cases, named rather than lumped together. `StorageError::Flush` is the
 disk: full, read-only, taken away, held by something else. `StorageError::Codec`
 is the document not rendering. Everything else is a failure this callback has no
-opinion about, and falls back to `Fail`, which is what an unconfigured store
-does.
+opinion about, and falls back to `Fail`: writers are told about a failure
+nobody has looked at yet.
 
 Nothing there stops anything. The retry loop is unconditional and runs until the
 flush lands or the store is dropped, so a full disk is answered with `Ignore`:
@@ -107,7 +109,7 @@ not taking writes is not a settled list, and a `match` on it needs a `_` arm.
 The callback is handed the failure, so the answer can depend on it. It is also handed
 `gave_up.unsaved` - every path written since the last flush that landed, which
 is what the store was carrying when it gave up. Candidates rather than
-culprits: a document is rendered whole, and a render that fails names no node.
+culprits: a document is rendered whole, and a render that fails names no path.
 
 `Poison` is for the other kind - a failure that will not heal on its own. A
 document the codec cannot render is in the same state on the hundredth attempt
@@ -215,12 +217,13 @@ changes nothing.
 
 `migrations`, `provide` and `context` sit on the same builder and are not
 configuration. They are **inputs**: the steps to run, the values those steps
-are handed, and the values the declared checks are handed.
+are handed, and the values the declared rules are handed.
 [Migrations](/amethystate/migrations/overview/) covers the first two, and
-[Defining structs](/amethystate/state/defining-structs/) the third.
+[Rules](/amethystate/state/rules/) the third.
 
 The two that hand over a value are separate because they are read from
 different places. A migration step runs once, inside `build`, on the thread
 that called it, so `provide` takes anything at all - an `Rc`, a handle its
-toolkit refuses to move. A check runs every time a value arrives, including
-from the thread watching the file, so `context` asks for `Send + Sync`.
+toolkit refuses to move. A rule runs every time a value arrives or is written,
+including from the thread watching the file, so `context` asks for
+`Send + Sync`.

@@ -15,7 +15,7 @@ jobs:
     outputs:
       code: ${{ steps.paths.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - id: paths
@@ -33,7 +33,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -41,9 +41,9 @@ jobs:
             libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
           components: rustfmt, rust-src
       - run: cargo fmt --all --check
 
@@ -55,8 +55,8 @@ jobs:
       run:
         working-directory: js
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -71,7 +71,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -79,12 +79,56 @@ jobs:
             libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: 1.95.0
+          components: clippy, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo clippy --workspace --exclude amethystate-gpui --all-targets --all-features -- -D warnings
+
+  msrv:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libglib2.0-dev libgtk-3-dev libatk1.0-dev \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-dev libxcb1-dev libxcb-xkb-dev
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: 1.90.0
+          components: rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: msrv
+      - run: cargo +1.90.0 check --workspace --exclude amethystate-gpui --exclude amethystate-guinea --all-features
+
+  gpui:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxcb-xkb-dev \
+            libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev \
+            libasound2-dev libssl-dev libzstd-dev
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: 1.95.0
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --exclude amethystate-gpui --all-targets --all-features -- -D warnings
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: gpui
+      - run: cargo clippy -p amethystate-gpui --all-targets -- -D warnings
 
   # One engine at a time, and it holds: without --all-targets the dev-dependency
   # this crate has on itself is not built, so its five-engine feature list is not
@@ -98,14 +142,14 @@ jobs:
         engine: [ redb, sqlite, json, toml, ron ]
     steps:
       - if: needs.changes.outputs.code == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - if: needs.changes.outputs.code == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
           components: clippy, rust-src
       - if: needs.changes.outputs.code == 'true'
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: engine-${{ matrix.engine }}
       - if: needs.changes.outputs.code == 'true'
@@ -116,12 +160,12 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: no-engine
       - run: cargo clippy -p amethystate -- -D warnings
@@ -131,7 +175,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -139,7 +183,7 @@ jobs:
             libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
           package: amethystate-macros-core,amethystate-core,amethystate-tauri,amethystate,amethystate-codegen,amethystate-arena,tauri-plugin-amethystate
           feature-group: all-features
@@ -153,7 +197,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest ]
     steps:
       - if: needs.changes.outputs.code == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux' && needs.changes.outputs.code == 'true'
@@ -165,20 +209,22 @@ jobs:
             libx11-dev libxcb1-dev libxcb-xkb-dev
 
       - if: needs.changes.outputs.code == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
       - if: needs.changes.outputs.code == 'true'
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly
+        with:
+          toolchain: nightly
 
       - name: Install cargo-expand
         if: needs.changes.outputs.code == 'true'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
         with:
           tool: cargo-expand
 
       - if: needs.changes.outputs.code == 'true'
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.os }}
 
@@ -194,16 +240,16 @@ jobs:
       matrix:
         shard: [ 1, 2, 3, 4 ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
+          toolchain: 1.95.0
           targets: wasm32-unknown-unknown
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: browser
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
         with:
           tool: wasm-bindgen-cli@0.2.125
       - if: matrix.shard == 1
@@ -213,7 +259,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install system dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -221,10 +267,10 @@ jobs:
             libwebkit2gtk-4.1-dev libsoup-3.0-dev \
             libxkbcommon-dev libxkbcommon-x11-dev \
             libx11-dev libxcb1-dev libxcb-xkb-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.90.0
-      - uses: Swatinem/rust-cache@v2
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo doc --workspace --exclude amethystate-gpui --all-features --no-deps
       - run: cargo xtask book --check
       - run: cargo xtask docs --check

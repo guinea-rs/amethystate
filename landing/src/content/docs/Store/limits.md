@@ -134,6 +134,7 @@ and SQLite on a phone needs those two and has no opinion about RON.
 
 ## What this does not cover
 
-Depth is what the store enforces. What a format can *express* is a different
-question, and no setting changes it:
+The store enforces depth and the six properties above, by refusing a write that
+breaks one. What a format can *express* is a different question, and no setting
+changes it:
 [Choosing an engine](/amethystate/choosing/absent-or-null/).

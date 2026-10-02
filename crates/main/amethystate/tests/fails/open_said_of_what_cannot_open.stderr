@@ -1,0 +1,11 @@
+error: a struct with no prefix is a component, built by the struct holding it, so there is no `Open` of its own to write. Write the opening on the holder
+ --> tests/fails/open_said_of_what_cannot_open.rs:3:22
+  |
+3 | #[amethystate(open = manual)]
+  |                      ^^^^^^
+
+error: `open` says who writes the struct's `Open`, and the one thing to say is `manual`: leave it out and the macro writes it
+ --> tests/fails/open_said_of_what_cannot_open.rs:9:40
+  |
+9 | #[amethystate(prefix = "agent", open = generated)]
+  |                                        ^^^^^^^^^

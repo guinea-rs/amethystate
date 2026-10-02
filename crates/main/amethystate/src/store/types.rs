@@ -55,6 +55,40 @@ pub struct StoreEvent {
     /// value of their own can end on the same one the store did, whatever
     /// order the callbacks happen to run in.
     pub at: u64,
+
+    /// The value has been through the declared rule of the field at this path
+    /// already, so the field takes it as it is.
+    pub judged: bool,
+}
+
+/// Who a write comes from, as the event it makes will say.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Writer {
+    /// The handle behind the write, or `None` for the store's own API.
+    pub handle: Option<uuid::Uuid>,
+
+    /// Whether the value has been through the declared rule of the field at
+    /// the path it is written to.
+    pub judged: bool,
+}
+
+impl Writer {
+    /// A write of a value the field's rule has already judged.
+    pub fn judged(handle: Option<uuid::Uuid>) -> Self {
+        Self {
+            handle,
+            judged: true,
+        }
+    }
+}
+
+impl From<Option<uuid::Uuid>> for Writer {
+    fn from(handle: Option<uuid::Uuid>) -> Self {
+        Self {
+            handle,
+            judged: false,
+        }
+    }
 }
 
 impl StoreEvent {

@@ -7,7 +7,7 @@ GPUI uses an entity model with deferred notification — mutations happen inside
 
 ## How it works
 
-`amethystate-gpui` provides `AmeView<T>` — a wrapper that holds a state slice and a `ReactiveScope`. On construction it subscribes to all external changes on the slice and sends a unit message over an unbounded channel. A background task inside the entity drains that channel and calls `entity_cx.notify()`, which triggers a GPUI re-render.
+`amethystate-gpui` provides `AmeView<T>` — a wrapper that holds a state struct and a `ReactiveScope`. On construction it subscribes to all external changes on the struct and sends a unit message over an unbounded channel. A background task inside the entity drains that channel and calls `entity_cx.notify()`, which triggers a GPUI re-render.
 
 This means GPUI reads state synchronously during `render` via `.get()`, while change detection happens asynchronously in the background.
 
@@ -36,7 +36,7 @@ pub struct CounterState {
 
 ## Creating an entity
 
-Use `cx.new_amethystate()` instead of `cx.new()` to wrap a state slice in an `AmeEntity`:
+Use `cx.new_amethystate()` instead of `cx.new()` to wrap a state struct in an `AmeEntity`:
 
 ```rust
 struct CounterView {
@@ -51,7 +51,7 @@ impl CounterView {
 }
 ```
 
-`new_amethystate` panics with the error when the slice fails to open. `try_new_amethystate` takes the same closure and returns the error instead.
+`new_amethystate` panics with the error when the struct fails to open. `try_new_amethystate` takes the same closure and returns the error instead.
 
 `AmeEntity<T>` is an alias for `Entity<AmeView<T>>`. `AmeView` derefs to `T`, so state fields are accessed directly through the entity.
 
@@ -69,7 +69,7 @@ impl Render for CounterView {
 
 ## Writing state
 
-Writes can happen from anywhere — the entity's `on_click` handler, a background thread, another part of the app. Any external write triggers a `notify()` and a re-render:
+Writes can happen from anywhere — the entity's `on_click` handler, a background thread, another part of the app. The entity subscribes to its state with `external`, so what notifies it is a write somebody else made: a write through a fork triggers a `notify()` and a re-render on its own. A write through the entity's own handle carries the entity's own id and is skipped, so the handler that made it calls `notify()` itself:
 
 ```rust
 // from a click handler inside render
@@ -77,6 +77,7 @@ let state = self.state.clone();
 Button::new("Increment")
     .on_click(move |_, _, cx| {
         state.read(cx).count().update(|v| v + 1).ok();
+        state.update(cx, |_, cx| cx.notify());
     })
 
 // from a background thread via fork
@@ -89,7 +90,7 @@ std::thread::spawn(move || {
 });
 ```
 
-Note that writes from the same instance (non-forked) do not trigger an `external` subscription and therefore do not notify the entity. Use `.fork()` when writing from a background thread if you want the UI to react.
+A background thread has no `cx` to notify with, so it writes through a fork, and the entity hears those writes by itself.
 
 ## Which GPUI
 
@@ -104,4 +105,4 @@ Two copies, say the adapter's and one from git, are two different crates to Carg
 
 ## Examples
 
-- [`gpui`](https://github.com/uniproc-dev/amethystate/tree/master/examples/gpui)
+- [`gpui`](https://github.com/guinea-rs/amethystate/tree/master/examples/gpui)

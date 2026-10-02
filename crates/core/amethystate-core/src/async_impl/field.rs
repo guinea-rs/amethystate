@@ -14,8 +14,8 @@ pub struct Field<T, B> {
     pub core: FieldCore<T>,
     pub path: StorePath,
     pub instance_id: Uuid,
-    _subscription: Arc<Mutex<SubscriptionHandle>>,
-    backend: B,
+    _subscription: Option<Arc<Mutex<SubscriptionHandle>>>,
+    backend: Option<B>,
 }
 
 impl<T, B> Clone for Field<T, B>
@@ -99,8 +99,20 @@ where
             core,
             path,
             instance_id,
-            _subscription: Arc::new(Mutex::new(subscription)),
-            backend,
+            _subscription: Some(Arc::new(Mutex::new(subscription))),
+            backend: Some(backend),
+        }
+    }
+
+    /// A field this side holds alone: it starts at `default`, a write changes
+    /// it here and goes nowhere, and nothing stored reaches it.
+    pub fn new_volatile_with_id(path: StorePath, default: T, instance_id: Uuid) -> Self {
+        Self {
+            core: FieldCore::new(default),
+            path,
+            instance_id,
+            _subscription: None,
+            backend: None,
         }
     }
 
@@ -109,7 +121,11 @@ where
     }
 
     pub async fn get(&self) -> ReactiveFieldResult<T> {
-        self.backend
+        let Some(backend) = &self.backend else {
+            return Ok(self.core.get());
+        };
+
+        backend
             .get(&self.path)
             .await
             .attach_key(&self.path)
@@ -139,8 +155,19 @@ where
     }
 
     pub async fn set(&self, value: T) -> ReactiveFieldResult<()> {
+        let Some(backend) = &self.backend else {
+            let change = self
+                .core
+                .run_interceptors(self.path.clone(), value, Some(self.instance_id))
+                .map_err(|refusal| FieldError::refused(&self.path, refusal))?;
+            self.core
+                .signal
+                .set_forwarded(change.new_value, change.source);
+            return Ok(());
+        };
+
         crate::field_set_async(
-            &self.backend,
+            backend,
             &self.core,
             self.path.clone(),
             value,

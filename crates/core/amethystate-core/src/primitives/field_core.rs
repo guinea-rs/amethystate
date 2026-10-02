@@ -1,6 +1,6 @@
 use crate::change::Change;
 use crate::path::StorePath;
-use crate::primitives::intercept::{InterceptDisposer, InterceptGuard};
+use crate::primitives::intercept::{InterceptDepth, InterceptDisposer, InterceptGuard};
 use crate::primitives::signal::{Signal, SignalSubscription, held};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -10,6 +10,10 @@ use uuid::Uuid;
 
 pub trait FieldValue: DeserializeOwned + Serialize + Clone + Send + Sync + 'static {}
 impl<T: DeserializeOwned + Serialize + Clone + Send + Sync + 'static> FieldValue for T {}
+
+/// A rule a field was declared with: it may put the value right, or turn it
+/// down in its own words.
+pub type DeclaredRule<T> = Arc<dyn Fn(&mut T) -> Result<(), String> + Send + Sync + 'static>;
 
 pub struct FieldCore<T> {
     pub signal: Signal<T>,
@@ -22,7 +26,8 @@ pub struct FieldCore<T> {
         >,
     >,
     pub next_interceptor_id: Arc<AtomicUsize>,
-    pub intercept_depth: Arc<AtomicUsize>,
+    pub intercept_depth: InterceptDepth,
+    pub rules: Arc<Mutex<Vec<DeclaredRule<T>>>>,
 }
 
 impl<T> Clone for FieldCore<T> {
@@ -32,6 +37,7 @@ impl<T> Clone for FieldCore<T> {
             interceptors: self.interceptors.clone(),
             next_interceptor_id: self.next_interceptor_id.clone(),
             intercept_depth: self.intercept_depth.clone(),
+            rules: self.rules.clone(),
         }
     }
 }
@@ -42,7 +48,8 @@ impl<T: Clone + 'static> FieldCore<T> {
             signal: initial,
             interceptors: Arc::new(Mutex::new(Vec::new())),
             next_interceptor_id: Arc::new(AtomicUsize::new(0)),
-            intercept_depth: Arc::new(AtomicUsize::new(0)),
+            intercept_depth: InterceptDepth::default(),
+            rules: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -51,8 +58,27 @@ impl<T: Clone + 'static> FieldCore<T> {
             signal: Signal::new(initial),
             interceptors: Arc::new(Mutex::new(Vec::new())),
             next_interceptor_id: Arc::new(AtomicUsize::new(0)),
-            intercept_depth: Arc::new(AtomicUsize::new(0)),
+            intercept_depth: InterceptDepth::default(),
+            rules: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// Adds a rule every write has to pass, after the interceptors and for as
+    /// long as the field lives: there is no handle to take it off.
+    pub fn rule<F>(&self, rule: F)
+    where
+        F: Fn(&mut T) -> Result<(), String> + Send + Sync + 'static,
+    {
+        held(&self.rules).push(Arc::new(rule));
+    }
+
+    /// Puts `value` through the declared rules, in the order they were added.
+    pub fn ruled(&self, value: &mut T) -> Result<(), String> {
+        let rules = held(&self.rules).clone();
+        for rule in rules {
+            rule(value)?;
+        }
+        Ok(())
     }
 
     pub fn get(&self) -> T {
@@ -120,6 +146,8 @@ impl<T: Clone + 'static> FieldCore<T> {
                 ));
             }
         }
+
+        self.ruled(&mut change.new_value).map_err(Refusal::Ruled)?;
 
         Ok(change)
     }

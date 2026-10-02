@@ -23,7 +23,7 @@ use crate::store::screening::{Noticed, Screening};
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
     InitState, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent, StoreOp,
-    SubscriptionEntry, SubscriptionId, SubscriptionKind, WhenItWillNotRead,
+    SubscriptionEntry, SubscriptionId, SubscriptionKind, WhenItWillNotRead, Writer,
 };
 use amethystate_core::Source;
 use amethystate_core::path::{SmolStr, StorePath, Stored};
@@ -101,20 +101,29 @@ fn keep_a_declared_level<D: TextDocument>(
     declared: &Declared,
     at: &StorePath,
 ) -> StorageResult<Option<StorePath>> {
-    let Some(level) = at.parent() else {
-        return Ok(None);
-    };
+    match at.parent() {
+        Some(level) => keep_a_declared_map(doc, declared, &level),
+        None => Ok(None),
+    }
+}
 
-    if !declared.owns_level(&level) || doc.get(&level).is_some() {
+/// The same for the level itself, where a map was cleared whole rather than
+/// emptied entry by entry.
+fn keep_a_declared_map<D: TextDocument>(
+    doc: &mut D,
+    declared: &Declared,
+    level: &StorePath,
+) -> StorageResult<Option<StorePath>> {
+    if !declared.owns_level(level) || doc.get(level).is_some() {
         return Ok(None);
     }
 
     doc.set(
-        &level,
+        level,
         <D::Node as super::document::Navigable>::make_empty_map(),
     )?;
 
-    Ok(Some(level))
+    Ok(Some(level.clone()))
 }
 
 pub(crate) struct TextStoreInner<D: TextDocument> {
@@ -214,7 +223,7 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
         migration_set: MigrationSet,
     ) -> StorageResult<(Self, MigrationReport)> {
         let path = config.path.clone();
-        let meta_path = config.path.with_extension("meta");
+        let meta_path = StoreLayout::bookkeeping_of(&config.path);
 
         let files = StoreFiles {
             data: StoreFile::new(path, D::empty(), config.file_write),
@@ -224,11 +233,12 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
         let (initial_data, initial_meta) = match files.load() {
             Ok(read) => read,
             Err(why)
-                if super::super::utils::start_fresh(
-                    &config,
-                    crate::store::builder::Backend::writing(D::format()),
-                    &why,
-                ) =>
+                if super::files::will_not_read(&why)
+                    && super::super::utils::start_fresh(
+                        &config,
+                        crate::store::builder::Backend::writing(D::format()),
+                        &why,
+                    ) =>
             {
                 files.load()?
             }
@@ -252,6 +262,7 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
                     .files
                     .write_what_the_open_changed(&initial_data, &initial_meta)?;
                 store.inner.settling.opened();
+                store.inner.debouncer.schedule();
                 Ok((store, report))
             }
             Err(e) => {
@@ -294,6 +305,9 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
 
         let health = Arc::new(PersistHealth::default());
 
+        let settling = watching::Coalescing::new(config.watch_debounce);
+        let settling_debounce = settling.clone();
+
         let debouncer = Debouncer::new_with_retry(
             config.save_debounce,
             FlushPolicy {
@@ -307,6 +321,9 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
                 },
             },
             move || -> StorageResult<()> {
+                if !settling_debounce.has_opened() {
+                    return Ok(());
+                }
                 save(
                     &files_debounce,
                     &subs_debounce,
@@ -327,7 +344,6 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
         let standoff_watch = standoff.clone();
         let meta_path = files.meta.path.clone();
 
-        let settling = watching::Coalescing::new(config.watch_debounce);
         let settling_watch = settling.clone();
         let watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
             let Some(event) = watching::heard(res, &files_watch.data.path) else {
@@ -476,7 +492,7 @@ impl<D: TextDocument> TextStoreInner<D> {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
         self.check_debouncer()?;
         self.budget
@@ -509,7 +525,7 @@ impl<D: TextDocument> TextStoreInner<D> {
             return Err(refusal.attach(StoreFileFact(self.files.data.path.clone())));
         }
 
-        self.set_node(path.clone(), node, source)
+        self.set_node(path.clone(), node, by)
     }
 
     fn save_now(&self) -> StorageResult<()> {
@@ -664,7 +680,7 @@ impl<D: TextDocument> TextStoreInner<D> {
             return Ok(());
         };
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -673,11 +689,12 @@ impl<D: TextDocument> TextStoreInner<D> {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn delete_prefix(&self, prefix: &StorePath, source: Option<uuid::Uuid>) -> StorageResult<()> {
@@ -691,6 +708,11 @@ impl<D: TextDocument> TextStoreInner<D> {
             self.refuse_if_closed()?;
 
             let (plane, _) = at_the_root(&*guard, &declared, prefix)?;
+            let standing: Vec<StorePath> = declared
+                .levels_under(prefix)
+                .into_iter()
+                .filter(|level| level == prefix || guard.get(level).is_some())
+                .collect();
 
             for at in plane {
                 let key = at.as_one_level();
@@ -706,11 +728,19 @@ impl<D: TextDocument> TextStoreInner<D> {
                 .doing(StorageError::Delete, &self.files.data.path)
                 .attach_prefix(prefix)?;
             self.standoff.swept(prefix);
+            for level in &standing {
+                if let Some(level) = keep_a_declared_map(&mut *guard, &declared, level)
+                    .doing(StorageError::Delete, &self.files.data.path)
+                    .attach_prefix(prefix)?
+                {
+                    self.standoff.wrote(&level, prefix);
+                }
+            }
             self.writes.fetch_add(1, Ordering::Release);
             self.settled.fetch_add(1, Ordering::AcqRel) + 1
         };
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -719,11 +749,12 @@ impl<D: TextDocument> TextStoreInner<D> {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn subscribe(&self, kind: SubscriptionKind, callback: StoreCallback) -> SubscriptionId {
@@ -788,6 +819,11 @@ impl<D: TextDocument> TextStoreInner<D> {
     /// The marker says `false` where a reset has been asked for, and that is
     /// an answer rather than the absence of one: the store was told to forget,
     /// and a level the reset left standing does not overrule it.
+    ///
+    /// A marker saying `true` over a declared level the data does not have is
+    /// a save that stopped between its two files: the metadata landed and the
+    /// entries it was marking did not. The data answers there too, and the map
+    /// is seeded again.
     fn is_initialized(&self, namespace: &StorePath) -> StorageResult<bool> {
         self.refuse_if_closed()?;
         let key = self.init_key(namespace);
@@ -800,13 +836,13 @@ impl<D: TextDocument> TextStoreInner<D> {
             .get(&meta_at(&key))
             .map(D::deserialize_node::<bool>);
 
-        if let Some(Ok(seeded)) = marked {
-            return Ok(seeded);
+        if let Some(Ok(false)) = marked {
+            return Ok(false);
         }
 
         let declared = self.declared()?;
         if !declared.covers(namespace) {
-            return Ok(false);
+            return Ok(matches!(marked, Some(Ok(true))));
         }
 
         Ok(self.files.data.doc.read().get(namespace).is_some())
@@ -870,11 +906,8 @@ impl<D: TextDocument> TextStoreInner<D> {
                 .attach_key(namespace)?;
         }
 
-        self.files
-            .meta
-            .persist()
-            .change_context(StorageError::Meta)
-            .attach_key(namespace)?;
+        self.standoff.owe_the_meta();
+        self.debouncer.schedule();
         Ok(())
     }
 
@@ -885,7 +918,7 @@ impl<D: TextDocument> TextStoreInner<D> {
         &self,
         path_str: StorePath,
         node: D::Node,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
         self.pull_external_changes();
 
@@ -933,8 +966,9 @@ impl<D: TextDocument> TextStoreInner<D> {
                 op: StoreOp::Set,
                 old: old_bytes,
                 new: Some(new),
-                source: source.into(),
+                source: by.handle.into(),
                 at: settled,
+                judged: by.judged,
             },
             None => {
                 let Some(old) = old_bytes else {
@@ -946,16 +980,17 @@ impl<D: TextDocument> TextStoreInner<D> {
                     op: StoreOp::Delete,
                     old: Some(old),
                     new: None,
-                    source: source.into(),
+                    source: by.handle.into(),
                     at: settled,
+                    judged: false,
                 }
             }
         };
 
-        utils::emit_events(&self.subscriptions, event)?;
+        let told = utils::emit_events(&self.subscriptions, event);
 
         self.debouncer.schedule();
-        Ok(())
+        told
     }
 }
 
@@ -992,18 +1027,18 @@ impl<D: TextDocument + Send + 'static> StoreBackend for TextStore<D> {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_erased_inner(path, value, source)
+        self.inner.set_erased_inner(path, value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_erased_inner(&path, value, source)
+        self.inner.set_erased_inner(&path, value, by)
     }
 
     fn save_now(&self) -> StorageResult<()> {
@@ -1601,6 +1636,7 @@ pub fn diff_documents<D: TextDocument>(
                         new: new_bytes,
                         at,
                         source: Source::Disk,
+                        judged: false,
                     });
                 }
             }
@@ -1613,6 +1649,7 @@ pub fn diff_documents<D: TextDocument>(
                     new: None,
                     at,
                     source: Source::Disk,
+                    judged: false,
                 });
             }
             (None, Some(n)) => {
@@ -1624,6 +1661,7 @@ pub fn diff_documents<D: TextDocument>(
                     new: new_bytes,
                     at,
                     source: Source::Disk,
+                    judged: false,
                 });
             }
             (None, None) => {}

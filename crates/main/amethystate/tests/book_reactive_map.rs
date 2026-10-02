@@ -1,8 +1,9 @@
+use amethystate::MapChange;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 use amethystate_test_macros::backends;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 fn open(backend: Backend, tag: &str) -> anyhow::Result<(TempPath, amethystate::Store)> {
     let path = TempPath::new(tag);
@@ -107,6 +108,43 @@ fn writing_to_a_map(backend: Backend) -> anyhow::Result<()> {
 
     assert!(absent.is_err(), "update writes a key that is already there");
     assert!(widths.is_empty());
+
+    Ok(())
+}
+
+#[backends(all)]
+fn writing_an_entry_whether_or_not_it_is_there(backend: Backend) -> anyhow::Result<()> {
+    let (_path, store) = open(backend, "book_map_upsert")?;
+    let hits = store.kv().map::<String, u64>("hits")?;
+
+    let heard = Arc::new(Mutex::new(Vec::new()));
+    let kept = Arc::clone(&heard);
+    let _kinds = hits.subscribe_any(move |change| {
+        let kind = match change {
+            MapChange::Insert { .. } => "insert",
+            MapChange::Update { .. } => "update",
+            _ => "other",
+        };
+        kept.lock().unwrap().push(kind);
+    });
+
+    //@show writing an entry whether or not it is there
+    for page in ["home", "about", "home"] {
+        hits.upsert(page, |seen| seen.map_or(1, |count| count + 1))?;
+    }
+
+    let now = hits
+        .durable()
+        .upsert("home", |seen| seen.map_or(1, |count| count + 1))?;
+    //@show-end
+
+    assert_eq!(now, 3);
+    assert_eq!(hits.get("home"), Some(3));
+    assert_eq!(hits.get("about"), Some(1));
+    assert_eq!(
+        *heard.lock().unwrap(),
+        ["insert", "insert", "update", "update"]
+    );
 
     Ok(())
 }

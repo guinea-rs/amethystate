@@ -41,7 +41,27 @@ A rename reads as a release beside a claim, and is not to be told from the two h
 
 The store opens, the application runs. What is reported is reported again on the next startup, and the one after: drift nobody answered leaves the recorded shape where it is, so the comparison still has something to compare against.
 
-Two things stop it. Bump the version and write a step for what moved, which is the answer when the change was meant. Or put the released places back, which is the answer when it was not.
+Two things stop it. Bump the version and write a step for what moved, which is the answer when the change was meant. Or put the released places back, which is the answer when it was not. A store still in development has a third answer, below.
+
+## While the shape is still being worked out
+
+A struct in heavy development changes every day, and a version and a step for each change is a migration history nobody will ever run. The store can be told to let go of what nothing declares instead:
+
+<!-- shown: letting go of what nothing declares -->
+```rust
+let (store, report) = StoreBuilder::new(path)
+    .rules(|r| r.on_undeclared(OnUndeclared::Drop))
+    .migrate()?;
+
+assert!(!report.has_drift());
+```
+<!-- /shown -->
+
+At every open, each key under a declared prefix that no struct of this build declares is deleted, and the shape this build declares is recorded in place of the old one. No version moves and no step runs, so there is no drift to report, on this open or the next. A renamed field starts from its default: the value under the old name is gone, not carried across, which is the difference between this and a step.
+
+Only the prefixes a struct declares are swept, and only after every step of this open has run: a step reads the old keys, its own line's or another's, and they have to be there when it runs. An open where a migration failed deletes nothing. A key under no declared prefix is left where it is, and the root is never swept — a struct declared `as_root` claims its own fields there, not everything else stored at the top.
+
+It deletes data the moment a field is renamed, so it belongs to a development build and not to one that opens somebody's store. `OnUndeclared::Keep`, the default, deletes nothing and reports the drift.
 
 ## Reading it
 
@@ -64,7 +84,7 @@ A place is named under its prefix there — `token`, not `app.token` — and the
 Both `build` and `migrate` already write the report through `tracing`, so nothing has to be printed by hand. With the `diagnostics` feature on, drift is laid out the way a compiler lays out a warning instead of a line per field:
 
 ```toml
-amethystate = { version = "0.22", features = ["diagnostics"] }
+amethystate = { version = "0.23", features = ["diagnostics"] }
 ```
 
 What follows is one struct edited and its `version` left alone. The build that wrote the data declared this:

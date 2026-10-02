@@ -1,7 +1,8 @@
 pub mod commands;
+pub mod scope;
 
 use tauri::{
-    Manager, Runtime,
+    Manager, RunEvent, Runtime, WindowEvent,
     plugin::{Builder, TauriPlugin},
 };
 
@@ -19,11 +20,19 @@ pub fn init<R: Runtime>(store: amethystate::Store) -> TauriPlugin<R> {
             commands::amethystate_scan_keys,
         ])
         .setup(|app, _api| {
-            app.manage(commands::PluginState {
-                store,
-                subscriptions: std::sync::Mutex::new(std::collections::HashMap::new()),
-            });
+            app.manage(commands::PluginState::new(store));
             Ok(())
+        })
+        .on_event(|app, event| {
+            if let RunEvent::WindowEvent {
+                label,
+                event: WindowEvent::Destroyed,
+                ..
+            } = event
+                && let Some(state) = app.try_state::<commands::PluginState>()
+            {
+                state.forget(label);
+            }
         })
         .build()
 }

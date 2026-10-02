@@ -75,9 +75,31 @@ pub(crate) fn schema(
         args.on_unreadable.as_ref(),
         args.on_delete.as_ref(),
         args.unreadable_entries.as_ref(),
-        args.check.as_ref(),
+        None,
         found,
     );
+
+    for written in [&args.rule, &args.check].into_iter().flatten() {
+        found.at(
+            written.span(),
+            "a struct is the place its fields are kept, and a rule belongs on a field: \
+             `#[amestate(rule = ..)]` judges one value wherever it comes from. A rule between \
+             fields goes where the struct is opened - `open = manual` and an `Open` of its own, \
+             which sees every field at once",
+        );
+    }
+
+    let manual_open = args.open.as_ref().and_then(|written| {
+        if written.is_ident("manual") {
+            return Some(written.span());
+        }
+        found.at(
+            written.span(),
+            "`open` says who writes the struct's `Open`, and the one thing to say is `manual`: \
+             leave it out and the macro writes it",
+        );
+        None
+    });
 
     let schema = Schema {
         name: input.ident.clone(),
@@ -92,6 +114,7 @@ pub(crate) fn schema(
         mode,
         target,
         rules,
+        manual_open,
         fields,
     };
 
@@ -130,7 +153,7 @@ enum Ground {
 /// never stored and takes no ground at all, and a flattened node lends its name
 /// to nothing.
 ///
-/// [claims]: https://uniproc-dev.github.io/amethystate/concepts/claims/
+/// [claims]: https://guinea-rs.github.io/amethystate/concepts/claims/
 fn one_field_per_place(fields: &[Field], found: &mut Diagnostics) {
     let ground = |field: &Field| match field.shape {
         Shape::Stored { .. } => Some(Ground::Held),
@@ -266,7 +289,7 @@ fn rules_of(
     on_unreadable: Option<&syn::Path>,
     on_delete: Option<&syn::Path>,
     unreadable_entries: Option<&syn::Path>,
-    check: Option<&syn::Path>,
+    rule: Option<&syn::Path>,
     found: &mut Diagnostics,
 ) -> Rules {
     Rules {
@@ -303,7 +326,7 @@ fn rules_of(
              drawn wants when something else removed the key",
             found,
         ),
-        check: spanned_path(check),
+        rule: spanned_path(rule),
     }
 }
 
@@ -365,14 +388,12 @@ fn mode_of(args: &MacroArgs, found: &mut Diagnostics) -> Mode {
     match args.mode.as_deref() {
         None | Some("reactive") => Mode::Reactive,
         Some("persistent") => Mode::Persistent,
-        Some("both") => Mode::Both,
         Some(other) => {
             found.at(
                 Span::call_site(),
                 format!(
-                    "`{other}` is not a mode. `reactive` gives fields that watch the store, \
-                     `persistent` gives a struct that loads and saves whole, and `both` gives \
-                     each of them"
+                    "`{other}` is not a mode. `reactive` gives fields that watch the store, and \
+                     `persistent` gives a struct that loads and saves whole"
                 ),
             );
             Mode::Reactive
@@ -419,7 +440,7 @@ fn lower_field(
         entry.on_unreadable.as_ref(),
         entry.on_delete.as_ref(),
         entry.unreadable_entries.as_ref(),
-        entry.check.as_ref(),
+        entry.rule.as_ref(),
         found,
     );
 

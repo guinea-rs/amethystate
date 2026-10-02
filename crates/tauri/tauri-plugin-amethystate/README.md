@@ -4,10 +4,10 @@
 
 [![Crates.io](https://img.shields.io/crates/v/tauri-plugin-amethystate.svg)](https://crates.io/crates/tauri-plugin-amethystate)
 [![Docs.rs](https://docs.rs/tauri-plugin-amethystate/badge.svg)](https://docs.rs/tauri-plugin-amethystate)
-[![CI](https://github.com/uniproc-dev/amethystate/actions/workflows/ci.yml/badge.svg)](https://github.com/uniproc-dev/amethystate/actions)
+[![CI](https://github.com/guinea-rs/amethystate/actions/workflows/ci.yml/badge.svg)](https://github.com/guinea-rs/amethystate/actions)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-yellow.svg)](#license)
 
-*Tauri v2 plugin that exposes [amethystate](https://github.com/uniproc-dev/amethystate) reactive persistent state to the frontend, with TypeScript codegen.*
+*Tauri v2 plugin that exposes [amethystate](https://github.com/guinea-rs/amethystate) reactive persistent state to the frontend, with TypeScript codegen.*
 
 </div>
 
@@ -58,7 +58,7 @@ amethystate_codegen::amethystate_codegen_main!(
 );
 ```
 
-`framework` is `leptos`, `yew`, `dioxus` or `vanilla`; the generated Rust compiles on `wasm32` only. A TypeScript frontend takes `ts_out` instead and gets its value types from `ts-rs` — see [TypeScript](https://uniproc-dev.github.io/amethystate/integrations/typescript/) in the book.
+`framework` is `leptos`, `yew`, `dioxus` or `vanilla`; the generated Rust compiles on `wasm32` only. A TypeScript frontend takes `ts_out` instead and gets its value types from `ts-rs` — see [TypeScript](https://guinea-rs.github.io/amethystate/integrations/typescript/) in the book.
 
 Complete apps: [`examples/tauri-typescript`](../../../examples/tauri-typescript), [`examples/tauri-leptos`](../../../examples/tauri-leptos), [`examples/tauri-yew`](../../../examples/tauri-yew).
 

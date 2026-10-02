@@ -1,7 +1,7 @@
 //! Measures the cost of putting `Arc<dyn CellBackend<T>>` in front of the
 //! current direct `Signal::get()` path.
 //!
-//! The question: retain-mode UIs call `get()` every frame, so does swapping a
+//! The question: immediate-mode UIs call `get()` every frame, so does swapping a
 //! direct `ArcSwap::load` for an `Arc` deref + vtable call actually show up?
 //!
 //! `CellBackend`/`ReactiveCell` here are stand-ins for the proposed types - they

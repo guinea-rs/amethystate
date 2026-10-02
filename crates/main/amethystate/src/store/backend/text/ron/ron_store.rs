@@ -7,7 +7,9 @@ use crate::store::durable::Commit;
 use crate::store::format::TestFormatRecord;
 use crate::store::meta::SchemaSnapshot;
 use crate::store::traits::StoreLayout;
-use crate::store::{InitState, StoreBackend, StoreCallback, SubscriptionId, SubscriptionKind};
+use crate::store::{
+    InitState, StoreBackend, StoreCallback, SubscriptionId, SubscriptionKind, Writer,
+};
 use crate::{MigrationReport, StorageResult};
 use amethystate_core::path::StorePath;
 use uuid::Uuid;
@@ -50,18 +52,18 @@ impl StoreBackend for RonStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.0.set_erased(path, value, source)
+        self.0.set_erased(path, value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.0.set_owned_erased(path, value, source)
+        self.0.set_owned_erased(path, value, by)
     }
 
     fn save_now(&self) -> StorageResult<()> {

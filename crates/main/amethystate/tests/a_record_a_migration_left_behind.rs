@@ -5,6 +5,8 @@ use amethystate::{AmeData, amethystate, migrate};
 use amethystate_core::test_utils::TempPath;
 use std::path::{Path, PathBuf};
 
+mod common;
+
 mod v1 {
     use super::*;
 
@@ -27,7 +29,7 @@ fn keep_v1_to_v2(old: AmeData<v1::Keep>) -> amethystate::MigrationResult<AmeData
 }
 
 fn meta_path(at: &Path) -> PathBuf {
-    at.with_extension("meta")
+    common::bookkeeping_of(at)
 }
 
 fn settle() {
