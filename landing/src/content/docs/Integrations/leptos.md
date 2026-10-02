@@ -12,7 +12,7 @@ Field handles are `Copy` indices, so they can be passed down through component p
 
 ```toml
 [dependencies]
-amethystate-leptos = "0.8"
+amethystate-leptos = "0.23"
 ```
 
 ## Defining state

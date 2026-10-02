@@ -246,6 +246,9 @@ command line says.
 ## Releasing
 
 The version lives once, in `[workspace.package]`, and the internal path
-dependencies pin it too — both move together. Pushing a `v*` tag is what
+dependencies pin it too — both move together. The framework adapters carry it
+as well, so a tag publishes every adapter beside the store it was built and
+tested with; the framework version an adapter supports is in its manifest and
+on its book page, not in its own number. Pushing a `v*` tag is what
 publishes; CI must be green first, because a published version cannot be taken
 back.

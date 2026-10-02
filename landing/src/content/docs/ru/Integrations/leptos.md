@@ -12,7 +12,7 @@ title: Leptos
 
 ```toml
 [dependencies]
-amethystate-leptos = "0.8"
+amethystate-leptos = "0.23"
 ```
 
 ## Объявление состояния
