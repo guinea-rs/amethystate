@@ -39,6 +39,7 @@ fn a_build_with_no_step_still_lets_go_of_what_nothing_declares(backend: Backend)
     assert_eq!(keys, ["agents.ping_interval_ms"], "{backend:?}");
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn a_key_written_into_the_file_by_hand_goes_in_a_build_with_no_step() {
     let dir = TempPath::new("undeclared_no_step_by_hand");
