@@ -52,9 +52,9 @@ their own. Nothing is written beside it.
 | file | holds |
 | --- | --- |
 | `settings.json` | the values |
-| `settings.meta` | the schema bookkeeping |
+| `settings.json.meta` | the schema bookkeeping |
 | `settings.json.bak` | a copy of the data, while it is being rewritten |
-| `settings.meta.bak` | the same for the bookkeeping |
+| `settings.json.meta.bak` | the same for the bookkeeping |
 
 The sidecar carries what the store needs in order to read the data back: which
 version of each struct wrote it, what those fields looked like, and what the
@@ -62,11 +62,18 @@ migration pass has already done. A person can read the data file on its own; a
 store opening it without the sidecar has lost the schema it was written under.
 Both belong to the store, and a backup takes both.
 
-`.bak` is appended to the whole name rather than replacing the extension.
-Swapping it would give `settings.bak` for both files, so the second copy would
-land on the first and the data would have no backup left - and it would also
-name a file the store never created, a `settings.bak` somebody put there
-themselves.
+`.meta` and `.bak` are appended to the whole name rather than replacing the
+extension. Swapping it would give `settings.bak` for both files, so the second
+copy would land on the first and the data would have no backup left - and it
+would also name a file the store never created, a `settings.bak` somebody put
+there themselves. The same goes for the bookkeeping: `settings.user` and
+`settings.system` beside each other would share one `settings.meta`, and each
+store would overwrite the other's record of which migrations have run.
+
+A store written by a release before 0.23 keeps its bookkeeping in
+`settings.meta`. While `settings.json.meta` is not there yet, the open reads
+the old file and writes the new one; the old file is left where it is, since
+another store may be reading it too.
 
 ## What the backup is for
 
@@ -90,6 +97,13 @@ A good backup beside a half-written data file. On the next open the data will
 not parse, the backup will, and the store recovers from it and carries on -
 saying so through `tracing::warn!` under the `amethystate` target.
 
+The file that would not parse is not thrown away: it is renamed to
+`settings.json.unreadable` before the copy takes its place, so whatever was in
+it is still there to look at. The `.bak` goes once the recovered file has
+landed. A copy answers once; left standing, it would answer the next file that
+does not parse too, a hand edit with a typo in it, by putting back data from
+before that edit without a word.
+
 The order matters and is the whole point. The backup is taken **after** the
 read rather than before it: a copy exists to hold a readable file, so copying a
 half-written one over it destroys the only intact copy in exactly the case the
@@ -105,6 +119,13 @@ previous run.
 A file the pass did not change is neither copied nor written. Another store can
 have the same file open and be committing to it, and putting back what this open
 read would pour that copy over what the other one wrote.
+
+## Starting over
+
+Deleting the data file starts the store over. With no data file and no `.bak`
+beside it, the bookkeeping has nothing left to describe, so the open pays no
+attention to the `.meta` left behind: declared maps get their defaults again,
+and every prefix starts at the version its struct declares.
 
 ## What the copy cannot promise
 

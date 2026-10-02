@@ -227,6 +227,28 @@ pub(super) fn reopen(db: &OpenDatabase, path: &Path) -> StorageResult<()> {
     Ok(())
 }
 
+/// The database for a write, opened again first where an earlier reopen did
+/// not land - one that met the same failing disk leaves the gap standing, and
+/// nothing else would ever close it. `None` once the store has let its file
+/// go: that file belongs to whoever the close was for.
+///
+/// The caller holds `write_lock`, as for every reopen.
+pub(super) fn for_writing(
+    db: &OpenDatabase,
+    path: &Path,
+    released: &std::sync::atomic::AtomicBool,
+) -> StorageResult<Option<Arc<Database>>> {
+    if let Some(open) = db.load_full() {
+        return Ok(Some(open));
+    }
+    if released.load(std::sync::atomic::Ordering::Acquire) {
+        return Ok(None);
+    }
+
+    reopen(db, path)?;
+    Ok(db.load_full())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +333,49 @@ mod tests {
             Some(42),
             "the write buffered before the failure is on disk after the recovery"
         );
+    }
+
+    #[test]
+    #[serial]
+    fn a_reopen_that_failed_is_tried_again_once_the_disk_is_back() {
+        let path = TempPath::new("redb_reopen_failed");
+        let _disk = arm_failing_disk(&path);
+
+        let (store, _) = RedbStore::open(StoreConfig::new(&path), MigrationSet::default()).unwrap();
+        store
+            .set(StorePath::from_segments(["survivor"]), &42u32)
+            .unwrap();
+
+        WRITES_LEFT.store(0, Ordering::SeqCst);
+        let _ = store.inner.flush_locked(&StorePath::root());
+        let _ = store.save_now();
+        assert!(
+            store.inner.db.load_full().is_none(),
+            "the reopen went through on a disk that takes no writes"
+        );
+
+        WRITES_LEFT.store(usize::MAX, Ordering::SeqCst);
+
+        store.save_now().unwrap();
+        assert_eq!(
+            store
+                .get::<u32>(StorePath::from_segments(["survivor"]))
+                .unwrap(),
+            Some(42)
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn a_closed_store_does_not_take_its_file_back() {
+        let path = TempPath::new("redb_closed_stays_closed");
+        let (store, _) = RedbStore::open(StoreConfig::new(&path), MigrationSet::default()).unwrap();
+
+        store.inner.close().unwrap();
+        let _ = store.save_now();
+        let _ = store.get::<u32>(StorePath::from_segments(["anything"]));
+
+        assert!(store.inner.db.load_full().is_none());
     }
 
     #[test]

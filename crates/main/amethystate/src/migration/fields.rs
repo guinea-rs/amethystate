@@ -158,34 +158,44 @@ impl FieldDescriptor {
     }
 }
 
-const fn same(a: &str, b: &str) -> bool {
-    let (a, b) = (a.as_bytes(), b.as_bytes());
-    if a.len() != b.len() {
+const fn holds(outer: &[&str], inner: &[&str]) -> bool {
+    if outer.len() > inner.len() {
         return false;
     }
 
-    let mut i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
+    let mut at = 0;
+    while at < outer.len() {
+        if !same_text(outer[at], inner[at]) {
             return false;
         }
-        i += 1;
+        at += 1;
     }
     true
 }
 
-/// Whether `fields` puts a path called `name` at its own level.
+const fn meet(one: &FieldDescriptor, other: &FieldDescriptor) -> bool {
+    let (mine, theirs) = (one.name.segments(), other.name.segments());
+
+    match (one.role, other.role) {
+        (Role::Node, Role::Node) => mine.len() == theirs.len() && holds(mine, theirs),
+        _ => holds(mine, theirs) || holds(theirs, mine),
+    }
+}
+
+/// Whether `fields` takes ground that `one` takes at the same level.
 ///
-/// Reached through flattened nodes, which contribute no segment: a name a
-/// flattened grandchild brings up arrives here as if it were written here.
-pub const fn brings(fields: &[FieldDescriptor], name: &str) -> bool {
+/// Reached through flattened nodes, which contribute no segment. A leaf or a
+/// map takes its path and everything under it, so paths are compared a level
+/// at a time and one inside the other is a meeting; two nodes meet only at one
+/// path.
+pub const fn brings(fields: &[FieldDescriptor], one: &FieldDescriptor) -> bool {
     let mut i = 0;
     while i < fields.len() {
-        if fields[i].flattened {
-            if brings(fields[i].children, name) {
-                return true;
-            }
-        } else if same(fields[i].name.as_str(), name) {
+        let met = match fields[i].flattened {
+            true => brings(fields[i].children, one),
+            false => meet(&fields[i], one),
+        };
+        if met {
             return true;
         }
         i += 1;
@@ -193,16 +203,16 @@ pub const fn brings(fields: &[FieldDescriptor], name: &str) -> bool {
     false
 }
 
-/// Whether two sets of fields, flattened into the same level, would land on a
-/// name in common.
+/// Whether two sets of fields, flattened into the same level, would take
+/// ground in common.
 pub const fn overlap(a: &[FieldDescriptor], b: &[FieldDescriptor]) -> bool {
     let mut i = 0;
     while i < a.len() {
-        if a[i].flattened {
-            if overlap(a[i].children, b) {
-                return true;
-            }
-        } else if brings(b, a[i].name.as_str()) {
+        let met = match a[i].flattened {
+            true => overlap(a[i].children, b),
+            false => brings(b, &a[i]),
+        };
+        if met {
             return true;
         }
         i += 1;
@@ -210,11 +220,12 @@ pub const fn overlap(a: &[FieldDescriptor], b: &[FieldDescriptor]) -> bool {
     false
 }
 
-/// Whether a name already spelled at this level is also brought up by `fields`.
-pub const fn brings_any(fields: &[FieldDescriptor], names: &[&str]) -> bool {
+/// Whether what `fields[at]` flattens into its holder takes ground one of the
+/// holder's own fields takes.
+pub const fn crosses(fields: &[FieldDescriptor], at: usize) -> bool {
     let mut i = 0;
-    while i < names.len() {
-        if brings(fields, names[i]) {
+    while i < fields.len() {
+        if i != at && !fields[i].flattened && brings(fields[at].children, &fields[i]) {
             return true;
         }
         i += 1;

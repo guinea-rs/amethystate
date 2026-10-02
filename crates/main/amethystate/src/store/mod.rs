@@ -3,7 +3,6 @@ pub(crate) mod backend;
 #[cfg(feature = "bench-internals")]
 pub mod backend;
 pub mod builder;
-pub mod check;
 pub mod config;
 pub mod debouncer;
 pub mod declared;
@@ -21,6 +20,7 @@ pub mod opening;
 pub mod places;
 mod primitives_factory;
 pub mod reading;
+pub mod rule;
 mod rules;
 pub mod screening;
 mod state_slice;
@@ -36,19 +36,16 @@ pub use amethystate_core::path::{
 pub use amethystate_core::primitives::error::{WriteResult, WriteValue};
 #[cfg(feature = "memory")]
 pub use builder::Persistence;
-pub use check::{
-    Check, CheckContext, Invalid, refused, refused_or_default, refused_struct_or_kept,
-    refused_under,
-};
-pub(crate) use check::{load_declared, save_declared};
 pub use declared::{Declared, Holds};
 pub use durable::{Commit, Durable};
 pub use error::{IntoStorageReport, Occupied, StorageError, StorageResult, one_line};
 pub use inspector::InspectorBackend;
 pub use kv::{Cleared, Kv};
-pub use opening::{OpenStore, OpenStruct, WhenItWillNotRead, WillNotOpen};
+pub use opening::{Open, OpenStore, OpenStruct, Schema, WhenItWillNotRead, WillNotOpen};
 pub use primitives_factory::*;
 pub use reading::{LoadMap, LoadMapResult, ReadResult, ReadValue, ScanKeys, ScanResult};
+pub use rule::{Invalid, Rule, RuleContext, refused, refused_or_default};
+pub(crate) use rule::{judge_declared, load_declared, save_declared};
 pub use rules::*;
 pub use state_slice::*;
 pub use traits::*;

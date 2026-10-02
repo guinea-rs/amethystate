@@ -26,6 +26,10 @@ GPUs on Anthropic's servers — and solve it more systematically.
 on disk. You describe the state you want in one struct; saving it, making it
 reactive, and migrating it when it changes are what the library is for.
 
+All of it is held by a **store**: a file on disk together with what memory knows
+about it - the buffer of writes and the subscriptions. A store is opened at
+startup, and the structs live in it.
+
 ```rust
 #[amethystate(prefix = "network")]
 pub struct NetworkState {
@@ -37,7 +41,7 @@ pub struct NetworkState {
 }
 ```
 
-`state.port.set(9090)` returns to a caller who can already read `9090` back, and
+`state.port().set(9090)` returns to a caller who can already read `9090` back, and
 to subscribers who have already heard about it. The disk catches up on its own.
 
 Subscribers of `port`, and nobody else. What you watch is one field, one map
@@ -48,11 +52,12 @@ thing it draws changed and not because something near it did.
 ## What it decides, so you do not
 
 **Where the file goes.** A store opened by name lands where the platform keeps
-application data, with the extension its engine wants.
+application data, with the extension its **engine** wants - the part that
+writes values to disk: redb, SQLite or a text document.
 
 **When to write.** The way an operating system treats a file through its page
-cache: a write lands in memory, reads see it at once, and the disk catches up
-later. Here that is once per window, counted from the first unsaved write, so a
+cache: a write lands in memory, reads see it at once, and a **flush** carries it
+to disk later. Here that is once per window, counted from the first unsaved write, so a
 slider dragged across its range costs a flush every few hundred milliseconds
 rather than one per frame. There is an `fsync` too - `save_now` waits until
 everything the store holds is on disk. Closing the store writes down whatever it
@@ -63,6 +68,12 @@ MessagePack, SQLite as JSON, and the text engines write it into the document
 itself, in that document's own syntax. The same declaration works against all
 five, and what a given format cannot hold is reported rather than discovered
 later.
+
+**Where a value is checked.** A `rule` on a field stands at every way in and
+out: a value read at startup, an edit made to the file, a write from your own
+code. What it corrects is written back, so the screen and the file never hold
+different values, and what it refuses never lands. A check between two fields
+goes where the struct is opened, in an `Open` of its own.
 
 **What to do when the struct changed.** The shape each struct had is recorded
 beside the data. A version that went up runs the steps you declared; fields that
@@ -79,8 +90,8 @@ overwriting it.
 They differ in one thing — whether a field is a handle — and share storage,
 schema and migrations.
 
-- **Reactive** — a field is a handle: you read it, write it, subscribe to it.
-  The rest of the book assumes this one.
+- **Reactive** — a field is a **handle**: the object you read the field through,
+  write it through and subscribe to. The rest of the book assumes this one.
 - **Persistent-only** — ordinary fields on an ordinary struct, saved when you
   say so. For frameworks that own their update loop, and for state nobody needs
   to watch. It does not see changes made elsewhere.

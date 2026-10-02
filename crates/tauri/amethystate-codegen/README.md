@@ -1,3 +1,3 @@
 # amethystate-codegen
 
-See <https://uniproc-dev.github.io/amethystate/integrations/tauri/>
+See <https://guinea-rs.github.io/amethystate/integrations/tauri/>

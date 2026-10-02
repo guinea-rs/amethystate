@@ -1,5 +1,5 @@
 ---
-title: Typescript
+title: TypeScript
 ---
 
 `amethystate` ships an npm package for Tauri apps whose frontend is TypeScript or JavaScript. Generated bindings are built on it: a class per state struct, holding a `Field<T>` per value and a `ReactiveMap<V>` per map.
@@ -25,7 +25,7 @@ name = "codegen"
 path = "bin/codegen.rs"
 
 [dependencies]
-amethystate-codegen = "0.22"
+amethystate-codegen = "0.23"
 ts-rs = "12"
 ```
 
@@ -61,9 +61,9 @@ The bindings import each value type from a file of its own name beside them, whi
 cargo run --bin codegen
 ```
 
-## Defaults come from the backend
+## Defaults are in the bindings
 
-The frontend reads what the store holds and does not know the defaults declared in Rust. Build the struct on the Rust side before the frontend loads it: `Todos::new_with(&store)` writes the defaults of every field the store does not hold yet. `load()` refuses a field the store does not hold, and names its path.
+The generator writes each field's declared default into the bindings, as the JSON the store keeps it as. A field the store does not hold - its struct was never built on the Rust side, or its key went since - loads as that default, and a map the store does not hold loads empty.
 
 ## Loading
 
@@ -73,7 +73,7 @@ import { Todos } from "./bindings/amethystate";
 const todos = await Todos.load();
 ```
 
-`load()` reads everything under the slice's prefix in one IPC call. A nested struct becomes a class of its own, reached by property access. `dispose()` on the slice stops every watch its fields and maps took.
+`load()` reads everything under the struct's prefix in one IPC call. A nested struct becomes a class of its own, reached by property access. `dispose()` on the struct stops every watch its fields and maps took.
 
 ## Fields
 
@@ -120,7 +120,7 @@ Writes to a map are taken at once and taken back when refused, the way field wri
 
 ## Flushing to disk
 
-Writes are debounced in the backend. To have them on disk now, for example before the app closes, call `save()` on the slice:
+Writes are debounced in the backend. To have them on disk now, for example before the app closes, call `save()` on the struct:
 
 ```ts
 await todos.save();
@@ -132,4 +132,4 @@ await todos.save();
 
 ## Examples
 
-- [`tauri-typescript`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-typescript) — the todo app over the package
+- [`tauri-typescript`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-typescript) — the todo app over the package

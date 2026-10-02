@@ -157,3 +157,33 @@ fn a_panicking_subscriber_does_not_disable_the_map(backend: Backend) {
         "notifications must survive an earlier panicking subscriber"
     );
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[backends(all)]
+fn a_panicking_subscriber_does_not_disable_the_field(backend: Backend) {
+    let path = TempPath::new("reentrancy_panic_field");
+    let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
+    let cfg = Cfg::new_with(&store).unwrap();
+    let counter = cfg.counter();
+
+    let boom = counter.subscribe(|_| panic!("subscriber blew up"));
+
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = counter.set(1);
+    }));
+    std::panic::set_hook(previous);
+    assert!(result.is_err());
+    drop(boom);
+
+    let seen = Arc::new(AtomicUsize::new(0));
+    let cap = seen.clone();
+    let _sub = counter.subscribe(move |_| {
+        cap.fetch_add(1, Ordering::SeqCst);
+    });
+
+    counter.set(2).unwrap();
+
+    assert_eq!(seen.load(Ordering::SeqCst), 1);
+}

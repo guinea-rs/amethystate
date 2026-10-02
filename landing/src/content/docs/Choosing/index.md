@@ -6,13 +6,13 @@ sidebar:
 ---
 
 Five engines hold the same values, and they do not hold them identically. This
-section is where the differences are measured: what a store cannot hold, cannot
-tell apart, or hands back changed, and which engine it happens on. It is the
-half of the book that decides which one to pick.
+section is where the differences are measured: what an engine cannot hold,
+cannot tell apart, or hands back changed, and which engine it happens on. It is
+the half of the book that decides which one to pick.
 
-Almost none of it is this library's doing. A store keeps values in a document,
-and a document format decides what a value may be, what may name it, and what
-survives a round trip. TOML has no null; JSON names a member with a string; RON
+Almost none of it is this library's doing. An engine writes values in a format,
+and the format decides what a value may be, what may name it, and what survives
+a round trip. TOML has no null; JSON names a member with a string; RON
 will not carry an enum. Those are decisions made before `amethystate` sees the
 value, and no setting here changes them.
 

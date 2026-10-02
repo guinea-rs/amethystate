@@ -17,7 +17,7 @@ use crate::observability::Disagreement;
 use crate::reactive::FieldValue;
 use crate::reactive::map::ReactiveMap;
 use crate::store::{
-    Check, OnDelete, OnUnreadable, OpenStruct, ReadRules, StoredAs, UnreadableEntries, WriteValue,
+    OnDelete, OnUnreadable, OpenStruct, ReadRules, Rule, StoredAs, UnreadableEntries, WriteValue,
 };
 use crate::{
     Field, MigrationContext, ReactiveMapKey, ReactiveMapValue, SignalSubscription, Store, StoreExt,
@@ -123,10 +123,17 @@ pub trait Kind: Sized + 'static {
         store: &Store,
         at: &StorePath,
         stored_as: StoredAs<Self>,
-        check: Option<Check<Self>>,
+        rule: Option<Rule<Self>>,
         policy: OnUnreadable,
         seed: impl FnOnce() -> Self::Seed,
     ) -> Result<Self::Data, OpenStruct>;
+
+    fn judge_plain(
+        data: &mut Self::Data,
+        store: &Store,
+        at: &StorePath,
+        rule: Option<Rule<Self>>,
+    ) -> Result<(), WriteValue>;
 
     fn save_plain(
         data: &Self::Data,
@@ -135,31 +142,36 @@ pub trait Kind: Sized + 'static {
         stored_as: StoredAs<Self>,
     ) -> Result<(), WriteValue>;
 
-    fn snapshot(handle: &Self::Handle) -> Self::Data;
-
     fn watch(
         handle: &Self::Handle,
         on_change: impl Fn() + Send + Sync + 'static,
     ) -> SignalSubscription;
 
-    fn refused(handle: &Self::Handle, why: &str);
-
     fn peek(handle: &Self::Handle) -> Self::Peek;
 
     fn disagreement(handle: &Self::Handle) -> Option<Disagreement>;
+
+    /// Whether a frontend's JSON reads as what this field stores: the value,
+    /// or for a map one entry's value.
+    #[cfg(feature = "tauri")]
+    fn accepts(json: &str, stored_as: StoredAs<Self>) -> bool;
+
+    /// The JSON a frontend is handed once the field's key is gone.
+    #[cfg(feature = "tauri")]
+    fn written(seed: Self::Seed, stored_as: StoredAs<Self>) -> Option<String>;
 }
 
 /// What a field declared about reading, handed to [`Kind::build`] whole.
 ///
 /// Each kind takes the part that means something to it: a value takes the
-/// check, how it is stored and what an unreadable value does; a map takes what
+/// rule, how it is stored and what an unreadable value does; a map takes what
 /// an unreadable entry does. What a removed key does means something to both.
 #[doc(hidden)]
 pub struct KindRules<T> {
     pub on_unreadable: OnUnreadable,
     pub on_delete: OnDelete,
     pub unreadable_entries: UnreadableEntries,
-    pub check: Option<Check<T>>,
+    pub rule: Option<Rule<T>>,
     pub stored_as: StoredAs<T>,
 }
 
@@ -191,8 +203,8 @@ impl<T: FieldValue> Kind for T {
             .on_delete(rules.on_delete)
             .stored_as(rules.stored_as);
 
-        let read = match rules.check {
-            Some(check) => read.check(check),
+        let read = match rules.rule {
+            Some(rule) => read.rule(rule),
             None => read,
         };
 
@@ -221,11 +233,20 @@ impl<T: FieldValue> Kind for T {
         store: &Store,
         at: &StorePath,
         stored_as: StoredAs<T>,
-        check: Option<Check<T>>,
+        rule: Option<Rule<T>>,
         policy: OnUnreadable,
         seed: impl FnOnce() -> T,
     ) -> Result<T, OpenStruct> {
-        crate::store::load_declared(store, at, stored_as, check, policy, seed)
+        crate::store::load_declared(store, at, stored_as, rule, policy, seed)
+    }
+
+    fn judge_plain(
+        data: &mut T,
+        store: &Store,
+        at: &StorePath,
+        rule: Option<Rule<T>>,
+    ) -> Result<(), WriteValue> {
+        crate::store::judge_declared(store, at, data, rule)
     }
 
     fn save_plain(
@@ -237,19 +258,11 @@ impl<T: FieldValue> Kind for T {
         crate::store::save_declared(store, at, data, stored_as)
     }
 
-    fn snapshot(handle: &Field<T>) -> T {
-        handle.get()
-    }
-
     fn watch(
         handle: &Field<T>,
         on_change: impl Fn() + Send + Sync + 'static,
     ) -> SignalSubscription {
         handle.subscribe(move |_| on_change())
-    }
-
-    fn refused(handle: &Field<T>, why: &str) {
-        handle.__ame_refused(why);
     }
 
     fn peek(handle: &Field<T>) -> T {
@@ -258,6 +271,16 @@ impl<T: FieldValue> Kind for T {
 
     fn disagreement(handle: &Field<T>) -> Option<Disagreement> {
         handle.__ame_disagreement()
+    }
+
+    #[cfg(feature = "tauri")]
+    fn accepts(json: &str, stored_as: StoredAs<T>) -> bool {
+        crate::tauri::accepts::<T>(json, stored_as)
+    }
+
+    #[cfg(feature = "tauri")]
+    fn written(seed: T, stored_as: StoredAs<T>) -> Option<String> {
+        crate::tauri::written::<T>(&seed, stored_as)
     }
 }
 
@@ -316,11 +339,20 @@ where
         store: &Store,
         at: &StorePath,
         _stored_as: StoredAs<Self>,
-        _check: Option<Check<Self>>,
+        _rule: Option<Rule<Self>>,
         _policy: OnUnreadable,
         _seed: impl FnOnce() -> HashMap<K, V>,
     ) -> Result<IndexMap<K, V>, OpenStruct> {
         Ok(crate::store::load_map::<K, V>(store, at)?)
+    }
+
+    fn judge_plain(
+        _data: &mut IndexMap<K, V>,
+        _store: &Store,
+        _at: &StorePath,
+        _rule: Option<Rule<Self>>,
+    ) -> Result<(), WriteValue> {
+        Ok(())
     }
 
     fn save_plain(
@@ -353,21 +385,25 @@ where
         Ok(())
     }
 
-    fn snapshot(handle: &Self) -> IndexMap<K, V> {
-        handle.entries().collect()
-    }
-
     fn watch(handle: &Self, on_change: impl Fn() + Send + Sync + 'static) -> SignalSubscription {
         handle.subscribe_any(move |_| on_change())
     }
-
-    fn refused(_handle: &Self, _why: &str) {}
 
     fn peek(handle: &Self) -> EntryCount {
         EntryCount(handle.len())
     }
 
     fn disagreement(_handle: &Self) -> Option<Disagreement> {
+        None
+    }
+
+    #[cfg(feature = "tauri")]
+    fn accepts(json: &str, _stored_as: StoredAs<Self>) -> bool {
+        crate::tauri::accepts::<V>(json, StoredAs::default())
+    }
+
+    #[cfg(feature = "tauri")]
+    fn written(_seed: HashMap<K, V>, _stored_as: StoredAs<Self>) -> Option<String> {
         None
     }
 }

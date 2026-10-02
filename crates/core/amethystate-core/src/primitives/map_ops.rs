@@ -131,6 +131,12 @@ where
     map_apply_change(backend, core, path, MapChange::Clear { source })
 }
 
+/// Runs the interceptors over a change and writes what they let through.
+///
+/// The key cache is not touched here. The backend tells the map about every
+/// write through its subscription, in the order the backend settled them, and
+/// that is where the cache follows it. Applying the change again on the way
+/// out would put this write back over one another thread landed in between.
 pub fn map_apply_change<B, K, V>(
     backend: &B,
     core: &ReactiveMapCore<K, V>,
@@ -176,8 +182,6 @@ where
                 .map_err(|why| WriteValue::from_store(&path, why))?;
         }
     }
-
-    map_apply_remote_change(core, &processed);
 
     Ok(())
 }
@@ -264,5 +268,25 @@ mod tests {
 
         map_apply_remote_change(&core, &MapChange::Clear { source: None });
         assert!(core.cache.is_empty());
+    }
+
+    #[test]
+    fn a_change_told_after_a_later_one_does_not_replace_it() {
+        let cache = crate::primitives::map_core::MapCache::<String, u64>::new();
+
+        cache.insert_settled("cpu".to_string(), 2, 2);
+        cache.insert_settled("cpu".to_string(), 1, 1);
+        assert_eq!(cache.get("cpu"), Some(2));
+
+        cache.remove_settled("cpu", 4);
+        cache.insert_settled("cpu".to_string(), 3, 3);
+        assert_eq!(cache.get("cpu"), None);
+
+        cache.insert_settled("gpu".to_string(), 6, 6);
+        cache.clear_settled(5);
+        assert_eq!(cache.get("gpu"), Some(6));
+
+        cache.insert_settled("npu".to_string(), 4, 4);
+        assert_eq!(cache.get("npu"), None);
     }
 }

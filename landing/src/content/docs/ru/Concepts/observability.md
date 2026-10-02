@@ -36,7 +36,7 @@ TRACE amethystate: field write path=network.port source=external
 | Поле | Значение |
 |-------|-------|
 | `path` | Ключ поля в store, например `network.port` |
-| `source` | Короткое имя структуры, которая позвала `set()`, или `external`, если запись пришла мимо процесса: наблюдатель за файлом, другой процесс, миграция |
+| `source` | Короткое имя структуры, чей хендл позвал `set()`, или `external`, если хендл не принадлежит никакой структуре (форк, поле из `field_with_path`) |
 
 ### Срабатывания подписок
 
@@ -80,4 +80,4 @@ TRACE amethystate: signal emit → subscription fire subscription_id=0 name=Port
 TRACE amethystate: signal emit → subscription fire subscription_id=1 name=None location=src/logger.rs:12
 ```
 
-`source=external` значит, что изменение пришло снаружи: наблюдатель заметил, что файл store правили, или шаг миграции записал значение на старте.
+`source=external` — это всё равно `set()` в этом процессе, только через хендл, которым не владеет никакая структура: форк или поле из `field_with_path`. Изменение, которое идёт мимо `set()`, — файл правили снаружи, писал другой процесс, сработал шаг миграции, — события `field write` не оставляет вовсе.

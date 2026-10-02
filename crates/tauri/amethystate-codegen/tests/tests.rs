@@ -48,6 +48,44 @@ pub struct Renamed {
     pub inner: TestNested,
 }
 
+#[amethystate(prefix = "shapes")]
+pub struct Shapes {
+    pub gaps: Vec<Option<u8>>,
+    pub counts: std::collections::HashMap<String, u32>,
+    pub boxed: Box<String>,
+    pub initial: char,
+    pub pair: (u8, String),
+    pub color: [u8; 4],
+}
+
+#[amethystate(prefix = "said \"so\"")]
+pub struct Quoted {
+    #[amestate(default = 0u8, path = "a \"b\"")]
+    pub level: u8,
+}
+
+#[amethystate(as_root)]
+pub struct Rooted {
+    #[amestate(default = 0u8)]
+    pub launches: u8,
+}
+
+mod v1 {
+    use super::*;
+
+    #[amethystate(prefix = "lined", version = 1)]
+    pub struct Lined {
+        #[amestate(default = String::new())]
+        pub host: String,
+    }
+}
+
+#[amethystate(prefix = "lined", version = 2)]
+pub struct Lined {
+    #[amestate(default = String::new())]
+    pub address: String,
+}
+
 #[test]
 fn a_field_is_exported_under_the_path_it_is_stored_at() {
     let renamed = amethystate::tauri::exports()
@@ -78,7 +116,7 @@ fn test_rust_codegen_export() {
         let _ = std::fs::remove_file(&out_path);
     }
 
-    let reg = CodegenRegistry::new();
+    let reg = CodegenRegistry::new().unwrap();
     reg.export_rust(&out_path, &TauriVanillaCodegen)
         .expect("Failed to export Rust bindings");
 
@@ -90,28 +128,46 @@ fn test_rust_codegen_export() {
 }
 
 #[test]
-fn test_schema_inventory_registrations() {
-    let mut found_root = false;
-    let mut found_nested = false;
+fn every_struct_with_a_place_is_exported_once_at_its_newest_version() {
+    let mut exported: Vec<(&str, Option<&str>, u32)> = amethystate::tauri::exports()
+        .iter()
+        .map(|entry| (entry.struct_name, entry.prefix, entry.version))
+        .collect();
+    exported.sort();
 
-    for entry in amethystate::tauri::exports() {
-        if entry.struct_name == "TestRoot" {
-            found_root = true;
-            assert_eq!(entry.prefix, Some("test_root"));
-            assert_eq!(entry.fields.len(), 3);
-            assert_eq!(entry.fields[0].name, "value");
-            assert_eq!(entry.fields[1].name, "session");
-            assert_eq!(entry.fields[2].name, "child");
-        } else if entry.struct_name == "TestNested" {
-            found_nested = true;
-            assert_eq!(entry.prefix, None);
-            assert_eq!(entry.fields.len(), 1);
-            assert_eq!(entry.fields[0].name, "name");
-        }
-    }
+    assert_eq!(
+        exported,
+        [
+            ("Editor", Some("editor"), 0),
+            ("Lined", Some("lined"), 2),
+            ("Quoted", Some("said \"so\""), 0),
+            ("Renamed", Some("renamed"), 0),
+            ("Rooted", Some("."), 0),
+            ("Shapes", Some("shapes"), 0),
+            ("TestRoot", Some("test_root"), 0),
+        ]
+    );
+}
 
-    assert!(found_root, "TestRoot was not registered in inventory!");
-    assert!(found_nested, "TestNested was not registered in inventory!");
+#[test]
+fn a_held_struct_is_reached_through_its_holder() {
+    use amethystate::tauri::{Exported, FieldKind};
+
+    let root = <TestRoot as Exported>::EXPORT;
+    let FieldKind::Nested { entry } = root.fields[2].kind else {
+        panic!("`child` is not exported as a struct of its own");
+    };
+
+    assert!(entry.is(&<TestNested as Exported>::EXPORT));
+    assert_eq!(entry.prefix, None);
+    assert_eq!(
+        entry
+            .fields
+            .iter()
+            .map(|field| field.name)
+            .collect::<Vec<_>>(),
+        ["name"]
+    );
 }
 
 #[test]
@@ -121,7 +177,7 @@ fn test_typescript_codegen_export() {
         let _ = std::fs::remove_file(&out_path);
     }
 
-    let reg = CodegenRegistry::new();
+    let reg = CodegenRegistry::new().unwrap();
     reg.export_ts(&out_path)
         .expect("Failed to export TS bindings");
 

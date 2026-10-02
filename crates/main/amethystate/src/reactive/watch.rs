@@ -3,7 +3,8 @@ use amethystate_core::SignalSubscription;
 use futures_core::Stream;
 use std::collections::VecDeque;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll, Waker};
 use uuid::Uuid;
 
@@ -12,6 +13,7 @@ use uuid::Uuid;
 #[derive(Default)]
 struct Wake {
     waker: Mutex<Option<Waker>>,
+    ended: AtomicBool,
 }
 
 impl Wake {
@@ -21,11 +23,50 @@ impl Wake {
         }
     }
 
+    fn end(&self) {
+        self.ended.store(true, Ordering::Release);
+        self.signal();
+    }
+
+    fn has_ended(&self) -> bool {
+        self.ended.load(Ordering::Acquire)
+    }
+
     /// Registers `cx`'s waker. Callers must re-check their queue afterwards: a
     /// signal landing between their check and this one would otherwise be
     /// missed, with nothing left to wake them.
     fn park(&self, cx: &Context<'_>) {
         *self.waker.lock().unwrap() = Some(cx.waker().clone());
+    }
+}
+
+/// The streams taken out on one field or map, told when the last handle to it
+/// goes.
+///
+/// A stream holds a subscription, and a subscription holds the subscriber list
+/// rather than the field: nothing about it notices the field is gone, and a
+/// loop over the stream would wait for a change that can no longer come.
+///
+/// Shared by every handle to the same field or map, forks included, and it is
+/// dropping the last of them that ends the streams.
+#[doc(hidden)]
+#[derive(Default)]
+pub struct Streams(Mutex<Vec<Weak<Wake>>>);
+
+impl Streams {
+    fn follow(&self, wake: &Arc<Wake>) {
+        let mut followed = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        followed.retain(|one| one.strong_count() > 0);
+        followed.push(Arc::downgrade(wake));
+    }
+}
+
+impl Drop for Streams {
+    fn drop(&mut self) {
+        let followed = std::mem::take(&mut *self.0.lock().unwrap_or_else(|e| e.into_inner()));
+        for wake in followed.iter().filter_map(Weak::upgrade) {
+            wake.end();
+        }
     }
 }
 
@@ -53,6 +94,13 @@ pub trait Watchable {
     fn watch_raw<F>(&self, callback: F) -> SignalSubscription
     where
         F: Fn(&Self::Item, Option<Uuid>) + Send + Sync + 'static;
+
+    /// Where a stream over this learns that it is gone. `None` for a source
+    /// whose streams run for as long as they are held.
+    #[doc(hidden)]
+    fn streams(&self) -> Option<&Streams> {
+        None
+    }
 }
 
 /// A subscription being configured.
@@ -176,7 +224,9 @@ impl<W: Watchable> Watch<W> {
     /// yielded - a stream is a sequence, so coalescing is left to whoever wants
     /// it.
     ///
-    /// Dropping the stream ends the subscription.
+    /// Dropping the stream ends the subscription. The stream ends on its own
+    /// once every handle to the field or map it watches is gone, after
+    /// yielding what was already queued.
     ///
     /// ```
     /// # use amethystate::StoreBuilder;
@@ -209,6 +259,10 @@ impl<W: Watchable> Watch<W> {
 
         let sink = Arc::clone(&queue);
         let signal = Arc::clone(&wake);
+
+        if let Some(streams) = self.source.streams() {
+            streams.follow(&wake);
+        }
 
         let sub = self.source.watch_raw(move |item, source| {
             if mine.is_some() && source == mine && W::filterable(item) {
@@ -246,6 +300,7 @@ impl<T> Stream for ChangeStream<T> {
 
         match self.queue.lock().unwrap().pop_front() {
             Some(item) => Poll::Ready(Some(item)),
+            None if self.wake.has_ended() => Poll::Ready(None),
             None => Poll::Pending,
         }
     }

@@ -1,5 +1,6 @@
 import { joined, type Path } from "./path";
 import type { Transport } from "./transport";
+import { same } from "./same";
 
 /** One change to a map, as the store announces it. */
 export type MapChange<V> =
@@ -10,9 +11,30 @@ export type MapChange<V> =
 
 export type Entries<V> = ReadonlyArray<readonly [string, V]>;
 
+type Shown<V> = { has: true; value: V } | { has: false };
+
+function put<V>(entries: Map<string, V>, change: MapChange<V>): void {
+  switch (change.type) {
+    case "Insert":
+      entries.set(change.key, change.value);
+      break;
+    case "Update":
+      entries.set(change.key, change.newValue);
+      break;
+    case "Remove":
+      entries.delete(change.key);
+      break;
+    case "Clear":
+      entries.clear();
+      break;
+  }
+}
+
 /** A map stored one entry per level under its path, kept in step with the store. */
 export class ReactiveMap<V> {
   readonly #held = new Map<string, V>();
+  readonly #confirmed = new Map<string, V>();
+  readonly #pending: MapChange<V>[] = [];
   #entries: Entries<V> | null = null;
   readonly #listeners = new Set<(entries: Entries<V>) => void>();
   readonly #keyListeners = new Map<string, Set<(value: V | undefined) => void>>();
@@ -25,11 +47,11 @@ export class ReactiveMap<V> {
     private readonly transport: Transport,
     private readonly source: string,
   ) {
-    for (const [key, value] of entries) this.#held.set(key, value);
-    this.#stop = transport.watch(path, (payload) => {
-      const change = payload as MapChange<V>;
-      if (change.source !== this.source) this.#apply(change);
-    });
+    for (const [key, value] of entries) {
+      this.#held.set(key, value);
+      this.#confirmed.set(key, value);
+    }
+    this.#stop = transport.watch(path, (payload) => this.#hear(payload as MapChange<V>));
   }
 
   get(key: string): V | undefined {
@@ -117,56 +139,59 @@ export class ReactiveMap<V> {
   }
 
   async #write(change: MapChange<V>, send: () => Promise<void>): Promise<void> {
-    const before = [...this.#held];
+    this.#pending.push(change);
     this.#apply(change);
 
     try {
       await send();
-    } catch (why) {
-      for (const undo of this.#undoing(change, new Map(before))) this.#apply(undo);
-      throw why;
+    } finally {
+      this.#pending.splice(this.#pending.indexOf(change), 1);
+      this.#rebase(this.#touchedBy(change), this.source);
     }
   }
 
-  #undoing(change: MapChange<V>, before: Map<string, V>): MapChange<V>[] {
-    const source = this.source;
-    if (change.type === "Clear") {
-      return [...before].map(([key, value]) => ({ type: "Insert", key, value, source }));
+  #hear(change: MapChange<V>): void {
+    const touched = this.#touchedBy(change);
+    put(this.#confirmed, change);
+    if (this.#pending.length === 0 && change.source !== this.source) this.#apply(change);
+    else this.#rebase(touched, change.source);
+  }
+
+  #touchedBy(change: MapChange<V>): string[] {
+    if (change.type !== "Clear") return [change.key];
+    return [...new Set([...this.#held.keys(), ...this.#confirmed.keys()])];
+  }
+
+  #shown(key: string): Shown<V> {
+    let shown: Shown<V> = this.#confirmed.has(key)
+      ? { has: true, value: this.#confirmed.get(key) as V }
+      : { has: false };
+    for (const write of this.#pending) {
+      if (write.type === "Clear" || (write.type === "Remove" && write.key === key)) shown = { has: false };
+      else if (write.type === "Insert" && write.key === key) shown = { has: true, value: write.value };
+      else if (write.type === "Update" && write.key === key) shown = { has: true, value: write.newValue };
     }
+    return shown;
+  }
 
-    const key = change.key;
-    const was = before.get(key);
-    const had = before.has(key);
-    const now = this.#held.get(key);
-    const has = this.#held.has(key);
-
-    if (had && has) return [{ type: "Update", key, oldValue: now as V, newValue: was as V, source }];
-    if (!had && has) return [{ type: "Remove", key, oldValue: now as V, source }];
-    if (had && !has) return [{ type: "Insert", key, value: was as V, source }];
-    return [];
+  #rebase(keys: string[], source: string | null): void {
+    for (const key of keys) {
+      const shown = this.#shown(key);
+      const had = this.#held.has(key);
+      const was = this.#held.get(key) as V;
+      if (shown.has && had && !same(was, shown.value)) {
+        this.#apply({ type: "Update", key, oldValue: was, newValue: shown.value, source });
+      } else if (shown.has && !had) {
+        this.#apply({ type: "Insert", key, value: shown.value, source });
+      } else if (!shown.has && had) {
+        this.#apply({ type: "Remove", key, oldValue: was, source });
+      }
+    }
   }
 
   #apply(change: MapChange<V>): void {
-    const touched: string[] = [];
-
-    switch (change.type) {
-      case "Insert":
-        this.#held.set(change.key, change.value);
-        touched.push(change.key);
-        break;
-      case "Update":
-        this.#held.set(change.key, change.newValue);
-        touched.push(change.key);
-        break;
-      case "Remove":
-        this.#held.delete(change.key);
-        touched.push(change.key);
-        break;
-      case "Clear":
-        touched.push(...this.#held.keys(), ...this.#keyListeners.keys());
-        this.#held.clear();
-        break;
-    }
+    const touched = change.type === "Clear" ? [...this.#held.keys(), ...this.#keyListeners.keys()] : [change.key];
+    put(this.#held, change);
 
     this.#entries = null;
     for (const key of new Set(touched)) {

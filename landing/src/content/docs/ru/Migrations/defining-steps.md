@@ -120,7 +120,7 @@ fn migrate_proxy_config_v1_to_v2(
 }
 ```
 
-`ctx` ограничен префиксом узла: `ctx.delete("routes.api")` удаляет `network.routes.api`, а `ctx.delete_prefix("routes")` одним вызовом снимает уровень со всем, что под ним. Полное API контекста: [Ручные миграции](/amethystate/ru/migrations/manual/).
+`ctx` ограничен префиксом линии: `ctx.delete("routes.api")` удаляет `network.routes.api`, а `ctx.delete_prefix("routes")` одним вызовом снимает уровень со всем, что под ним. Полное API контекста: [Ручные миграции](/amethystate/ru/migrations/manual/).
 
 ## Пути в несколько шагов
 

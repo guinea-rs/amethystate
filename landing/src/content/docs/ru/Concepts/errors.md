@@ -6,7 +6,7 @@ sidebar:
 ---
 
 **Каждая точка апи падает тем набором, который в ней возможен.** Конструктор
-отвечает пятью способами, которыми структура отказывается открыться; запись
+отвечает шестью способами, которыми структура отказывается открыться; запись
 через `Kv` — шестью, которыми заворачивают сырую запись. Набор их перечисляет —
 значит, `match` по нему полный, и компилятор такой его и держит.
 
@@ -28,6 +28,7 @@ let said = match refused {
     OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
     OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
     OpenStruct::Store(disk) => format!("the store: {disk}"),
+    OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
 };
 ```
 <!-- /shown -->
@@ -70,7 +71,7 @@ fn with_a_box(store: &amethystate::Store) -> Result<(), Box<dyn Error + Send + S
 
 | набор | откуда |
 | --- | --- |
-| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Kv::cell` |
+| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Open::new_with`, `Schema::open`, `Kv::cell` |
 | `OpenStore` | `StoreBuilder::build`, `migrate`, `located` |
 | `LoadMap` | `Kv::map` и собственный конструктор поля-карты |
 | `ReadValue` | `Store::get` |
@@ -94,10 +95,10 @@ fn with_a_box(store: &amethystate::Store) -> Result<(), Box<dyn Error + Send + S
 против «диск сломан», мимо чего не может, — больше негде жить.
 
 `Field::try_get` стоит особняком, и намеренно: это не запись и не отказ
-хранилища, а то, о чём поле и хранилище не договорились. Он отвечает
+store, а то, о чём поле и store не договорились. Он отвечает
 `Disagreement` — путь и одна из четырёх причин, — и это тоже обычный `Error`.
 Что значит каждая причина:
-[Объявление структур](/amethystate/ru/state/defining-structs/#значение-декодируется-и-оно-бессмысленно).
+[Правила](/amethystate/ru/state/rules/#сохранённое-значение-которое-правило-отклонило).
 
 ## Отчёт никуда не делся
 

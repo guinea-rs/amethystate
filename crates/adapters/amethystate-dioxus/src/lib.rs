@@ -65,7 +65,7 @@ pub fn AmeStateProvider(props: AmeStateProviderProps) -> Element {
 #[allow(non_snake_case)]
 pub fn AmeStateProvider(props: AmeStateProviderProps) -> Element {
     use_context_provider(DefaultArena::new);
-    use_context_provider(|| props.backend.clone());
+    use_context_provider(|| props.backend);
 
     let init = props.init.clone();
     let res = dioxus::prelude::use_resource(move || {

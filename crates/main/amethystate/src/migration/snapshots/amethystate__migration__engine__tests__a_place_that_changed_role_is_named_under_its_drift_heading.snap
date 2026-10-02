@@ -1,0 +1,7 @@
+---
+source: crates/main/amethystate/src/migration/engine.rs
+expression: "report.drift_lines().join(\"\\n\")"
+---
+⚠️  Schema drift detected in prefix 'processes'
+  breaks: `processes.seen` was Field and is Map
+  Suggestion: raise the struct's version and write a step for it, or declare the released places again.

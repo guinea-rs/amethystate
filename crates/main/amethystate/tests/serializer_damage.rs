@@ -20,7 +20,7 @@ mod common;
 use common::text_backend;
 
 fn meta_path(path: &Path) -> PathBuf {
-    path.with_extension("meta")
+    common::bookkeeping_of(path)
 }
 
 fn backup_path(path: &Path) -> PathBuf {

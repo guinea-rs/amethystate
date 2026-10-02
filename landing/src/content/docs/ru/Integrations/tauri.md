@@ -2,7 +2,7 @@
 title: Tauri
 ---
 
-`tauri-plugin-amethystate` - плагин для Tauri v2, который соединяет ваши срезы состояния с фронтендом Tauri по IPC. Он даёт команды для чтения, записи и подписки на состояние и несёт с собой генератор кода, который производит типизированные биндинги и для TypeScript, и для фронтендов на Rust и WASM.
+`tauri-plugin-amethystate` - плагин для Tauri v2, который соединяет ваши структуры состояния с фронтендом Tauri по IPC. Он даёт команды для чтения, записи и подписки на состояние и несёт с собой генератор кода, который производит типизированные биндинги и для TypeScript, и для фронтендов на Rust и WASM.
 
 ## Общая картина
 
@@ -36,12 +36,12 @@ API фронтенда синхронный по замыслу: чтения и
 ```toml
 # src-tauri/Cargo.toml
 [dependencies]
-tauri-plugin-amethystate = { version = "0.22", features = ["redb"] }
+tauri-plugin-amethystate = { version = "0.23", features = ["redb"] }
 ```
 
-`amethystate` реэкспортирован как `tauri_plugin_amethystate::amethystate`, поэтому отдельная зависимость не нужна. Фичи плагина `redb`, `sqlite`, `json`, `toml` и `ron` включают одноимённый движок, и хранилище ниже откроется, только если включена одна из них.
+`amethystate` реэкспортирован как `tauri_plugin_amethystate::amethystate`, поэтому отдельная зависимость не нужна. Фичи плагина `redb`, `sqlite`, `json`, `toml` и `ron` включают одноимённый движок, и store ниже откроется, только если включена одна из них.
 
-Отдайте плагину своё хранилище в `main.rs`:
+Отдайте плагину свой store в `main.rs`:
 
 ```rust
 use tauri_plugin_amethystate::amethystate::StoreBuilder;
@@ -56,6 +56,16 @@ fn main() {
 }
 ```
 
+## До чего дотягивается фронтенд
+
+Плагин отвечает за места, которые объявили ваши структуры, и больше ни за что. При запуске он берёт из бинарника каждую структуру `#[amethystate]` с префиксом, из каждой линии — новейшую версию, и собирает её поля, её карты с записями и поля вложенных в неё структур. Ключ, которого не объявила ни одна структура, отвергает любая команда. Поля `volatile` среди этих мест не бывает. Чтение целого префикса, хоть бы и корня, отдаёт только объявленные места под ним.
+
+Запись сверяется с типом поля прежде, чем дойдёт до store. Значение, которое не прочтётся обратно как этот тип, отвергается, и фронтенд не оставит после себя такого, из-за чего приложение в следующий раз не откроется. Ключ записи в карте сверяется так же — с типом ключа карты.
+
+Если хост держит структуру открытой, запись из фронтенда судит объявленное [правило](/amethystate/ru/state/rules/) поля — когда она приходит, как и любую запись по пути. Поправленное правилом записывается обратно, и фронтенд получает уже поправленное. Отклонённое остаётся в store, поле держит последнее хорошее значение, а запись фронтенда отвечает ошибкой.
+
+Если ключ поля пропал после сброса на стороне Rust или после `Kv::reset_to_defaults`, фронтенд об этом узнаёт. Где поле возвращается к значению по умолчанию (`on_delete = UseDefault` на самом поле, на структуре вокруг него или в `rules` store), туда же возвращается и фронтенд. Где поле держит последнее значение, держит его и фронтенд.
+
 ## Разрешения
 
 Добавьте набор разрешений по умолчанию в `src-tauri/capabilities/default.json`:
@@ -68,21 +78,16 @@ fn main() {
 }
 ```
 
-`amethystate:default` включает следующие разрешения:
+`amethystate:default` — это два набора ниже вместе:
 
-| Идентификатор | Описание |
-|------------|-------------|
-| `amethystate:allow-amethystate-get` | Прочитать один ключ |
-| `amethystate:allow-amethystate-set` | Записать один ключ |
-| `amethystate:allow-amethystate-delete` | Удалить один ключ |
-| `amethystate:allow-amethystate-delete-prefix` | Удалить все ключи под префиксом |
-| `amethystate:allow-amethystate-scan-keys` | Перечислить ключи под префиксом |
-| `amethystate:allow-amethystate-subscribe` | Подписаться на изменения ключа |
-| `amethystate:allow-amethystate-unsubscribe` | Отписаться от ключа |
-| `amethystate:allow-amethystate-get-prefix` | Прочитать пачкой все ключи под префиксом |
-| `amethystate:allow-amethystate-flush` | Сбросить отложенные записи на диск |
+| Набор | Команды |
+|-------|---------|
+| `amethystate:read` | `get`, `get_prefix`, `scan_keys`, `subscribe`, `unsubscribe` |
+| `amethystate:write` | `set`, `delete`, `delete_prefix`, `flush` |
 
-У каждого разрешения есть парный вариант `deny-*`, и он имеет приоритет над `allow-*`.
+Окну, которое только показывает состояние, хватит `amethystate:read`. `delete_prefix` лежит в `write`, потому что из него сделан `clear()` у карты; он дотягивается до поля или до карты и никогда — до уровня над ними.
+
+У каждой команды есть и собственное разрешение, `amethystate:allow-amethystate-<команда>`, а рядом с ним `deny-*`, который побеждает любое `allow-*`.
 
 ## Кодогенерация
 
@@ -96,7 +101,7 @@ name = "codegen"
 path = "src/bin/codegen.rs"
 
 [dependencies]
-amethystate-codegen = { version = "0.22" }
+amethystate-codegen = { version = "0.23" }
 ```
 
 Для фронтендов на Rust и WASM добавьте подходящий feature-флаг:
@@ -128,8 +133,10 @@ amethystate_codegen::amethystate_codegen_main!(
 cargo run --bin codegen
 ```
 
+Биндинги называют каждую структуру её собственным именем. Из линии, где ради миграции рядом лежат старые версии, пишется только новейшая. Две разные структуры с одним именем генератор отвергает и называет модули обеих, а не выбирает одну наугад.
+
 ## Примеры
 
-- [`tauri-typescript`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-typescript) — фронтенд на TypeScript
-- [`tauri-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-leptos) — фронтенд на Leptos и WASM
-- [`tauri-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-yew) — фронтенд на Yew и WASM
+- [`tauri-typescript`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-typescript) — фронтенд на TypeScript
+- [`tauri-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-leptos) — фронтенд на Leptos и WASM
+- [`tauri-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-yew) — фронтенд на Yew и WASM

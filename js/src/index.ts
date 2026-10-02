@@ -1,4 +1,4 @@
-export { Field } from "./field";
+export { Field, type FieldChange } from "./field";
 export { ReactiveMap, type Entries, type MapChange } from "./map";
 export { eventChannel, joined, split, type Path } from "./path";
 export { Loaded, Slice } from "./slice";

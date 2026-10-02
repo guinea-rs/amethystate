@@ -40,8 +40,8 @@ pub struct NetworkState {
 <!-- /shown -->
 
 Значения по умолчанию, вложенные структуры, volatile-поля, политики
-чтения и serde:
-[Объявление структур](/amethystate/ru/state/defining-structs/).
+чтения, правила для значений и serde — в разделе
+[Состояние](/amethystate/ru/state/defining-structs/).
 
 ## Создайте store
 
@@ -190,7 +190,7 @@ state.mutate(|d| {
 
 - **Перехватчики** — колбэки, которые видят запись до того, как она ляжет, и
   могут переписать её или отказать:
-  [Подписки](/amethystate/ru/concepts/subscriptions/).
+  [Перехватчики](/amethystate/ru/concepts/subscriptions/#перехватчики).
 - **Трассировка** — структурированные события: каждая запись помечена
   структурой, которая её сделала:
   [Наблюдаемость](/amethystate/ru/concepts/observability/).

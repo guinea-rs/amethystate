@@ -103,6 +103,7 @@ fn a_constructor_fails_with_the_set_that_is_possible_there(backend: Backend) -> 
         OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
         OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
         OpenStruct::Store(disk) => format!("the store: {disk}"),
+        OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
     };
     //@show-end
 

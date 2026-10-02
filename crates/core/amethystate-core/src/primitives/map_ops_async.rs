@@ -263,7 +263,7 @@ where
     };
 
     if let Err(why) = written {
-        for undo in undoing(&processed, before) {
+        for undo in undoing(&processed, before, |name| core.cache.get(name)) {
             map_apply_remote_change(core, &undo);
             core.notify(&undo);
         }
@@ -289,7 +289,15 @@ where
     }
 }
 
-fn undoing<K, V>(change: &MapChange<K, V>, before: HeldBefore<K, V>) -> Vec<MapChange<K, V>>
+/// What takes a refused write back, given what the cache holds now.
+///
+/// An entry changed since the write put it there - by a later write or by the
+/// store - is left as it is: taking the refused write back would undo that one.
+fn undoing<K, V>(
+    change: &MapChange<K, V>,
+    before: HeldBefore<K, V>,
+    holds: impl Fn(&str) -> Option<V>,
+) -> Vec<MapChange<K, V>>
 where
     K: ReactiveMapKey,
     V: ReactiveMapValue,
@@ -309,6 +317,11 @@ where
                 } => Some(value.clone()),
                 MapChange::Remove { .. } | MapChange::Clear { .. } => None,
             };
+
+            let as_json = |held: &Option<V>| held.as_ref().map(serde_json::to_value);
+            if as_json(&holds(key.as_ref())).map(Result::ok) != as_json(&now).map(Result::ok) {
+                return Vec::new();
+            }
 
             match (was, now) {
                 (Some(old), Some(new)) => vec![MapChange::Update {
@@ -352,15 +365,21 @@ mod tests {
 
     impl std::error::Error for Refused {}
 
+    type Meanwhile = Arc<Mutex<Option<Box<dyn FnOnce() + Send>>>>;
+
     #[derive(Clone, Default)]
     struct Recording {
         stored: Arc<Mutex<BTreeMap<StorePath, serde_json::Value>>>,
         said: Arc<Mutex<Vec<String>>>,
         refuse: bool,
+        meanwhile: Meanwhile,
     }
 
     impl Recording {
         fn wrote(&self, what: String) -> Result<(), Report<Refused>> {
+            if let Some(happens) = self.meanwhile.lock().unwrap().take() {
+                happens();
+            }
             self.said.lock().unwrap().push(what);
             match self.refuse {
                 true => Err(Report::new(Refused)),
@@ -538,6 +557,69 @@ mod tests {
             ["heard cpu = 120", "wrote widths.cpu", "heard cpu gone"]
         );
         assert_eq!(core.cache.get("cpu"), None);
+    }
+
+    #[test]
+    fn a_refused_write_leaves_a_later_one_standing() {
+        let backend = Recording {
+            refuse: true,
+            ..Recording::default()
+        };
+        let (core, _sub) = listening(&backend);
+        let elsewhere = core.clone();
+        *backend.meanwhile.lock().unwrap() = Some(Box::new(move || {
+            map_apply_remote_change(
+                &elsewhere,
+                &MapChange::Insert {
+                    key: "cpu".to_string(),
+                    value: 200,
+                    source: None,
+                },
+            );
+        }));
+
+        let refused = futures::executor::block_on(map_insert_async(
+            &backend,
+            &core,
+            widths(),
+            "cpu".to_string(),
+            &120,
+            None,
+        ));
+
+        assert_eq!((refused.is_err(), core.cache.get("cpu")), (true, Some(200)));
+    }
+
+    #[test]
+    fn a_refused_clear_leaves_what_arrived_since() {
+        let backend = Recording {
+            refuse: true,
+            ..Recording::default()
+        };
+        let (core, _sub) = listening(&backend);
+        core.cache.insert("cpu".to_string(), 80);
+        let elsewhere = core.clone();
+        *backend.meanwhile.lock().unwrap() = Some(Box::new(move || {
+            map_apply_remote_change(
+                &elsewhere,
+                &MapChange::Insert {
+                    key: "gpu".to_string(),
+                    value: 40,
+                    source: None,
+                },
+            );
+        }));
+
+        let refused = futures::executor::block_on(map_clear_async(&backend, &core, widths(), None));
+
+        assert_eq!(
+            (
+                refused.is_err(),
+                core.cache.get("cpu"),
+                core.cache.get("gpu")
+            ),
+            (true, Some(80), Some(40))
+        );
     }
 
     #[test]

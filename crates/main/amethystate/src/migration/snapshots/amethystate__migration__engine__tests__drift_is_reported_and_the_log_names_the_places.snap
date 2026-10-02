@@ -1,0 +1,8 @@
+---
+source: crates/main/amethystate/src/migration/engine.rs
+expression: "report.drift_lines().join(\"\\n\")"
+---
+⚠️  Schema drift detected in prefix 'app_settings'
+  breaks: `app_settings.host` was declared before and is not now
+  look: `app_settings.timeout` is declared now and was not before
+  Suggestion: raise the struct's version and write a step for it, or declare the released places again.

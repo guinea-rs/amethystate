@@ -3,10 +3,11 @@ use amethystate::reactive::error::{ReactiveFieldResult, ReactiveMapResult};
 use amethystate::{
     Field, MapChange, ReactiveMap, ReactiveMapKey, ReactiveMapValue, SignalSubscription,
 };
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Serialize, de::DeserializeOwned};
 use slotmap::{DefaultKey, SlotMap};
-use std::any::Any;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -15,6 +16,7 @@ type ErasedItem = Box<dyn Any + Send + Sync>;
 #[derive(Clone)]
 pub struct Arena {
     storage: Arc<RwLock<SlotMap<DefaultKey, ErasedItem>>>,
+    slices: Arc<Mutex<HashMap<TypeId, ErasedItem>>>,
 }
 
 impl Default for Arena {
@@ -27,25 +29,62 @@ impl Arena {
     pub fn new() -> Self {
         Self {
             storage: Arc::new(RwLock::new(SlotMap::new())),
+            slices: Arc::default(),
         }
     }
 
+    /// The handle `register` makes, made once per arena and per handle type.
+    ///
+    /// A slice asked for from several places, or by a component mounted again
+    /// and again, is one slice: every ask after the first gets the handle the
+    /// first one registered, and nothing is registered twice.
+    pub fn slice<H, E>(&self, register: impl FnOnce(&Self) -> Result<H, E>) -> Result<H, E>
+    where
+        H: Copy + Send + Sync + 'static,
+    {
+        let held = |slices: &HashMap<TypeId, ErasedItem>| {
+            slices
+                .get(&TypeId::of::<H>())
+                .and_then(|held| held.downcast_ref::<H>())
+                .copied()
+        };
+
+        if let Some(handle) = held(&self.slices.lock()) {
+            return Ok(handle);
+        }
+
+        let made = register(self)?;
+        let mut slices = self.slices.lock();
+        Ok(held(&slices).unwrap_or_else(|| {
+            slices.insert(TypeId::of::<H>(), Box::new(made));
+            made
+        }))
+    }
+
+    /// Hands `f` the item under `key`, holding the arena's lock only while the
+    /// handle is cloned.
+    ///
+    /// `f` sets values and registers subscribers, so it can call back into
+    /// code that reads the arena again. A read taken again while a writer is
+    /// waiting waits behind that writer, which waits for the first read.
     pub fn with_item<Item, R, F>(&self, key: DefaultKey, type_name: &str, f: F) -> R
     where
-        Item: Any,
+        Item: Any + Clone,
         F: FnOnce(&Item) -> R,
     {
-        let storage = self.storage.read();
-        let item = storage.get(key).unwrap_or_else(|| {
-            panic!(
-                "amethystate-arena: Attempted to access a dropped {}",
-                type_name
-            )
-        });
-        let target = item
-            .downcast_ref::<Item>()
-            .unwrap_or_else(|| panic!("amethystate-arena: Type mismatch for {}", type_name));
-        f(target)
+        let target = {
+            let storage = self.storage.read();
+            let item = storage.get(key).unwrap_or_else(|| {
+                panic!(
+                    "amethystate-arena: Attempted to access a dropped {}",
+                    type_name
+                )
+            });
+            item.downcast_ref::<Item>()
+                .unwrap_or_else(|| panic!("amethystate-arena: Type mismatch for {}", type_name))
+                .clone()
+        };
+        f(&target)
     }
 
     pub fn register_field<T>(&self, field: Field<T>) -> FieldHandle<T>

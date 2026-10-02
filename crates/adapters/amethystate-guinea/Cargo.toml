@@ -1,0 +1,21 @@
+[package]
+name = "amethystate-guinea"
+version = "0.18.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Lets a guinea timer's period follow a value held by an amethystate store"
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+rust-version = "1.95"
+
+[dependencies]
+amethystate.workspace = true
+guinea-app = { version = "0.18.7", default-features = false }
+
+[dev-dependencies]
+amethystate = { workspace = true, features = ["test-utils", "redb"] }
+guinea-app = { version = "0.18.7", default-features = false }

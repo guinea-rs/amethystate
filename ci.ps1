@@ -17,15 +17,15 @@ Exec { cargo clippy --workspace --exclude amethystate-gpui --all-targets --no-de
 Exec { cargo clippy --workspace --exclude amethystate-gpui --all-targets --no-default-features --features ron -- -D warnings }
 Exec { cargo clippy --workspace --exclude amethystate-gpui --all-targets --no-default-features --features sqlite -- -D warnings }
 Exec { cargo clippy -p amethystate -- -D warnings }
-Exec { cargo clippy --workspace --exclude amethystate-gpui --all-targets --all-features -- -D warnings }
-Exec { cargo +1.95.0 clippy -p amethystate-gpui --all-targets -- -D warnings }
+Exec { cargo clippy --workspace --all-targets --all-features -- -D warnings }
+Exec { cargo +1.90.0 check --workspace --exclude amethystate-gpui --exclude amethystate-guinea --all-features }
 
 Exec { cargo test --workspace --exclude amethystate-gpui --no-default-features --features redb }
 Exec { cargo test --workspace --exclude amethystate-gpui --no-default-features --features json }
 Exec { cargo test --workspace --exclude amethystate-gpui --no-default-features --features toml }
 Exec { cargo test --workspace --exclude amethystate-gpui --no-default-features --features ron }
 Exec { cargo test --workspace --exclude amethystate-gpui --no-default-features --features sqlite }
-Exec { cargo test --workspace --exclude amethystate-gpui --all-features }
+Exec { cargo test --workspace --all-features }
 
 Push-Location js
 Exec { npm ci }

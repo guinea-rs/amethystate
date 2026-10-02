@@ -64,10 +64,10 @@ impl<D: TextDocument> StoreFile<D> {
     }
 
     /// Takes the copy this open would put back if its migration did not
-    /// finish.
+    /// finish, and has it on the disk before the file it copies is touched.
     pub fn create_backup(&self) -> StorageResult<()> {
         if self.path.exists() {
-            std::fs::copy(&self.path, &self.backup_path)
+            copy_durably(&self.path, &self.backup_path, self.write_policy)
                 .map_err(TextStoreError::from)
                 .change_context(StorageError::Open)
                 .attach_store_file(&self.path)
@@ -146,6 +146,14 @@ impl<D: TextDocument> StoreFile<D> {
         !self.path.exists() && self.backup_path.exists()
     }
 
+    /// Puts the copy back in place of a file that will not read, and takes the
+    /// copy away once it has landed.
+    ///
+    /// A copy left standing after it was used is one a later open recovers
+    /// from again, over whatever the file holds by then: a hand edit that does
+    /// not parse would be replaced by data from before it without a word. The
+    /// file that would not read is set aside under its own name first, so what
+    /// was in it is still there to look at.
     fn recover_from_backup(&self) -> Option<D> {
         if !self.backup_path.exists() {
             return None;
@@ -154,7 +162,23 @@ impl<D: TextDocument> StoreFile<D> {
         let content = std::fs::read_to_string(&self.backup_path).ok()?;
         let doc = D::parse(&content).ok()?;
         self.forget_what_the_file_holds();
-        std::fs::copy(&self.backup_path, &self.path).ok()?;
+
+        if self.path.exists() {
+            let unreadable = followed(&self.path);
+            let aside = StoreLayout::set_aside_copy_of(&unreadable);
+            if let Err(io) = std::fs::rename(&unreadable, &aside) {
+                warn!(
+                    file = %self.path.display(),
+                    aside = %aside.display(),
+                    error = %io,
+                    "the file that would not read could not be set aside, so it is not \
+                     recovered over"
+                );
+                return None;
+            }
+        }
+        persist_atomic(&self.path, &content, self.write_policy, &|| true).ok()?;
+        self.remove_backup("after recovering from it");
 
         Some(doc)
     }
@@ -279,7 +303,7 @@ impl<D: TextDocument> StoreFile<D> {
         self.forget_what_the_file_holds();
 
         if self.backup_path.exists() {
-            if let Err(io) = std::fs::copy(&self.backup_path, &self.path) {
+            if let Err(io) = copy_durably(&self.backup_path, &self.path, self.write_policy) {
                 error!(
                     file = %self.path.display(),
                     backup = %self.backup_path.display(),
@@ -348,6 +372,18 @@ fn held_key() -> StorePath {
     meta_at(&meta_key("held", &StorePath::root()))
 }
 
+/// Where the metadata records the data file a save giving the store its first
+/// keys is replacing, as a hash of it - empty where there was none.
+fn filling_key() -> StorePath {
+    meta_at(&meta_key("filling", &StorePath::root()))
+}
+
+fn hash_of_the_file(file: &Path) -> String {
+    standing_of(file)
+        .map(|(_, _, held)| format!("{held:032x}"))
+        .unwrap_or_default()
+}
+
 /// Where the metadata records a write an open has under way.
 fn migrating_key() -> StorePath {
     meta_at(&meta_key("migrating", &StorePath::root()))
@@ -385,26 +421,41 @@ impl<D: TextDocument> StoreFiles<D> {
     /// though: a metadata file that will not read is no reason for the data to
     /// go unread.
     ///
+    /// With no data file and no copy of one there is no store to judge: the
+    /// metadata describes data that is gone, deleted to start over or never
+    /// written by a first save that stopped, and the open starts as a first
+    /// one.
+    ///
     /// Nothing is copied here - see [`StoreFiles::write_what_the_open_changed`].
     pub fn load(&self) -> StorageResult<(D, D)> {
+        if !self.data.path.exists() && !self.data.backup_path.exists() {
+            return Ok((D::empty(), D::empty()));
+        }
+
         let meta = self
-            .meta
-            .read_or_recover()
+            .read_the_bookkeeping()
             .and_then(|found| self.settle_a_write_under_way(found));
 
-        let held = matches!(
+        let said = |key: &StorePath| {
             meta.as_ref()
                 .ok()
-                .and_then(|held: &D| held.get(&held_key()))
-                .map(D::deserialize_node::<bool>),
+                .and_then(|meta: &D| meta.get(key).cloned())
+        };
+        let held = matches!(
+            said(&held_key()).as_ref().map(D::deserialize_node::<bool>),
             Some(Ok(true))
         );
+        let stopped_before_the_data = said(&filling_key())
+            .and_then(|node| D::deserialize_node::<String>(&node).ok())
+            .is_some_and(|was| was == hash_of_the_file(&self.data.path));
 
         let data = self
             .data
-            .read_or_recover_unless(|doc: &D| match held && has_no_keys(doc) {
-                true => Some("the last save left keys here and the file now holds none"),
-                false => None,
+            .read_or_recover_unless(|doc: &D| {
+                match held && !stopped_before_the_data && has_no_keys(doc) {
+                    true => Some("the last save left keys here and the file now holds none"),
+                    false => None,
+                }
             })
             .attach("role: the store's data")?;
 
@@ -413,51 +464,143 @@ impl<D: TextDocument> StoreFiles<D> {
         Ok((data, meta))
     }
 
+    /// The metadata, read from where a release before 0.23 kept it for as long
+    /// as this store has none of its own. The open writes it to its own name,
+    /// and the old file is left where it is: another store may share it.
+    ///
+    /// A file under the old name that does not read is somebody else's - the
+    /// name is an ordinary one, and nothing says this library wrote it - so it
+    /// is read as no metadata at all, and neither recovered nor set aside.
+    fn read_the_bookkeeping(&self) -> StorageResult<D> {
+        let former = StoreLayout::former_bookkeeping_of(&self.data.path);
+        let ours = self.meta.path.exists() || self.meta.backup_path.exists();
+
+        if ours || former == self.data.path || !former.exists() {
+            return self.meta.read_or_recover();
+        }
+
+        match StoreFile::<D>::new(former.clone(), D::empty(), self.meta.write_policy)
+            .read_as_found()
+        {
+            Ok((doc, _)) => Ok(doc),
+            Err(why) => {
+                warn!(
+                    file = %former.display(),
+                    "a file under the name this store's metadata had before 0.23 does not \
+                     read as metadata, and is left alone: {why:?}"
+                );
+                Ok(D::empty())
+            }
+        }
+    }
+
     /// Writes the metadata first, and the fact about the data before the data,
     /// with the data file refusing to replace one that moved since `left`. The
     /// metadata is written either way.
     ///
-    /// A crash between the two leaves the metadata saying more than the file
-    /// does, which costs a refusal the backup answers. The other order costs
-    /// the data: an emptied store whose metadata still says it held keys reads
-    /// as truncated for good.
+    /// A stop between the two leaves the metadata saying more than the file
+    /// does. Where the save is giving an empty store its first keys, the
+    /// metadata also names the file being replaced, and [`StoreFiles::load`]
+    /// reads that file as a save that stopped rather than as a truncation. The
+    /// name goes again once the data has landed. The other order costs the
+    /// data: an emptied store whose metadata still says it held keys reads as
+    /// truncated for good.
     pub(crate) fn persist_while(&self, left: Option<Standing>) -> StorageResult<Wrote> {
-        self.remember_what_the_data_holds()?;
+        let filling = self.remember_what_the_data_holds_while_filling()?;
 
         self.meta
             .persist()
             .attach("role: the store's schema bookkeeping")?;
-        self.data
+        stop_the_save_after("first");
+        let wrote = self
+            .data
             .persist_while(left)
-            .attach("role: the store's data")
+            .attach("role: the store's data")?;
+
+        if filling && matches!(wrote, Wrote::Replaced(_)) {
+            self.forget_the_file_it_replaced();
+        }
+        Ok(wrote)
+    }
+
+    /// Records whether the data holds keys, and which file a save that gives
+    /// the store its first keys is replacing, for as long as that file is
+    /// still the one standing there. Answers whether that record stands.
+    fn remember_what_the_data_holds_while_filling(&self) -> StorageResult<bool> {
+        let holds = !has_no_keys(&*self.data.doc.read());
+        let said = self.said_to_hold_keys();
+        let standing = || hash_of_the_file(&self.data.path);
+
+        let filling = match (said, holds) {
+            (false, true) => Some(standing()),
+            (true, true) => self.filling().filter(|was| *was == standing()),
+            _ => None,
+        };
+
+        if said != holds {
+            self.say(&held_key(), Some(&holds))?;
+        }
+        self.say(&filling_key(), filling.as_ref())?;
+        Ok(filling.is_some())
+    }
+
+    /// The record of the file a filling save replaced, taken away once the
+    /// data has landed. One left behind names a file that is no longer
+    /// there and answers nothing, so failing to take it away is a line in
+    /// the log rather than a failed save.
+    fn forget_the_file_it_replaced(&self) {
+        let forgotten = self
+            .say::<String>(&filling_key(), None)
+            .and_then(|()| self.meta.persist());
+
+        if let Err(why) = forgotten {
+            warn!(
+                file = %self.meta.path.display(),
+                "the record of the file this save replaced could not be taken away: {why:?}"
+            );
+        }
     }
 
     fn remember_what_the_data_holds(&self) -> StorageResult<()> {
         let holds = !has_no_keys(&*self.data.doc.read());
-        let key = held_key();
-
-        {
-            let mut guard = self.meta.doc.write();
-            let said = matches!(
-                guard.get(&key).map(D::deserialize_node::<bool>),
-                Some(Ok(true))
-            );
-
-            if said == holds {
-                return Ok(());
-            }
-
-            let node = D::serialize_node(&holds, &Noticed::unlimited())
-                .change_context(StorageError::Meta)
-                .attach_key(&key)?;
-
-            guard
-                .set(&key, node)
-                .change_context(StorageError::Meta)
-                .attach_key(&key)?;
+        match self.said_to_hold_keys() == holds {
+            true => Ok(()),
+            false => self.say(&held_key(), Some(&holds)),
         }
+    }
 
-        Ok(())
+    fn said_to_hold_keys(&self) -> bool {
+        matches!(
+            self.meta
+                .doc
+                .read()
+                .get(&held_key())
+                .map(D::deserialize_node::<bool>),
+            Some(Ok(true))
+        )
+    }
+
+    fn filling(&self) -> Option<String> {
+        self.meta
+            .doc
+            .read()
+            .get(&filling_key())
+            .and_then(|node| D::deserialize_node::<String>(node).ok())
+    }
+
+    fn say<T: serde::Serialize>(&self, key: &StorePath, value: Option<&T>) -> StorageResult<()> {
+        let mut guard = self.meta.doc.write();
+        match value {
+            Some(value) => {
+                let node = D::serialize_node(value, &Noticed::unlimited())
+                    .change_context(StorageError::Meta)
+                    .attach_key(key)?;
+                guard.set(key, node)
+            }
+            None => guard.delete(key).map(|_| ()),
+        }
+        .change_context(StorageError::Meta)
+        .attach_key(key)
     }
 
     /// The metadata as found, once a write a stopped open left under way is
@@ -601,10 +744,18 @@ impl<D: TextDocument> StoreFiles<D> {
                  the next open finishes",
             )?;
 
-        sweep_temporaries(&self.data.path);
-        sweep_temporaries(&self.meta.path);
+        self.sweep_temporaries();
 
         Ok(())
+    }
+
+    /// Takes away what killed writes left beside the files and beside their
+    /// copies, which are written the same way.
+    fn sweep_temporaries(&self) {
+        for file in [&self.data, &self.meta] {
+            sweep_temporaries(&file.path);
+            sweep_temporaries(&file.backup_path);
+        }
     }
 
     /// Writes the files this open changed, and leaves alone the ones it only
@@ -677,11 +828,31 @@ impl<D: TextDocument> StoreFiles<D> {
         if data {
             self.data.clean_backup();
         }
-        sweep_temporaries(&self.data.path);
-        sweep_temporaries(&self.meta.path);
+        self.sweep_temporaries();
 
         Ok(())
     }
+}
+
+/// Whether a load failed over what the files say, as against being unable to
+/// get at them.
+///
+/// A document that will not parse, bytes that are not text, metadata that does
+/// not agree with the data: those are the files, and starting fresh replaces
+/// them. A file that is held, forbidden or on a disk that refuses reads fine
+/// for whoever can reach it, and removing it takes somebody's data away
+/// because of where this process stands.
+pub(super) fn will_not_read(why: &error_stack::Report<StorageError>) -> bool {
+    !why.frames().any(|frame| {
+        let io = frame
+            .downcast_ref::<TextStoreError>()
+            .and_then(|failed| match failed {
+                TextStoreError::Io(io) => Some(io),
+                _ => None,
+            })
+            .or_else(|| frame.downcast_ref::<io::Error>());
+        io.is_some_and(|io| io.kind() != io::ErrorKind::InvalidData)
+    })
 }
 
 /// Ends the process where a test asked, so a stop between the open's writes can
@@ -695,6 +866,17 @@ fn stop_the_open_after(written: &str) {
 
 #[cfg(not(feature = "test-utils"))]
 fn stop_the_open_after(_written: &str) {}
+
+/// The same for a save, after the first of its two files.
+#[cfg(feature = "test-utils")]
+fn stop_the_save_after(written: &str) {
+    if std::env::var("AMETHYSTATE_STOP_THE_SAVE_AFTER").as_deref() == Ok(written) {
+        std::process::abort();
+    }
+}
+
+#[cfg(not(feature = "test-utils"))]
+fn stop_the_save_after(_written: &str) {}
 
 /// Whether `file` holds something other than `found`, or is not there yet.
 fn changed<D: TextDocument>(file: &StoreFile<D>, found: &D) -> StorageResult<bool> {
@@ -760,18 +942,29 @@ fn what_we_left(file: &Path, content: &str) -> Option<Standing> {
 /// back truncated after a power cut. Windows offers no write-through on the
 /// replacement itself, so the flush has to be ours.
 ///
+/// The new name is an entry in the directory, and the directory is a file of
+/// its own with a cache of its own: on Unix it is synced once the name has
+/// moved, or a power cut can bring back the old file under a write that was
+/// answered as landed. Windows gives `std` no handle to sync a directory
+/// through, and the rename is left to the file system's journal there.
+///
 /// A replacement that has to be retried takes the same temporary file back from
 /// the failure and tries again with it: the contents are written and flushed
 /// already, and only the name is in dispute.
 ///
 /// How long each of the two steps is worth is [`FileWritePolicy`], because what
 /// is holding the file is the application's business and not this function's.
+///
+/// A link is written through rather than over: the file it names is the one
+/// replaced, and the link is left standing. A rename onto the link itself
+/// would put a plain file in its place and leave the file it named behind.
 fn persist_atomic(
     path: &Path,
     content: &str,
     policy: FileWritePolicy,
     still: &dyn Fn() -> bool,
 ) -> io::Result<bool> {
+    let path = &followed(path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -795,7 +988,10 @@ fn persist_atomic(
 
     for attempt in 0..policy.replace.attempts.max(1) {
         match tmp.persist(path) {
-            Ok(_) => return Ok(true),
+            Ok(_) => {
+                sync_the_directory_of(path);
+                return Ok(true);
+            }
             Err(e) if attempt + 1 >= policy.replace.attempts => return Err(e.error),
             Err(e) => {
                 tmp = e.file;
@@ -804,6 +1000,79 @@ fn persist_atomic(
         }
     }
     unreachable!("the loop above returns on its last attempt")
+}
+
+/// Has the directory holding `file` on the disk, names and all.
+///
+/// The file has been replaced by the time this is asked, and a failure here
+/// does not undo that: answering the write as failed would send its caller to
+/// put back a file that is already in place. So it is a line in the log.
+#[cfg(unix)]
+fn sync_the_directory_of(file: &Path) {
+    let dir = match file.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir,
+        _ => Path::new("."),
+    };
+
+    if let Err(io) = std::fs::File::open(dir).and_then(|held| held.sync_all()) {
+        warn!(
+            file = %file.display(),
+            error = %io,
+            "the file was replaced and its directory could not be synced, so a power cut \
+             may yet bring back the file it replaced"
+        );
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_the_directory_of(_file: &Path) {}
+
+/// The file `path` names once every link on the way is followed, whether or
+/// not it is there yet.
+///
+/// Followed one link at a time rather than canonicalized, because a link whose
+/// file is missing still names where that file belongs.
+pub(super) fn followed(path: &Path) -> PathBuf {
+    let mut at = path.to_path_buf();
+    for _ in 0..LINKS_FOLLOWED {
+        match std::fs::read_link(&at) {
+            Ok(target) => {
+                at = match at.parent() {
+                    Some(dir) => dir.join(target),
+                    None => target,
+                }
+            }
+            Err(_) => return at,
+        }
+    }
+    at
+}
+
+const LINKS_FOLLOWED: usize = 40;
+
+/// Gives the temporary the permissions of the file it is about to replace.
+///
+/// A temporary is made readable by its owner alone, and the rename carries
+/// that over the file: a config kept readable by the group, or by a service
+/// running as somebody else, would stop being so after its first save.
+#[cfg(unix)]
+fn keep_the_permissions_of(target: &Path, tmp: &std::fs::File) -> io::Result<()> {
+    match std::fs::metadata(target) {
+        Ok(held) => tmp.set_permissions(held.permissions()),
+        Err(_) => Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+fn keep_the_permissions_of(_target: &Path, _tmp: &std::fs::File) -> io::Result<()> {
+    Ok(())
+}
+
+/// Copies `from` over `to` the way [`persist_atomic`] writes: whole or not at
+/// all, and on the disk before it answers.
+fn copy_durably(from: &Path, to: &Path, policy: FileWritePolicy) -> io::Result<()> {
+    let content = std::fs::read_to_string(from)?;
+    persist_atomic(to, &content, policy, &|| true).map(|_| ())
 }
 
 /// The contents in a file of their own, beside the target and already on the
@@ -820,6 +1089,7 @@ fn write_temp(target: &Path, content: &str) -> io::Result<NamedTempFile> {
         .rand_bytes(0)
         .tempfile_in(dir)?;
 
+    keep_the_permissions_of(target, tmp.as_file())?;
     tmp.write_all(content.as_bytes())?;
     tmp.as_file().sync_all()?;
     Ok(tmp)
@@ -905,6 +1175,7 @@ fn temporaries_of(target: &Path) -> String {
 ///
 /// A failure to remove one is not reported; the next open tries again.
 fn sweep_temporaries(target: &Path) {
+    let target = &followed(target);
     let Some(dir) = target.parent() else {
         return;
     };

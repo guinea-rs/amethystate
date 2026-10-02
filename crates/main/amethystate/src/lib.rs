@@ -59,7 +59,7 @@ pub mod stores {
 }
 
 pub use store::{
-    AmeStateSlice, StateScope, StorageResult, StoreEvent, StoreOp, SubscriptionKind,
+    AmeStateSlice, Open, Schema, StateScope, StorageResult, StoreEvent, StoreOp, SubscriptionKind,
     builder::StoreBuilder, config::StoreConfig, default::Store,
 };
 
@@ -79,10 +79,7 @@ pub use store::StoreExt;
 pub mod test_utils;
 
 #[cfg(feature = "tauri")]
-pub mod tauri {
-    pub use amethystate_core::scheme::*;
-    pub use amethystate_tauri::*;
-}
+pub mod tauri;
 
 #[cfg(any(feature = "async", feature = "tauri"))]
 pub mod client {

@@ -48,6 +48,22 @@ pub(crate) fn schema(schema: &Schema, found: &mut Diagnostics) {
         );
     }
 
+    if let Some(written) = schema.manual_open {
+        if schema.prefix.is_none() {
+            found.at(
+                written,
+                "a struct with no prefix is a component, built by the struct holding it, so there \
+                 is no `Open` of its own to write. Write the opening on the holder",
+            );
+        } else if schema.target == Target::TauriWasm {
+            found.at(
+                written,
+                "a struct for a Tauri frontend is opened by `load_async` against the host, not by \
+                 `Open` against a store it holds, so there is no `Open` here to write",
+            );
+        }
+    }
+
     if schema.target == Target::TauriWasm && schema.mode != Mode::Reactive {
         found.at(
             schema.name.span(),
@@ -87,23 +103,30 @@ fn one(schema: &Schema, field: &Field, found: &mut Diagnostics) {
         );
     }
 
-    if let Some(check) = &field.rules.check {
-        let refusal = match &field.shape {
-            Shape::Volatile { .. } => Some(format!(
-                "`{named}` is volatile, so nothing arrives from the store for a check to judge. \
-                 A value this process holds and never stores is the interceptor's business"
-            )),
-            Shape::Node { .. } => Some(format!(
-                "`{named}` is a nested struct, and a check on one belongs on the struct itself - \
-                 `#[amethystate(check = ..)]` there is handed every field of it at once, which \
-                 is what a rule about a struct needs"
-            )),
-            Shape::Stored { .. } => None,
-        };
+    if let Some(rule) = &field.rules.rule
+        && let Shape::Node { .. } = &field.shape
+    {
+        found.at(
+            rule.span,
+            format!(
+                "`{named}` is a nested struct, and a rule judges one value: put it on the \
+                 fields of that struct. A rule between them goes where the struct that holds \
+                 it is opened - `open = manual` and an `Open` of its own"
+            ),
+        );
+    }
 
-        if let Some(message) = refusal {
-            found.at(check.span, message);
-        }
+    if let Some(rule) = &field.rules.rule
+        && schema.target == Target::TauriWasm
+    {
+        found.at(
+            rule.span,
+            format!(
+                "`{named}` is on a Tauri frontend, which takes what the host settled: the host \
+                 judges every stored value by the rule on its own declaration, and a field kept \
+                 only in the page has no rule here. Put the rule on the host's struct"
+            ),
+        );
     }
 
     weaker_than_the_struct(schema, field, found);
@@ -125,7 +148,7 @@ fn weaker_than_the_struct(schema: &Schema, field: &Field, found: &mut Diagnostic
             format!(
                 "`{holder}` declares `on_unreadable = Refuse`, so `{field}` cannot ask for \
                  `UseDefault`. A field may demand more than the struct promised and never less: \
-                 drop this to inherit the struct's rule, or move `UseDefault` up to the struct \
+                 drop this to inherit what the struct declared, or move `UseDefault` up to the struct \
                  and write `Refuse` on the fields that must be readable"
             ),
         );

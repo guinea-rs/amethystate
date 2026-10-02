@@ -90,6 +90,9 @@ pub enum WriteValue {
     /// An interceptor turned the change down, in its own words.
     Intercepted { at: StorePath, said: SmolStr },
 
+    /// A rule declared on the field turned the value down, in its own words.
+    Refused { at: StorePath, said: SmolStr },
+
     /// Interceptors wrote back into the value they guard, nested deeper than
     /// a write may go, and the guard stopped them.
     ///
@@ -166,6 +169,10 @@ impl WriteValue {
         match refusal {
             Refusal::Said(said) => Self::intercepted(at, said),
             Refusal::Recursed => Self::Recursed { at: at.clone() },
+            Refusal::Ruled(said) => Self::Refused {
+                at: at.clone(),
+                said: SmolStr::new(said),
+            },
         }
     }
 }
@@ -175,6 +182,9 @@ impl fmt::Display for WriteValue {
         match self {
             Self::Intercepted { at, said } => {
                 write!(f, "an interceptor turned down the write to {at}: {said}")
+            }
+            Self::Refused { at, said } => {
+                write!(f, "a declared rule turned down the write to {at}: {said}")
             }
             Self::Recursed { at } => write!(
                 f,
@@ -212,6 +222,7 @@ impl std::error::Error for WriteValue {
                 why.caused().map(|under| under as &dyn std::error::Error)
             }
             Self::Intercepted { .. }
+            | Self::Refused { .. }
             | Self::Recursed { .. }
             | Self::Absent { .. }
             | Self::Closed { .. }
@@ -253,6 +264,9 @@ impl From<WriteValue> for Report<StorageError> {
             WriteValue::Intercepted { at, said } => Report::new(StorageError::Write)
                 .attach(crate::facts::Key(at))
                 .attach(format!("an interceptor turned it down: {said}")),
+            WriteValue::Refused { at, said } => Report::new(StorageError::Write)
+                .attach(crate::facts::Key(at))
+                .attach(format!("a declared rule turned it down: {said}")),
             WriteValue::Recursed { at } => Report::new(StorageError::Write)
                 .attach(crate::facts::Key(at))
                 .attach("interceptors wrote back into it deeper than a write may nest"),

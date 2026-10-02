@@ -8,7 +8,7 @@ sidebar:
 
 ## Execution models
 
-### Retain-mode and TEA (egui, ratatui, iced, Xilem)
+### Immediate-mode and TEA (egui, ratatui, iced, Xilem)
 
 These frameworks have an explicit event loop. Either they redraw every frame (immediate-mode: egui, ratatui), or all state changes flow through a message → update → render cycle (TEA/MVU: iced, Xilem). In both cases the framework decides when to read state, and there is no place to attach subscriptions in a natural way.
 
@@ -16,12 +16,13 @@ These frameworks have an explicit event loop. Either they redraw every frame (im
 
 One caveat: persistent-only state does not observe external changes. If another thread, another process, or a manually edited file changes the underlying store while the app is running, the loaded struct will not update. If you need that, use reactive mode and call `.get()` at the start of each frame or update cycle — the framework loop naturally polls the latest value.
 
-- [egui / iced / ratatui](/amethystate/integrations/retain-mode/)
-
+- [egui / iced / ratatui](/amethystate/integrations/immediate-mode/)
 
 ### Property bindings (Slint, GTK 4)
-Both frameworks own their UI properties. The bridge is bidirectional: subscribe to a Field<T> and push changes into the framework's property system, with optional back-propagation from UI callbacks into the field.
-Reactive mode is required.
+
+Both frameworks own their UI properties, so a bridge between them and a store goes both ways: subscribe to a `Field<T>` and push each change into the framework's property system, and write back into the field from UI callbacks. Reactive mode is required.
+
+Neither integration is written yet, and both pages below are placeholders. [`examples/slint`](https://github.com/guinea-rs/amethystate/tree/master/examples/slint) builds that bridge by hand.
 
 - [Slint](/amethystate/integrations/slint/)
 - [GTK 4](/amethystate/integrations/gtk4/)
@@ -51,3 +52,11 @@ GPUI uses an entity model with deferred notification. Mutations are applied insi
 **Reactive mode** is required.
 
 - [GPUI](/amethystate/integrations/gpui/)
+
+### Timers (guinea)
+
+guinea is not a UI framework, but its timers read a period that may change while they run. The adapter hands a field or a `ReactiveCell` to a timer as that period, and the timer re-arms as soon as the value changes.
+
+**Reactive mode** is required.
+
+- [guinea](/amethystate/integrations/guinea/)

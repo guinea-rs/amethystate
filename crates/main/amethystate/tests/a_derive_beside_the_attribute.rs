@@ -3,7 +3,7 @@ use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 use amethystate_test_macros::backends;
 
-#[amethystate(prefix = "ui", mode = "both")]
+#[amethystate(prefix = "ui")]
 #[derive(Clone, Debug)]
 pub struct Ui {
     #[amestate(default = 800u32)]

@@ -1,6 +1,6 @@
 use crate::store::{
     InitState, SchemaAwareStore, StoreBackend, StoreCallback, StoreEvent, StoreOp,
-    SubscriptionEntry, SubscriptionId, SubscriptionKind,
+    SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
 };
 use amethystate_core::path::{PathRef, StorePath};
 use error_stack::ResultExt;
@@ -36,9 +36,7 @@ use rmp_serde::Serializer;
 use rmp_serde::config::BytesMode;
 use std::cell::RefCell;
 use std::sync::Arc;
-#[cfg(test)]
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tracing::info;
 use uuid::Uuid;
 
@@ -48,7 +46,7 @@ mod migration;
 mod recovery;
 mod tables;
 
-use recovery::{OpenDatabase, create_database, is_previous_io, reopen, will_not_read};
+use recovery::{OpenDatabase, create_database, for_writing, is_previous_io, reopen, will_not_read};
 
 const BUF_SIZE: usize = 64 * 1024;
 
@@ -136,6 +134,9 @@ struct RedbStoreInner {
     debouncer: Arc<Debouncer>,
     subscriptions: Arc<RwLock<Vec<SubscriptionEntry>>>,
     write_lock: Arc<Mutex<()>>,
+    /// Set as the close drops the database, so that an empty handle after it
+    /// is a store that let its file go rather than a reopen still to be made.
+    released: Arc<AtomicBool>,
     /// The order this store settled changes in, minted where a write joins
     /// the buffer. Every event carries it.
     settled: Arc<AtomicU64>,
@@ -175,7 +176,11 @@ impl RedbStoreInner {
         let flushed = self
             .closed
             .settled(self.save_now().attach("flushing the buffer before close"));
-        self.db.store(None);
+        {
+            let _write_guard = self.write_lock.lock();
+            self.released.store(true, Ordering::Release);
+            self.db.store(None);
+        }
         self.commits.closed();
 
         flushed
@@ -213,9 +218,14 @@ impl RedbStoreInner {
     /// seen an I/O error answers everything with `PreviousIo` for good, and
     /// only a fresh one can land the write. One retry, because the second
     /// failure is the disk rather than the handle.
+    ///
+    /// Only a flush of the whole buffer is numbered for the commits awaiting
+    /// one. A flush of one prefix commits that prefix alone, and answering a
+    /// wait for everything with it would report writes on disk that are still
+    /// in the buffer.
     pub fn flush_prefix(&self, prefix: &StorePath) -> StorageResult<()> {
         let _write_guard = self.write_lock.lock();
-        let flush = self.commits.begin();
+        let flush = prefix.is_root().then(|| self.commits.begin());
 
         let flushed = match self.flush_locked(prefix) {
             Err(report) if is_previous_io(&report) => {
@@ -224,7 +234,9 @@ impl RedbStoreInner {
             other => other,
         };
 
-        self.commits.settle(flush, &flushed);
+        if let Some(flush) = flush {
+            self.commits.settle(flush, &flushed);
+        }
         flushed
     }
 
@@ -233,7 +245,10 @@ impl RedbStoreInner {
             let lock = self.pending.lock();
             utils::pending_prefix(&lock, prefix)
         };
-        let db = self.db()?;
+        let db = for_writing(&self.db, &self.path, &self.released)?.ok_or_else(|| {
+            error_stack::Report::new(StorageError::Closed)
+                .attach(StoreFile(self.path.to_path_buf()))
+        })?;
         let txn = begin_write(&db)
             .doing(StorageError::Flush, &self.path)
             .attach_prefix(prefix)
@@ -263,7 +278,20 @@ impl RedbStoreInner {
     /// the reopen or after it, and never during - which is the blocking a
     /// durable write already promises. Keep the two on one lock and that stays
     /// true for free.
+    ///
+    /// A gap with nobody in it is a reopen that did not land, and a read that
+    /// finds the lock free makes it again rather than waiting for a write to.
     fn db(&self) -> StorageResult<Arc<Database>> {
+        if let Some(open) = self.db.load_full() {
+            return Ok(open);
+        }
+
+        if let Some(_write_guard) = self.write_lock.try_lock()
+            && let Ok(Some(open)) = for_writing(&self.db, &self.path, &self.released)
+        {
+            return Ok(open);
+        }
+
         self.db.load_full().ok_or_else(|| {
             if self.debouncer.is_stopped() {
                 error_stack::Report::new(StorageError::Closed)
@@ -389,6 +417,8 @@ impl RedbStore {
         let write_lock = Arc::new(Mutex::new(()));
         let write_lock_save = write_lock.clone();
         let commits_save = commits.clone();
+        let released = Arc::new(AtomicBool::new(false));
+        let released_save = released.clone();
 
         let health = Arc::new(PersistHealth::default());
 
@@ -414,10 +444,12 @@ impl RedbStore {
                     }
 
                     let landed: StorageResult<()> = (|| {
-                        let db = db_save.load_full().ok_or_else(|| {
-                            error_stack::Report::new(StorageError::Flush)
-                                .attach("the database is being reopened")
-                        })?;
+                        let db = for_writing(&db_save, &path_save, &released_save)?.ok_or_else(
+                            || {
+                                error_stack::Report::new(StorageError::Flush)
+                                    .attach("the store has let its file go")
+                            },
+                        )?;
                         let txn = begin_write(&db)
                             .doing(StorageError::Flush, &path_save)
                             .attach_buffered(changes.len())?;
@@ -460,6 +492,7 @@ impl RedbStore {
             debouncer: Arc::new(debouncer),
             subscriptions,
             write_lock,
+            released,
             settled: Arc::new(AtomicU64::new(0)),
             closed: utils::Closed::default(),
             parallel_reads: config.parallel_reads,
@@ -607,16 +640,16 @@ impl StoreBackend for RedbStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, source)
+        self.set_owned_erased(path.clone(), value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<uuid::Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
         self.inner.check_debouncer()?;
         self.inner
@@ -673,20 +706,21 @@ impl StoreBackend for RedbStore {
             lock.insert(path.clone(), utils::PendingOp::Set(bytes.clone()));
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path,
                 op: StoreOp::Set,
                 old: old_bytes,
                 new: Some(bytes),
-                source: source.into(),
+                source: by.handle.into(),
                 at: settled,
+                judged: by.judged,
             },
-        )?;
+        );
 
         self.inner.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn parallel_reads(&self) -> bool {
@@ -897,7 +931,7 @@ impl StoreBackend for RedbStore {
             lock.insert(path.clone(), utils::PendingOp::Delete);
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -906,11 +940,12 @@ impl StoreBackend for RedbStore {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.inner.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn delete_prefix_with_source(
@@ -932,7 +967,7 @@ impl StoreBackend for RedbStore {
             }
         })?;
 
-        utils::emit_events(
+        let told = utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -941,11 +976,12 @@ impl StoreBackend for RedbStore {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
-        )?;
+        );
 
         self.inner.debouncer.schedule();
-        Ok(())
+        told
     }
 
     fn delete(&self, path: &StorePath) -> StorageResult<()> {
@@ -1442,6 +1478,32 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         condition()
+    }
+
+    #[test]
+    fn a_flush_of_another_prefix_does_not_answer_a_wait_for_the_whole_buffer() {
+        use std::future::Future;
+        use std::task::{Context, Poll};
+
+        let path = TempPath::new("redb_partial_answers");
+        let mut config = StoreConfig::new(&path);
+        config.save_debounce = Duration::from_secs(60);
+        let failing = SimulatedWriteFailure::armed();
+        let (store, _) = RedbStore::open(config, MigrationSet::default()).unwrap();
+
+        store.set(StorePath::from_segments(["a"]), &1u32).unwrap();
+        store.set(StorePath::from_segments(["b"]), &2u32).unwrap();
+        let mut whole = store.flush_async();
+        store
+            .inner
+            .flush_prefix(&StorePath::from_segments(["a"]))
+            .unwrap();
+
+        let waker = futures::task::noop_waker();
+        let answered = std::pin::Pin::new(&mut whole).poll(&mut Context::from_waker(&waker));
+        assert!(matches!(answered, Poll::Pending), "{answered:?}");
+
+        failing.disarm();
     }
 
     struct SimulatedWriteFailure;

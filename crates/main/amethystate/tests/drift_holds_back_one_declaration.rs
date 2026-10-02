@@ -5,6 +5,8 @@ use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 use std::path::{Path, PathBuf};
 
+mod common;
+
 #[amethystate(prefix = "shared", version = 1)]
 pub struct Widths {
     #[amestate(default = 200u32)]
@@ -18,7 +20,7 @@ pub struct Theme {
 }
 
 fn meta_path(at: &Path) -> PathBuf {
-    at.with_extension("meta")
+    common::bookkeeping_of(at)
 }
 
 fn settle() {

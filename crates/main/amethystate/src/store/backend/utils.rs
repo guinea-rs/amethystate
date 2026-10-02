@@ -291,6 +291,34 @@ pub fn emit_events(
     subs_lock: &RwLock<Vec<SubscriptionEntry>>,
     event: StoreEvent,
 ) -> StorageResult<()> {
+    tell(subs_lock, event, |cb, event| cb(event))
+}
+
+/// The same, for a change the store found in its file rather than one a
+/// caller made, with a subscriber that panics taken as one that refused.
+///
+/// Such a change is told from inside a save or from the watcher, under locks
+/// the store goes on needing, and nobody called in to be unwound to. A panic
+/// let through there poisons what it held, and every write after it fails for
+/// a bug in somebody's callback.
+#[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+pub fn emit_found_events(
+    subs_lock: &RwLock<Vec<SubscriptionEntry>>,
+    event: StoreEvent,
+) -> StorageResult<()> {
+    tell(subs_lock, event, |cb, event| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| cb(event))).unwrap_or_else(|_| {
+            Err(Report::new(StorageError::Read)
+                .attach("the subscriber panicked, and was taken as having refused it"))
+        })
+    })
+}
+
+fn tell(
+    subs_lock: &RwLock<Vec<SubscriptionEntry>>,
+    event: StoreEvent,
+    call: impl Fn(&crate::store::StoreCallback, &StoreEvent) -> StorageResult<()>,
+) -> StorageResult<()> {
     let callbacks = {
         let guard = subs_lock.read();
         guard
@@ -304,7 +332,7 @@ pub fn emit_events(
     let mut also = 0usize;
 
     for cb in callbacks {
-        if let Err(why) = cb(&event) {
+        if let Err(why) = call(&cb, &event) {
             match &refused {
                 None => refused = Some(why),
                 Some(_) => also += 1,

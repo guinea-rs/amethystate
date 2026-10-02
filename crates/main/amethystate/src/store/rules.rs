@@ -1,10 +1,10 @@
-use crate::store::Check;
+use crate::store::Rule;
 use crate::store::StorageError;
 use crate::store::traits::StoredAs;
 use error_stack::Report;
 
 /// What building a struct does about a stored value it will not accept: one
-/// that does not decode into the field's type, and one a declared check
+/// that does not decode into the field's type, and one a declared rule
 /// refuses.
 ///
 /// The value got there somehow - a file edited by hand, a migration that left
@@ -84,6 +84,32 @@ pub struct Fallbacks {
     pub on_unreadable: OnUnreadable,
     pub on_delete: OnDelete,
     pub unreadable_entries: UnreadableEntries,
+    pub on_undeclared: OnUndeclared,
+}
+
+/// What opening does with a key under a declared prefix that no struct of this
+/// build declares.
+///
+/// Such a key is what a field renamed or dropped without a step leaves behind,
+/// and the store reports it as drift on every open until something answers
+/// for it. These are the two answers that need no version and no step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OnUndeclared {
+    /// The key stays, and the drift is reported until a step or the
+    /// declaration answers for it.
+    #[default]
+    Keep,
+
+    /// The key is deleted at the open, once every step has run, and the shape
+    /// this build declares is recorded in place of the old one, so there is
+    /// no drift to report.
+    ///
+    /// For a store in development. A renamed field starts from its default:
+    /// what stood under the old name is gone rather than carried over. Keys
+    /// under no declared prefix are left alone, and so is everything at the
+    /// root, even with a struct declared `as_root`. An open where a migration
+    /// failed deletes nothing.
+    Drop,
 }
 
 impl Fallbacks {
@@ -105,6 +131,15 @@ impl Fallbacks {
     /// struct holding it said. Without this, [`UnreadableEntries::Refuse`].
     pub fn unreadable_entries(mut self, rule: UnreadableEntries) -> Self {
         self.unreadable_entries = rule;
+        self
+    }
+
+    /// What opening does with a key under a declared prefix that nothing
+    /// declares. Unlike the rest, it is about the store's keys rather than a
+    /// field, and no declaration can say it. Without this,
+    /// [`OnUndeclared::Keep`].
+    pub fn on_undeclared(mut self, rule: OnUndeclared) -> Self {
+        self.on_undeclared = rule;
         self
     }
 }
@@ -131,14 +166,14 @@ pub enum OnDelete {
 }
 
 /// What a field does about the store disagreeing with it: a value it cannot
-/// read, a key removed under it, and a value its declared check refuses.
+/// read, a key removed under it, and a value its declared rule refuses.
 ///
 /// One value carries all of it, so "what did this field decide" has a single
 /// answer to hold and a single place to add to.
 pub struct ReadRules<TValue> {
     pub(crate) on_unreadable: OnUnreadable,
     pub(crate) on_delete: OnDelete,
-    pub(crate) check: Option<Check<TValue>>,
+    pub(crate) rule: Option<Rule<TValue>>,
     pub(crate) stored_as: StoredAs<TValue>,
 }
 
@@ -147,7 +182,7 @@ impl<TValue> Default for ReadRules<TValue> {
         Self {
             on_unreadable: OnUnreadable::default(),
             on_delete: OnDelete::default(),
-            check: None,
+            rule: None,
             stored_as: StoredAs::default(),
         }
     }
@@ -179,9 +214,9 @@ impl<TValue> ReadRules<TValue> {
         self
     }
 
-    /// The rule every value coming in from the store has to pass.
-    pub fn check(mut self, check: Check<TValue>) -> Self {
-        self.check = Some(check);
+    /// The rule every value the field takes has to pass, read or written.
+    pub fn rule(mut self, rule: Rule<TValue>) -> Self {
+        self.rule = Some(rule);
         self
     }
 }

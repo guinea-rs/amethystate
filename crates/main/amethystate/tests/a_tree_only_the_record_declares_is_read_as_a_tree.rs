@@ -5,6 +5,8 @@ use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 use std::path::{Path, PathBuf};
 
+mod common;
+
 #[amethystate(prefix = "look", version = 1)]
 pub struct Look {
     #[amestate(path = "font.size", default = 14u32)]
@@ -12,7 +14,7 @@ pub struct Look {
 }
 
 fn meta_path(at: &Path) -> PathBuf {
-    at.with_extension("meta")
+    common::bookkeeping_of(at)
 }
 
 #[test]

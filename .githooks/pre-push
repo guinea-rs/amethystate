@@ -33,7 +33,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   changed_src=false
   for p in "${PUBLISHED_PATHS[@]}"; do
-    if ! git diff --quiet "$remote_sha" "$local_sha" -- "$p/src"; then
+    if ! git diff --quiet "$remote_sha" "$local_sha" -- "$p" \
+        ":(exclude)$p/tests" ":(exclude)$p/benches" ":(exclude)$p/examples"; then
       changed_src=true
       break
     fi

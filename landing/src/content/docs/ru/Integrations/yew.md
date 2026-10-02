@@ -4,7 +4,7 @@ title: Yew
 
 `amethystate-yew` соединяет реактивное состояние с компонентами Yew. К каждому полю обращаются через хуки, возвращающие родные типы Yew: `T` для чтения и `Callback<T>` для записи. Компоненты перерисовываются только тогда, когда меняются те поля, которые они читают.
 
-*Примечание: эта интеграция рассчитана на фронтенды на WASM (CSR), в первую очередь для приложений Tauri.*
+*Примечание: эта интеграция — для фронтендов на WASM (CSR): фронтенда приложения Tauri или приложения, которое живёт только в браузере и держит состояние в `localStorage`.*
 
 ## Установка
 
@@ -15,7 +15,7 @@ amethystate-yew = "0.23"
 
 ## Объявление состояния
 
-Структуры фронтенда генерируются автоматически из ваших типов бэкенда через `amethystate-codegen`. Не пишите их руками.
+В приложении Tauri структуры фронтенда генерирует из ваших типов бэкенда `amethystate-codegen`. Не пишите их руками.
 
 ```rust
 // src/bindings/amethystate.rs
@@ -41,9 +41,11 @@ pub struct Theme {
 
 Настройка кодогенерации - в главе [Интеграция с Tauri](/amethystate/ru/integrations/tauri/).
 
+В приложении, которое живёт только в браузере, генерировать не из чего: бэкенда нет. Состояние — обычная структура с `#[amethystate]`; store собирают прямо на странице, на `Backend::LocalStorage`, и отдают его `AmeStateProvider`. Так сделано в [`web-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-yew).
+
 ## Провайдер и инициализация
 
-Состояние загружается асинхронно по IPC. Оберните приложение в `AmeStateProvider` и объявите через `preload_slices!`, какие срезы загружать. Отрисовка приостановлена, пока не готовы все срезы.
+Состояние загружается асинхронно по IPC. Оберните приложение в `AmeStateProvider` и объявите через `preload_slices!`, какие структуры загружать. Отрисовка приостановлена, пока не готовы все.
 
 ```rust
 use amethystate::tauri::TauriBackend;
@@ -68,7 +70,7 @@ pub fn app() -> Html {
 
 ## Доступ к состоянию
 
-Внутри компонента вызовите `use_amethystate::<S>()`, чтобы получить корневой хендл среза. Хендл - это структура с полем на каждое поле состояния; передавайте её вниз как проп.
+Внутри компонента вызовите `use_amethystate::<S>()`, чтобы получить корневой хендл структуры. Хендл - это структура с полем на каждое поле состояния; передавайте её вниз как проп.
 
 ```rust
 #[function_component(MainLayout)]
@@ -198,5 +200,5 @@ html! {
 
 ## Примеры
 
-- [`web-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-yew) — приложение в браузере на localStorage.
-- [`tauri-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-yew) — полноценное приложение Tauri v2 с фронтендом на Yew и WASM.
+- [`web-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-yew) — приложение в браузере на localStorage.
+- [`tauri-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-yew) — полноценное приложение Tauri v2 с фронтендом на Yew и WASM.

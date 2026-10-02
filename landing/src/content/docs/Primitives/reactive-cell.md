@@ -33,9 +33,10 @@ field never had a store subscription for the cell to commit through, which is
 what the name is borrowed from.
 
 `kv.cell` is the one that needs no declaration at all: it takes the path
-and the default at the call, and remembers the type for the rest of the run - a
-second call at the same path with a different type is refused.
-[Kv](/amethystate/primitives/kv/).
+and the default at the call. Nothing records the type, and the stored value is
+the check: a second call at the same path with a different type reads what the
+first stored and fails to decode it.
+[Kv](/amethystate/primitives/kv/#one-path-one-type).
 
 ## Reading
 

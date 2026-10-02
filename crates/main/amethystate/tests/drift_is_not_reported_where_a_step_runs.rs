@@ -6,6 +6,8 @@ use amethystate::store::OpenStore;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
 
+mod common;
+
 #[amethystate(prefix = "panel", version = 2)]
 pub struct Panel {
     #[amestate(default = 0u32)]
@@ -19,7 +21,7 @@ fn recorded(meta: &std::path::Path) -> serde_json::Value {
 #[test]
 fn a_prefix_whose_step_failed_is_reported_once_and_not_as_drift() {
     let at = TempPath::new("failed_step_not_drift");
-    let meta = at.path().with_extension("meta");
+    let meta = common::bookkeeping_of(at.path());
 
     {
         let store = StoreBuilder::new(at.path())

@@ -45,7 +45,7 @@ fn seeded(suffix: &str) -> TempPath {
 }
 
 fn meta_path(path: &Path) -> PathBuf {
-    path.with_extension("meta")
+    common::bookkeeping_of(path)
 }
 
 /// Where the store keeps its copy: the whole name plus `.bak`.

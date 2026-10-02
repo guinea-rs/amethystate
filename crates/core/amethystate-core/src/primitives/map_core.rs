@@ -1,7 +1,7 @@
 use crate::SignalSubscription;
 use crate::change::MapChange;
 use crate::path::{PathRef, StorePath, Under};
-use crate::primitives::intercept::{InterceptDisposer, InterceptGuard};
+use crate::primitives::intercept::{InterceptDepth, InterceptDisposer, InterceptGuard};
 use crate::primitives::signal::{SubscriptionMeta, forget, held, label};
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
@@ -15,7 +15,7 @@ use std::fmt::{self, Debug, Display, Write as _};
 use std::hash::Hash;
 use std::panic::Location;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Where a map's entries live, relative to the map itself.
@@ -258,13 +258,70 @@ impl<T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static + Default> 
 /// map nobody observes is the store's job.
 pub struct MapCache<K, V> {
     entries: ArcSwap<Snapshot<K, V>>,
+    settled: Mutex<Settled>,
 }
 
 impl<K: AsRef<str>, V> Default for MapCache<K, V> {
     fn default() -> Self {
         Self {
             entries: ArcSwap::from_pointee(RedBlackTreeMapSync::new_sync()),
+            settled: Mutex::new(Settled::default()),
         }
+    }
+}
+
+/// Where in the store's order the cache last took a change to each key, and
+/// to the whole map.
+///
+/// A store numbers its writes as it settles them, and tells its subscribers on
+/// the thread each write came from. Two threads writing one key can be told in
+/// the other order, and a cache taking whatever it is told last would hold the
+/// earlier value over the later one until the next write. A key removed keeps
+/// its number, so an insert settled before the removal cannot bring it back.
+///
+/// A removed key's number is let go of once the store has settled
+/// [`FORGET_AFTER`] changes since, and `forgotten` keeps the newest number let
+/// go of: a change to a key with no number of its own is taken only if it was
+/// settled after that. A change told that late is not one a store delivers.
+#[derive(Default)]
+struct Settled {
+    keys: std::collections::HashMap<String, u64>,
+    cleared: u64,
+    forgotten: u64,
+    latest: u64,
+}
+
+const FORGET_AFTER: u64 = 4096;
+
+impl Settled {
+    fn admits(&self, name: &str, at: u64) -> bool {
+        at >= self.cleared
+            && match self.keys.get(name) {
+                Some(held) => at >= *held,
+                None => at > self.forgotten || self.forgotten == 0,
+            }
+    }
+
+    fn took(&mut self, name: &str, at: u64) {
+        self.keys.insert(name.to_string(), at);
+        self.latest = self.latest.max(at);
+    }
+
+    fn let_go_of_the_long_removed(&mut self, live: impl Fn(&str) -> bool) {
+        if self.keys.len() as u64 <= 2 * FORGET_AFTER {
+            return;
+        }
+
+        let horizon = self.latest.saturating_sub(FORGET_AFTER);
+        let mut forgotten = self.forgotten;
+        self.keys.retain(|name, held| {
+            let kept = *held > horizon || live(name);
+            if !kept {
+                forgotten = forgotten.max(*held);
+            }
+            kept
+        });
+        self.forgotten = forgotten;
     }
 }
 
@@ -498,6 +555,59 @@ impl<K: AsRef<str> + Clone, V: Clone> MapCache<K, V> {
             .get_key_value(name)
             .map(|(key, value)| (key.0.clone(), value.clone()))
     }
+
+    /// Puts `value` at `key` unless a change to it the store settled later
+    /// has been taken already. Answers whether it was put.
+    pub fn insert_settled(&self, key: K, value: V, at: u64) -> bool {
+        let mut settled = held(&self.settled);
+        if !settled.admits(key.as_ref(), at) {
+            return false;
+        }
+
+        settled.took(key.as_ref(), at);
+        self.insert(key, value);
+        true
+    }
+
+    /// Takes `name` away unless a change to it the store settled later has
+    /// been taken already. Answers whether it was.
+    pub fn remove_settled(&self, name: &str, at: u64) -> bool {
+        let mut settled = held(&self.settled);
+        if !settled.admits(name, at) {
+            return false;
+        }
+
+        settled.took(name, at);
+        self.remove(name);
+        let held = self.entries.load();
+        settled.let_go_of_the_long_removed(|name| held.contains_key(name));
+        true
+    }
+
+    /// Empties the map of everything the store settled up to `at`, keeping
+    /// the entries it settled after. Answers whether it did, which it does not
+    /// for a clear settled before one already taken.
+    pub fn clear_settled(&self, at: u64) -> bool {
+        let mut settled = held(&self.settled);
+        if at < settled.cleared {
+            return false;
+        }
+
+        settled.cleared = at;
+        settled.latest = settled.latest.max(at);
+        settled.keys.retain(|_, held| *held > at);
+
+        let later = &settled.keys;
+        self.entries.rcu(|current| {
+            current
+                .iter()
+                .filter(|(key, _)| later.contains_key(key.0.as_ref()))
+                .fold(RedBlackTreeMapSync::new_sync(), |kept, (key, value)| {
+                    kept.insert(key.clone(), value.clone())
+                })
+        });
+        true
+    }
 }
 
 impl<K: AsRef<str> + Debug, V: Debug> Debug for MapCache<K, V> {
@@ -516,7 +626,7 @@ pub struct ReactiveMapCore<K, V> {
     pub subscribers_any: Arc<Mutex<Vec<(u64, SubscriberAny<K, V>, SubscriptionMeta)>>>,
     pub subscribers_key: Arc<DashMap<K, Vec<(u64, SubscriberKey<K, V>, SubscriptionMeta)>>>,
     pub next_id: Arc<AtomicU64>,
-    pub intercept_depth: Arc<AtomicUsize>,
+    pub intercept_depth: InterceptDepth,
     pub cache: Arc<MapCache<K, V>>,
 }
 
@@ -576,7 +686,7 @@ impl<K: ReactiveMapKey, V: ReactiveMapValue> ReactiveMapCore<K, V> {
             subscribers_any: Arc::new(Mutex::new(Vec::new())),
             subscribers_key: Arc::new(DashMap::new()),
             next_id: Arc::new(AtomicU64::new(0)),
-            intercept_depth: Arc::new(AtomicUsize::new(0)),
+            intercept_depth: InterceptDepth::default(),
             cache: Arc::new(MapCache::new()),
         }
     }
@@ -811,6 +921,38 @@ mod tests {
         by_store.sort_by_key(|name| under.push(name).key().as_bytes().to_vec());
 
         assert_eq!(cache.keys().collect::<Vec<_>>(), by_store);
+    }
+
+    #[test]
+    fn keys_that_come_and_go_leave_a_bounded_record_behind() {
+        let cache = MapCache::<String, u8>::new();
+
+        for n in 0..10_000u64 {
+            cache.insert_settled(format!("pid{n}"), 1, 2 * n);
+            cache.remove_settled(&format!("pid{n}"), 2 * n + 1);
+        }
+
+        assert!(held(&cache.settled).keys.len() <= 2 * FORGET_AFTER as usize);
+    }
+
+    #[test]
+    fn a_removal_long_settled_still_keeps_a_late_insert_out() {
+        let cache = MapCache::<String, u8>::new();
+
+        cache.insert_settled("gone".to_string(), 1, 1);
+        cache.remove_settled("gone", 2);
+        for n in 0..3 * FORGET_AFTER {
+            cache.insert_settled(format!("other{n}"), 1, 3 + 2 * n);
+            cache.remove_settled(&format!("other{n}"), 4 + 2 * n);
+        }
+
+        assert_eq!(
+            (
+                cache.insert_settled("gone".to_string(), 7, 1),
+                cache.get("gone")
+            ),
+            (false, None)
+        );
     }
 
     #[test]

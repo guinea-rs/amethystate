@@ -137,9 +137,9 @@ rsx! { p { "{entry:?}" } }
 
 ## WASM / Tauri frontend
 
-For Tauri apps with a Dioxus WASM frontend, the provider and setup differ. The backend is a `TauriBackend` instead of a local store, and slices are loaded asynchronously before the app renders.
+For Tauri apps with a Dioxus WASM frontend, the provider and setup differ. The store sits on a `TauriBackend` instead of a local engine, and structs are loaded asynchronously before the app renders.
 
-Use `preload_slices!` to declare which slices to load:
+Use `preload_slices!` to declare which structs to load:
 
 ```rust
 #[component]
@@ -156,9 +156,9 @@ fn App() -> Element {
 }
 ```
 
-`preload_slices!` suspends rendering until all slices are loaded from the Tauri backend. After that, `use_amethystate::<S>()` works the same as in the native case.
+`preload_slices!` suspends rendering until all structs are loaded from the Tauri backend. After that, `use_amethystate::<S>()` works the same as in the native case.
 
 ## Examples
 
-- [`dioxus`](https://github.com/uniproc-dev/amethystate/tree/master/examples/dioxus) — desktop app on redb.
-- [`web-dioxus`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-dioxus) — browser app on localStorage.
+- [`dioxus`](https://github.com/guinea-rs/amethystate/tree/master/examples/dioxus) — desktop app on redb.
+- [`web-dioxus`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-dioxus) — browser app on localStorage.

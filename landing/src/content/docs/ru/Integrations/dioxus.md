@@ -43,7 +43,7 @@ pub struct Theme {
 
 ## Провайдер
 
-Оберните приложение в `AmeStateProvider` и передайте хранилище:
+Оберните приложение в `AmeStateProvider` и передайте store:
 
 ```rust
 #[component]
@@ -137,9 +137,9 @@ rsx! { p { "{entry:?}" } }
 
 ## Фронтенд на WASM / Tauri
 
-Для приложений Tauri с фронтендом на Dioxus и WASM провайдер и настройка отличаются. Бэкенд здесь `TauriBackend`, а не локальное хранилище, и срезы загружаются асинхронно до того, как приложение отрисуется.
+Для приложений Tauri с фронтендом на Dioxus и WASM провайдер и настройка отличаются. Store здесь стоит на `TauriBackend`, а не на локальном движке, и структуры загружаются асинхронно до того, как приложение отрисуется.
 
-Через `preload_slices!` объявляют, какие срезы загружать:
+Через `preload_slices!` объявляют, какие структуры загружать:
 
 ```rust
 #[component]
@@ -156,9 +156,9 @@ fn App() -> Element {
 }
 ```
 
-`preload_slices!` приостанавливает отрисовку, пока все срезы не загрузятся из бэкенда Tauri. После этого `use_amethystate::<S>()` работает так же, как в нативном случае.
+`preload_slices!` приостанавливает отрисовку, пока все структуры не загрузятся из бэкенда Tauri. После этого `use_amethystate::<S>()` работает так же, как в нативном случае.
 
 ## Примеры
 
-- [`dioxus`](https://github.com/uniproc-dev/amethystate/tree/master/examples/dioxus) — десктопное приложение на redb.
-- [`web-dioxus`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-dioxus) — приложение в браузере на localStorage.
+- [`dioxus`](https://github.com/guinea-rs/amethystate/tree/master/examples/dioxus) — десктопное приложение на redb.
+- [`web-dioxus`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-dioxus) — приложение в браузере на localStorage.

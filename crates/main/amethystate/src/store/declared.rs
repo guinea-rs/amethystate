@@ -120,6 +120,15 @@ impl Declared {
             .any(|(at, role)| role.same(Role::Map) && at == path)
     }
 
+    /// Every level a declaration owns at or under `prefix`.
+    pub fn levels_under(&self, prefix: &StorePath) -> Vec<StorePath> {
+        self.places
+            .iter()
+            .filter(|(at, role)| role.same(Role::Map) && at.starts_with(prefix))
+            .map(|(at, _)| at.clone())
+            .collect()
+    }
+
     /// What is stored at `path`.
     pub fn holds(&self, path: &StorePath) -> Holds {
         for (at, role) in &self.places {

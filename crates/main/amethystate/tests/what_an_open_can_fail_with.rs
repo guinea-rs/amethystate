@@ -37,6 +37,7 @@ fn every_way_it_can_fail(why: OpenStruct) -> String {
         ),
         OpenStruct::NotAPath(said) => format!("no path to sit at: {said}"),
         OpenStruct::Store(said) => format!("the store: {}", said.current_context()),
+        OpenStruct::Declined(said) => format!("its own constructor declined: {said}"),
     }
 }
 

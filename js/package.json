@@ -1,16 +1,16 @@
 {
   "name": "amethystate",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Reactive persistent state for Tauri apps",
   "type": "module",
   "license": "MIT OR Apache-2.0",
-  "homepage": "https://uniproc-dev.github.io/amethystate/integrations/typescript/",
+  "homepage": "https://guinea-rs.github.io/amethystate/integrations/typescript/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/uniproc-dev/amethystate.git"
+    "url": "git+https://github.com/guinea-rs/amethystate.git"
   },
   "bugs": {
-    "url": "https://github.com/uniproc-dev/amethystate/issues"
+    "url": "https://github.com/guinea-rs/amethystate/issues"
   },
   "keywords": [
     "tauri",

@@ -180,6 +180,30 @@ async fn test_map_sub_requirements() {
     assert_eq!(key_changes.count(), 1);
 }
 
+#[amethystate_macros_arena::amethystate_framework_arena]
+#[amethystate::amethystate(prefix = "test")]
+pub struct MyTestState {
+    #[amestate(default = 0)]
+    pub id: usize,
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[serial]
+async fn siblings_that_each_ask_for_a_slice_share_one() {
+    any_spawner::Executor::init_tokio().ok();
+    let (_at, store) = unique_store("siblings");
+
+    let owner = Owner::new();
+    let asked = owner.with(|| {
+        provide_context(DefaultArena::new());
+        provide_context(store.clone());
+        [Owner::new(), Owner::new()]
+            .map(|sibling| sibling.with(amethystate_leptos::use_amethystate::<MyTestState>))
+    });
+
+    assert!(asked[0] == asked[1]);
+}
+
 #[tokio::test(flavor = "current_thread")]
 #[serial]
 async fn test_real_component_lifecycle() {

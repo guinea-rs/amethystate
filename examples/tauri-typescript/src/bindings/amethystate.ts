@@ -11,8 +11,8 @@ export class Todos extends Slice {
 
     private constructor(loaded: Loaded) {
         super(loaded);
-        this.nextId = loaded.field(["todos", "next_id"]);
-        this.hideDone = loaded.field(["todos", "hide_done"]);
+        this.nextId = loaded.field(["todos", "next_id"], 1);
+        this.hideDone = loaded.field(["todos", "hide_done"], false);
         this.lists = loaded.map(["todos", "lists"]);
         this.items = loaded.map(["todos", "items"]);
     }

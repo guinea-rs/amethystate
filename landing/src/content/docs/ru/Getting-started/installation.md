@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.22", features = ["redb"] }
+amethystate = { version = "0.23", features = ["redb"] }
 ```
 
 Движка по умолчанию нет. Приложение само называет тот, что будет держать его
@@ -16,7 +16,7 @@ amethystate = { version = "0.22", features = ["redb"] }
 
 ## Выбор движка
 
-Хранилище могут держать шесть движков, и каждый store держит ровно один из них.
+Движков шесть, и каждый store держит ровно один из них.
 Фичи Cargo решают, какие из шести вообще войдут в сборку; какой возьмётся за
 store — говорят при открытии, через `StoreBuilder::backend`. Если не сказать,
 берётся первый включённый.
@@ -60,7 +60,7 @@ store — говорят при открытии, через `StoreBuilder::back
 файла текстового движка. Где угодно, кроме страницы, store не откроется.
 
 ```toml
-amethystate = { version = "0.22", features = ["localstorage"] }
+amethystate = { version = "0.23", features = ["localstorage"] }
 ```
 
 ### Несколько движков сразу
@@ -87,7 +87,7 @@ SQLite — скажем, `STRICT`-таблицами, — и минимум пр
 «схема испорчена» — про целый и невредимый файл.
 
 ```toml
-amethystate = { version = "0.22", features = ["sqlite"] }
+amethystate = { version = "0.23", features = ["sqlite"] }
 ```
 
 ## Tauri
@@ -96,7 +96,7 @@ amethystate = { version = "0.22", features = ["sqlite"] }
 для Rust и TypeScript. Включается через feature `tauri`, рядом с движком:
 
 ```toml
-amethystate = { version = "0.22", features = ["tauri", "redb"] }
+amethystate = { version = "0.23", features = ["tauri", "redb"] }
 ```
 
 Настройка и использование:

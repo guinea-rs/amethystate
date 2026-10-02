@@ -1,3 +1,4 @@
+use amethystate::store::StoreLayout;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate::{ReactiveMap, amethystate};
 use amethystate_core::path::StorePath;
@@ -87,8 +88,9 @@ fn a_map_told_to_carry_on_leaves_out_the_entry_it_cannot_read(backend: Backend) 
         );
 
         store.close().unwrap();
-        std::fs::remove_file(at.path()).ok();
-        std::fs::remove_file(at.path().with_extension("meta")).ok();
+        for file in StoreLayout::of(at.path(), backend).names() {
+            std::fs::remove_file(file).ok();
+        }
     }
 }
 

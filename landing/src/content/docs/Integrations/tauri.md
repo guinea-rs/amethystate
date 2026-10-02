@@ -2,7 +2,7 @@
 title: Tauri
 ---
 
-`tauri-plugin-amethystate` is a Tauri v2 plugin that bridges your state slices to the Tauri frontend over IPC. It exposes commands for reading, writing, and subscribing to state, and ships a code generator that produces typed bindings for both TypeScript and Rust WASM frontends.
+`tauri-plugin-amethystate` is a Tauri v2 plugin that bridges your state structs to the Tauri frontend over IPC. It exposes commands for reading, writing, and subscribing to state, and ships a code generator that produces typed bindings for both TypeScript and Rust WASM frontends.
 
 ## Mental model
 
@@ -36,7 +36,7 @@ Add the plugin to your Tauri app's Rust crate:
 ```toml
 # src-tauri/Cargo.toml
 [dependencies]
-tauri-plugin-amethystate = { version = "0.22", features = ["redb"] }
+tauri-plugin-amethystate = { version = "0.23", features = ["redb"] }
 ```
 
 `amethystate` is re-exported as `tauri_plugin_amethystate::amethystate`, so no separate dependency is needed. The plugin's `redb`, `sqlite`, `json`, `toml` and `ron` features turn on the engine of the same name, and the store below opens only with one of them on.
@@ -56,6 +56,16 @@ fn main() {
 }
 ```
 
+## What the frontend reaches
+
+The plugin answers for the places your structs declare, and for nothing else. When it starts, it takes every `#[amethystate]` struct with a prefix in the binary, the newest version of each line, and collects its fields, its maps with their entries, and the fields of the structs it holds. Every command refuses a key no struct declares. A `volatile` field is never among them. A read of a whole prefix, the root included, returns only the declared places under it.
+
+A write is checked against the field's type before it reaches the store. A value that would not read back as that type is refused, so a frontend cannot leave behind something that keeps the application from opening next time. The key of a map entry is checked the same way, against the map's key type.
+
+Where the host has the struct open, a field's declared [rule](/amethystate/state/rules/) judges a frontend write as it arrives, as it does any write by path. A value it corrects is written back, and the frontend hears the corrected one. A value it refuses stays in the store while the field keeps its last good value, and the frontend's write answers an error.
+
+A field whose key goes, after a reset on the Rust side or a `Kv::reset_to_defaults`, tells its frontend so. Where the field takes its default again (`on_delete = UseDefault` on the field, on a struct around it, or in the store's `rules`), the frontend takes that default too. Where the field keeps its last value, so does the frontend.
+
 ## Permissions
 
 Add the default permission set to `src-tauri/capabilities/default.json`:
@@ -68,21 +78,16 @@ Add the default permission set to `src-tauri/capabilities/default.json`:
 }
 ```
 
-`amethystate:default` includes the following permissions:
+`amethystate:default` is the two sets below together:
 
-| Identifier | Description |
-|------------|-------------|
-| `amethystate:allow-amethystate-get` | Read a single key |
-| `amethystate:allow-amethystate-set` | Write a single key |
-| `amethystate:allow-amethystate-delete` | Delete a single key |
-| `amethystate:allow-amethystate-delete-prefix` | Delete every key under a prefix |
-| `amethystate:allow-amethystate-scan-keys` | List the keys under a prefix |
-| `amethystate:allow-amethystate-subscribe` | Subscribe to key changes |
-| `amethystate:allow-amethystate-unsubscribe` | Unsubscribe from a key |
-| `amethystate:allow-amethystate-get-prefix` | Bulk-read all keys under a prefix |
-| `amethystate:allow-amethystate-flush` | Flush pending writes to disk |
+| Set | Commands |
+|-----|----------|
+| `amethystate:read` | `get`, `get_prefix`, `scan_keys`, `subscribe`, `unsubscribe` |
+| `amethystate:write` | `set`, `delete`, `delete_prefix`, `flush` |
 
-Every permission has a corresponding `deny-*` variant that takes priority over `allow-*`.
+A window that only shows state needs `amethystate:read`. `delete_prefix` is in `write` because a map's `clear()` is made of it; it reaches a field or a map, never a level above them.
+
+Each command also has a permission of its own, `amethystate:allow-amethystate-<command>`, and a `deny-*` beside it that wins over any `allow-*`.
 
 ## Codegen
 
@@ -96,7 +101,7 @@ name = "codegen"
 path = "src/bin/codegen.rs"
 
 [dependencies]
-amethystate-codegen = { version = "0.22" }
+amethystate-codegen = { version = "0.23" }
 ```
 
 For Rust WASM frontends, add the appropriate feature flag:
@@ -128,8 +133,10 @@ amethystate_codegen::amethystate_codegen_main!(
 cargo run --bin codegen
 ```
 
+The bindings call each struct by its own name. Of a line kept beside its older versions for a migration, only the newest is written. Two different structs of one name are refused, with both their modules named, rather than one of them picked.
+
 ## Examples
 
-- [`tauri-typescript`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-typescript) — TypeScript frontend
-- [`tauri-leptos`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-leptos) — Leptos WASM frontend
-- [`tauri-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-yew) — Yew WASM frontend
+- [`tauri-typescript`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-typescript) — TypeScript frontend
+- [`tauri-leptos`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-leptos) — Leptos WASM frontend
+- [`tauri-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-yew) — Yew WASM frontend

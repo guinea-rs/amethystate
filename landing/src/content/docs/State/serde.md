@@ -1,7 +1,7 @@
 ---
 title: What serde says here
 sidebar:
-  order: 5
+  order: 6
 ---
 
 The library stores whatever serde will carry, so a stored type is written in two
@@ -34,7 +34,7 @@ serde attribute means there exactly what it means anywhere else.
 
 ## What says it instead
 
-Four things people reach for serde to say have somewhere to be said here. The
+Five things people reach for serde to say have somewhere to be said here. The
 spellings are kept apart because the operations are not the same one:
 
 | in serde | here |
@@ -55,7 +55,7 @@ not read is `on_unreadable`; what a field kept out of the store entirely is, is
 converges, where an alias would be kept for good.
 
 All of it is written up where the vocabulary lives:
-[Defining structs](/amethystate/state/defining-structs/).
+[Fields](/amethystate/state/fields/).
 
 ## Inside a leaf
 

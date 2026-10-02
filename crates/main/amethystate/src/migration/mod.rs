@@ -214,9 +214,16 @@ impl MigrationReport {
                         "   Transaction rolled back. Data for these prefixes remains unchanged."
                     );
                 }
-                ComponentOutcome::Skipped(NotMigrated::UpToDate) => {
+                ComponentOutcome::Skipped(NotMigrated::UpToDate) if comp.nagging.is_empty() => {
                     tracing::debug!(
                         "⏩ Component [{}] is up to date",
+                        Self::named(&comp.prefixes)
+                    );
+                }
+                ComponentOutcome::Skipped(NotMigrated::UpToDate) => {
+                    tracing::debug!(
+                        "⏩ Component [{}] is at the version this build declares, and its shape \
+                         is not: see the drift above",
                         Self::named(&comp.prefixes)
                     );
                 }
@@ -234,23 +241,54 @@ impl MigrationReport {
         }
     }
 
-    #[cfg(not(feature = "diagnostics"))]
-    fn nagging_to_tracing(&self) {
-        for nag in self.components.iter().flat_map(|comp| comp.nagging.iter()) {
-            warn!("⚠️  Schema drift detected in prefix '{}'", nag.prefix);
+    /// The drift as plain lines: a heading per prefix, then every place under
+    /// it that moved, what breaks first.
+    #[cfg(any(not(feature = "diagnostics"), test))]
+    fn drift_lines(&self) -> Vec<String> {
+        use crate::store::moved::{Moved, Verdict};
 
-            if let Some(diff) = &nag.diff {
-                for f in &diff.added {
-                    warn!("  + field '{}': {}", f.name, f.type_name);
-                }
-                for f in &diff.removed {
-                    warn!("  - field '{}' (exists in DB, missing in code)", f.name);
-                }
+        let mut lines = Vec::new();
+
+        for nag in self.components.iter().flat_map(|comp| comp.nagging.iter()) {
+            lines.push(format!(
+                "⚠️  Schema drift detected in prefix '{}'",
+                nag.prefix
+            ));
+
+            let mut moved: Vec<&Moved> = nag.moved.iter().collect();
+            moved.sort_by_key(|one| match one.verdict() {
+                Verdict::Breaks => 0,
+                Verdict::LookAtTheGround => 1,
+                Verdict::Harmless => 2,
+            });
+
+            for one in moved {
+                let said = match one.verdict() {
+                    Verdict::Breaks => "breaks",
+                    Verdict::LookAtTheGround => "look",
+                    Verdict::Harmless => "harmless",
+                };
+                let whole = Moved {
+                    at: nag.prefix.join(&one.at),
+                    what: one.what.clone(),
+                };
+                lines.push(format!("  {said}: {whole}"));
             }
 
-            warn!(
-                "  Suggestion: increment version and write a migration if these changes are intentional."
+            lines.push(
+                "  Suggestion: raise the struct's version and write a step for it, or declare \
+                 the released places again."
+                    .to_string(),
             );
+        }
+
+        lines
+    }
+
+    #[cfg(not(feature = "diagnostics"))]
+    fn nagging_to_tracing(&self) {
+        for line in self.drift_lines() {
+            warn!("{line}");
         }
     }
 

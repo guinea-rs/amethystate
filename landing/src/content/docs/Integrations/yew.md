@@ -4,7 +4,7 @@ title: Yew
 
 `amethystate-yew` bridges reactive state to Yew components. Each field is accessed via hooks returning native Yew types — `T` for reads and `Callback<T>` for writes. Components re-render only when the specific fields they read change.
 
-*Note: This integration is designed for WASM frontends (CSR), primarily for Tauri applications.*
+*Note: This integration is for WASM frontends (CSR): the frontend of a Tauri application, or a browser-only app that keeps its state in `localStorage`.*
 
 ## Setup
 
@@ -15,7 +15,7 @@ amethystate-yew = "0.23"
 
 ## Defining state
 
-The frontend structs are generated automatically from your backend types via `amethystate-codegen`. Do not write them by hand.
+In a Tauri app the frontend structs are generated from your backend types by `amethystate-codegen`. Do not write them by hand.
 
 ```rust
 // src/bindings/amethystate.rs
@@ -41,9 +41,11 @@ pub struct Theme {
 
 See the [Tauri integration](/amethystate/integrations/tauri/) chapter for codegen setup.
 
+In a browser-only app there is no backend to generate from. The state is an ordinary `#[amethystate]` struct, the store is built in the page on `Backend::LocalStorage`, and `AmeStateProvider` is handed that store, as in [`web-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-yew).
+
 ## Provider & Initialization
 
-State is loaded asynchronously over IPC. Wrap your app in `AmeStateProvider` and declare which slices to load with `preload_slices!`. Rendering is suspended until all slices are ready.
+State is loaded asynchronously over IPC. Wrap your app in `AmeStateProvider` and declare which structs to load with `preload_slices!`. Rendering is suspended until all of them are ready.
 
 ```rust
 use amethystate::tauri::TauriBackend;
@@ -68,7 +70,7 @@ pub fn app() -> Html {
 
 ## Accessing state
 
-Use `use_amethystate::<S>()` inside a component to get the root handle for a slice. The handle is a struct with a field for each state field — pass it down as a prop.
+Use `use_amethystate::<S>()` inside a component to get the root handle for a struct. The handle is a struct with a field for each state field — pass it down as a prop.
 
 ```rust
 #[function_component(MainLayout)]
@@ -198,5 +200,5 @@ html! {
 
 ## Examples
 
-- [`web-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/web-yew) — browser app on localStorage.
-- [`tauri-yew`](https://github.com/uniproc-dev/amethystate/tree/master/examples/tauri-yew) — Full Tauri v2 app with a Yew WASM frontend.
+- [`web-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/web-yew) — browser app on localStorage.
+- [`tauri-yew`](https://github.com/guinea-rs/amethystate/tree/master/examples/tauri-yew) — Full Tauri v2 app with a Yew WASM frontend.

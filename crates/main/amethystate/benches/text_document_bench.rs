@@ -330,7 +330,7 @@ fn bench_wide_level(c: &mut Criterion) {
             |b, items| {
                 b.iter(|| {
                     let mut held = items.children();
-                    held.sort_by(|(ours, _), (theirs, _)| ours.cmp(theirs));
+                    held.sort_by_key(|(ours, _)| *ours);
                     black_box(held)
                 });
             },

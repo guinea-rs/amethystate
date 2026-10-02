@@ -4,6 +4,8 @@ use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate::{AmeData, amethystate, migrate};
 use amethystate_core::test_utils::TempPath;
 
+mod common;
+
 mod v1 {
     use super::*;
 
@@ -43,7 +45,7 @@ fn version_of_panel(meta: &std::path::Path) -> Option<serde_json::Value> {
 #[test]
 fn a_prefix_a_compiled_step_targets_is_not_judged_for_drift_through_build() {
     let at = TempPath::new("compiled_step_waits");
-    let meta = at.path().with_extension("meta");
+    let meta = common::bookkeeping_of(at.path());
 
     {
         let store = StoreBuilder::new(at.path())

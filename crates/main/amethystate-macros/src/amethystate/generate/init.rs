@@ -167,10 +167,20 @@ fn init_field(
                 ),
             );
 
+            let ruled = field.rules.rule.as_ref().map(|rule| {
+                let path = &rule.value;
+                quote_spanned! {rule.span=>
+                    __ame_volatile.__ame_rule(#path as #crate_name::store::Rule<#ty>, store);
+                }
+            });
+
             quote! {
                 #fname: {
                     #not_a_map
-                    #crate_name::Field::new_volatile_with_id(#at, #default, instance_id)
+                    let __ame_volatile =
+                        #crate_name::Field::new_volatile_with_id(#at, #default, instance_id);
+                    #ruled
+                    __ame_volatile
                 }
             }
         }
@@ -183,11 +193,11 @@ fn init_field(
 
             let seed = super::seed_tokens(default);
 
-            let check = match field.rules.check.as_ref() {
-                Some(check) => {
-                    let path = &check.value;
-                    quote_spanned! {check.span=>
-                        ::core::option::Option::Some(#path as #crate_name::store::Check<#ty>)
+            let rule = match field.rules.rule.as_ref() {
+                Some(rule) => {
+                    let path = &rule.value;
+                    quote_spanned! {rule.span=>
+                        ::core::option::Option::Some(#path as #crate_name::store::Rule<#ty>)
                     }
                 }
                 None => quote! { ::core::option::Option::None },
@@ -200,7 +210,7 @@ fn init_field(
 
             let mut refusals = Vec::new();
 
-            if let Some(said) = &field.rules.check {
+            if let Some(said) = &field.rules.rule {
                 refusals.push(is_not_a_map(
                     crate_name,
                     ty,
@@ -246,7 +256,7 @@ fn init_field(
                             on_unreadable: #unreadable,
                             on_delete: #deleted,
                             unreadable_entries: #entries,
-                            check: #check,
+                            rule: #rule,
                             stored_as: #stored_as,
                         },
                     )?

@@ -36,7 +36,7 @@ fn settle() {
 }
 
 fn meta_path(path: &std::path::Path) -> std::path::PathBuf {
-    path.with_extension("meta")
+    common::bookkeeping_of(path)
 }
 
 fn one() -> HashMap<String, u32> {
@@ -90,6 +90,36 @@ fn a_declared_map_emptied_by_hand_stays_empty_when_the_metadata_is_lost() {
         None,
         "the entry the user removed came back when the metadata file went missing"
     );
+}
+
+#[test]
+fn a_store_whose_data_file_was_deleted_opens_as_a_new_one() {
+    let path = TempPath::new("tamper_data_deleted");
+
+    {
+        let store = StoreBuilder::new(path.path())
+            .backend(text_backend())
+            .build()
+            .unwrap();
+        let shipped = Shipped::new_with(&store).unwrap();
+        shipped.items().insert("two".to_string(), &2).unwrap();
+        drop(shipped);
+        store.set(["cfg", "width"], &1280u32).unwrap();
+        store.save_now().unwrap();
+    }
+    settle();
+
+    std::fs::remove_file(path.path()).unwrap();
+
+    let store = StoreBuilder::new(path.path())
+        .backend(text_backend())
+        .build()
+        .unwrap();
+    let shipped = Shipped::new_with(&store).unwrap();
+
+    assert_eq!(store.get::<u32>(["cfg", "width"]).unwrap(), None);
+    assert_eq!(shipped.items().get("one"), Some(1));
+    assert_eq!(shipped.items().get("two"), None);
 }
 
 /// The marker is a plain key in a file the store also rewrites. Forging it must

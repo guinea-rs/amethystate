@@ -3,9 +3,11 @@ use crate::observability::register_field;
 use crate::reactive::field::Unreadable;
 use crate::store::StorageError;
 use crate::store::StorageResult;
+use crate::store::Writer;
 use crate::store::facts::{Facts, Key, Prefix, Refused};
 use crate::store::opening::OpenStruct;
 use crate::store::reading::{LoadMap, LoadMapResult};
+use crate::store::rule::judged;
 use crate::store::rules::{OnDelete, OnUnreadable, ReadRules, UnreadableEntries};
 use crate::store::traits::{StoreExt as _, StoredAs};
 use crate::{Field, ReactiveMap, StateScope, Store, StoreBackend, StoreOp, SubscriptionKind};
@@ -104,7 +106,7 @@ where
     let ReadRules {
         on_unreadable: policy,
         on_delete,
-        check,
+        rule,
         stored_as,
     } = rules;
 
@@ -112,8 +114,12 @@ where
     register_field::<TValue>(&path, instance_id);
 
     let (current, refused) = match read_stored(store, &path, stored_as) {
-        Ok(Some(mut stored)) => match check.map(|check| check(&mut stored, store.context())) {
-            None | Some(Ok(())) => (stored, None),
+        Ok(Some(mut stored)) => match rule.map(|rule| judged(rule, &mut stored, store.context())) {
+            None | Some(Ok(false)) => (stored, None),
+            Some(Ok(true)) => {
+                write_stored(store, &path, &stored, stored_as, Writer::judged(None))?;
+                (stored, None)
+            }
             Some(Err(invalid)) => {
                 if policy == OnUnreadable::Refuse {
                     return Err(OpenStruct::Refused {
@@ -125,7 +131,7 @@ where
                 tracing::error!(
                     path = %path,
                     reason = %invalid,
-                    "a declared check refused the stored value, so the field starts on its default"
+                    "a declared rule refused the stored value, so the field starts on its default"
                 );
                 (
                     default.clone(),
@@ -173,24 +179,49 @@ where
                 None => store_clone.decode::<TValue>(raw),
             } {
                 Ok(mut parsed) => {
-                    if let Some(check) = check.filter(|_| event.is_external_edit())
-                        && let Err(invalid) = check(&mut parsed, store_clone.context())
-                    {
-                        if let Ok(mut held) = unreadable_sub.lock() {
-                            *held = Some(Reason::Refused(Arc::from(invalid.reason())));
-                        }
+                    let rule = rule.filter(|_| !event.judged);
+                    let repaired = match rule.map(|rule| judged(rule, &mut parsed, store_clone.context())) {
+                        None => false,
+                        Some(Ok(changed)) => changed,
+                        Some(Err(invalid)) => {
+                            if let Ok(mut held) = unreadable_sub.lock() {
+                                *held = Some(Reason::Refused(Arc::from(invalid.reason())));
+                            }
 
-                        return Err(Report::new(StorageError::Notify)
-                            .attach(Key(path_log.clone()))
-                            .attach(Refused(invalid.reason().to_string()))
-                            .attach("the field kept what it had"));
-                    }
+                            return Err(Report::new(StorageError::Notify)
+                                .attach(Key(path_log.clone()))
+                                .attach(Refused(invalid.reason().to_string()))
+                                .attach("the field kept what it had"));
+                        }
+                    };
+
+                    let written_back = match repaired {
+                        true => write_stored(
+                            &store_clone,
+                            &path_log,
+                            &parsed,
+                            stored_as,
+                            Writer::judged(event.source.handle()),
+                        )
+                        .map_err(|why| {
+                            why.attach(Key(path_log.clone())).attach(
+                                "a declared rule put the value right, and the store would not take it back",
+                            )
+                        }),
+                        false => Ok(()),
+                    };
 
                     if let Ok(mut held) = unreadable_sub.lock() {
-                        *held = None;
+                        *held = match &written_back {
+                            Ok(()) => None,
+                            Err(why) => Some(Reason::NotWrittenBack(Arc::from(
+                                crate::store::one_line(why).as_str(),
+                            ))),
+                        };
                     }
+
                     sig_clone.set_settled(parsed, event.source.handle(), event.at);
-                    Ok(())
+                    written_back
                 }
                 Err(e) => {
                     tracing::error!(
@@ -225,7 +256,7 @@ where
         }),
     );
 
-    Ok(Field {
+    let field = Field {
         inner: Arc::new(crate::reactive::field::FieldInner {
             unreadable,
             core: FieldCore::new_with_signal(signal),
@@ -233,8 +264,15 @@ where
             instance_id,
             store_sub: Some(Arc::new(listening)),
             stored_as,
+            streams: Arc::default(),
         }),
-    })
+    };
+
+    if let Some(rule) = rule {
+        field.__ame_rule(rule, store);
+    }
+
+    Ok(field)
 }
 
 /// A map under `TScope`'s path, at the levels `key` names.
@@ -280,15 +318,16 @@ pub(crate) fn write_stored<TValue>(
     path: &StorePath,
     value: &TValue,
     stored_as: StoredAs<TValue>,
+    by: Writer,
 ) -> StorageResult<()>
 where
     TValue: Serialize + 'static,
 {
     match stored_as.write {
         Some(write) => write(value, &mut |erased| {
-            StoreBackend::set_erased(store, path, erased, None)
+            StoreBackend::set_erased(store, path, erased, by)
         }),
-        None => store.set(path, value).map_err(Report::from),
+        None => StoreBackend::set_erased(store, path, value, by),
     }
 }
 
@@ -307,7 +346,7 @@ fn seed<TValue>(
 where
     TValue: Serialize + 'static,
 {
-    match write_stored(store, path, default, stored_as) {
+    match write_stored(store, path, default, stored_as, Writer::default()) {
         Err(report) if report.contains::<crate::store::Occupied>() => {
             Ok(Some(Arc::from(crate::store::one_line(&report).as_str())))
         }
@@ -673,8 +712,10 @@ where
         SubscriptionKind::Prefix(path.clone()),
         Arc::new(move |event| {
             if event.op == StoreOp::DeletePrefix && event.path == map_path {
+                if !core_clone.cache.clear_settled(event.at) {
+                    return Ok(());
+                }
                 unreadable_sub.lock().clear();
-                core_clone.cache.clear();
                 core_clone.notify(&MapChange::Clear {
                     source: event.source.handle(),
                 });
@@ -686,7 +727,12 @@ where
                 // was told to forget, and putting it all back is not this
                 // map's decision to make.
                 for (key, value) in &declared {
-                    core_clone.cache.insert(key.clone(), value.clone());
+                    if !core_clone
+                        .cache
+                        .insert_settled(key.clone(), value.clone(), event.at)
+                    {
+                        continue;
+                    }
                     core_clone.notify(&MapChange::Insert {
                         key: key.clone(),
                         value: value.clone(),
@@ -761,17 +807,19 @@ where
                                     .attach("a set carried no value, so the map kept what it had"));
                             };
 
-                            if keys.contains_key(k.as_ref()) {
-                                let old_value = old_val;
-                                keys.insert(k.clone(), new_value.clone());
+                            let was_there = keys.contains_key(k.as_ref());
+                            if !keys.insert_settled(k.clone(), new_value.clone(), event.at) {
+                                return Ok(());
+                            }
+
+                            if was_there {
                                 MapChange::Update {
                                     key: k.clone(),
-                                    old_value,
+                                    old_value: old_val,
                                     new_value,
                                     source,
                                 }
                             } else {
-                                keys.insert(k.clone(), new_value.clone());
                                 MapChange::Insert {
                                     key: k.clone(),
                                     value: new_value,
@@ -780,7 +828,9 @@ where
                             }
                         }
                         StoreOp::Delete | StoreOp::DeletePrefix => {
-                            keys.remove(k.as_ref());
+                            if !keys.remove_settled(k.as_ref(), event.at) {
+                                return Ok(());
+                            }
                             MapChange::Remove {
                                 key: k.clone(),
                                 old_value: old_val,
@@ -805,6 +855,7 @@ where
             store: store.clone(),
             store_sub: Arc::new(listening),
             unreadable,
+            streams: Arc::default(),
         }),
     })
 }

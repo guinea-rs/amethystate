@@ -178,6 +178,17 @@ pub fn text_backend() -> amethystate::store::builder::Backend {
     }
 }
 
+/// Where a text store at `data` keeps its bookkeeping, as the store names it.
+#[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+pub fn bookkeeping_of(data: &std::path::Path) -> std::path::PathBuf {
+    use amethystate::store::StoreLayout;
+
+    match StoreLayout::of(data, text_backend()) {
+        StoreLayout::Sidecars { meta, .. } => meta,
+        other => panic!("a text store keeps its bookkeeping beside it, not {other:?}"),
+    }
+}
+
 /// Every document engine the build enabled, for a question whose answer is the
 /// difference between them. The features are additive, so a run with all three
 /// on answers for all three; [`text_backend`] picks one and is for a test that

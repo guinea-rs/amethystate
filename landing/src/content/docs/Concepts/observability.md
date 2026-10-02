@@ -36,7 +36,7 @@ TRACE amethystate: field write path=network.port source=external
 | Field | Value |
 |-------|-------|
 | `path` | Store key of the field, e.g. `network.port` |
-| `source` | Short struct name of the slice that called `set()`, or `external` if the write came from outside the process (file watcher, another process, migration) |
+| `source` | Short name of the struct whose handle called `set()`, or `external` if that handle belongs to no struct (a fork, a field built with `field_with_path`) |
 
 ### Subscription fires
 
@@ -80,4 +80,4 @@ TRACE amethystate: signal emit → subscription fire subscription_id=0 name=Port
 TRACE amethystate: signal emit → subscription fire subscription_id=1 name=None location=src/logger.rs:12
 ```
 
-`source=external` means the change arrived from outside — a file watcher detected that the store file was modified, or a migration step wrote the value on startup.
+`source=external` still means a `set()` in this process, made through a handle no struct owns: a fork, or a field built with `field_with_path`. A change that does not go through `set()` — the file edited outside the process, another process, a migration step — logs no `field write` event at all.

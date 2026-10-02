@@ -35,7 +35,7 @@ If no step is registered for the gap, startup fails. If the database version is 
 
 ## Automatic collection
 
-`migrate` collects every step declared with `#[migrate]` and hands back what the pass did:
+`migrate` collects every step declared with `#[migrate]` and hands back a report of what it did:
 
 ```rust
 let (store, report) = StoreBuilder::new("./app.redb").migrate()?;
@@ -43,7 +43,7 @@ let (store, report) = StoreBuilder::new("./app.redb").migrate()?;
 
 No further configuration is needed if all your steps are defined with the macro. `build` runs no step at all: it is the open for a store that has nothing to migrate, and a binary full of `#[migrate]` opened that way migrates nothing.
 
-For cases where codegen isn't enough — cross-node logic, data backfills, external data sources — see [Manual Migrations](/amethystate/migrations/manual/).
+For cases where codegen isn't enough — logic that needs another struct, data backfills, external data sources — see [Manual Migrations](/amethystate/migrations/manual/).
 
 ## What happens on a clean install
 

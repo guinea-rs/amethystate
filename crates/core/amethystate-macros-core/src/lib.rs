@@ -32,8 +32,16 @@ pub struct MacroArgs {
     /// struct. Fields that are not maps have no entries and ignore it.
     #[darling(default)]
     pub unreadable_entries: Option<syn::Path>,
+    /// Read only to say a rule belongs on a field.
     #[darling(default)]
-    pub check: Option<syn::Path>,
+    pub rule: Option<SpannedValue<syn::Path>>,
+    /// Read only to say a rule belongs on a field.
+    #[darling(default)]
+    pub check: Option<SpannedValue<syn::Path>>,
+    /// Who writes the struct's `Open`: `manual` for its author, and the macro
+    /// when it is not said.
+    #[darling(default)]
+    pub open: Option<SpannedValue<syn::Path>>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,7 +68,7 @@ pub struct StoreFieldEntry {
     /// What this map does with an entry it cannot read. Only a map has entries,
     /// so it is refused on anything else.
     pub unreadable_entries: Option<syn::Path>,
-    pub check: Option<syn::Path>,
+    pub rule: Option<syn::Path>,
     /// The module holding both halves of how this field is stored, named the
     /// way serde names one: `serialize` and `deserialize` inside it.
     pub with: Option<syn::Path>,
@@ -119,7 +127,7 @@ impl FromField for StoreFieldEntry {
             on_unreadable: None,
             on_delete: None,
             unreadable_entries: None,
-            check: None,
+            rule: None,
             with: None,
             serialize_with: None,
             deserialize_with: None,
@@ -203,7 +211,7 @@ fn parse_state_tokens(tokens: TokenStream2, into: &mut StoreFieldEntry) -> darli
                 "on_unreadable" => into.on_unreadable.is_some(),
                 "on_delete" => into.on_delete.is_some(),
                 "unreadable_entries" => into.unreadable_entries.is_some(),
-                "check" => into.check.is_some(),
+                "rule" => into.rule.is_some(),
                 "with" => into.with.is_some(),
                 "serialize_with" => into.serialize_with.is_some(),
                 "deserialize_with" => into.deserialize_with.is_some(),
@@ -240,8 +248,14 @@ fn parse_state_tokens(tokens: TokenStream2, into: &mut StoreFieldEntry) -> darli
                     into.unreadable_entries =
                         Some(syn::parse2(value).map_err(darling::Error::from)?);
                 }
+                "rule" => {
+                    into.rule = Some(syn::parse2(value).map_err(darling::Error::from)?);
+                }
                 "check" => {
-                    into.check = Some(syn::parse2(value).map_err(darling::Error::from)?);
+                    return Err(darling::Error::custom(
+                        "`check` is spelled `rule`: it judges every value the field takes, the ones written here as well as the ones read",
+                    )
+                    .with_span(&first));
                 }
                 "with" => {
                     into.with = Some(syn::parse2(value).map_err(darling::Error::from)?);
@@ -261,7 +275,7 @@ fn parse_state_tokens(tokens: TokenStream2, into: &mut StoreFieldEntry) -> darli
                             "on_unreadable",
                             "on_delete",
                             "unreadable_entries",
-                            "check",
+                            "rule",
                             "with",
                             "serialize_with",
                             "deserialize_with",

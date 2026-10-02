@@ -4,8 +4,8 @@ use amethystate::test_utils::unique_store;
 use amethystate::{MapChange, Store, amethystate, uuid};
 use amethystate_arena::{DefaultArena, FieldHandle, MapHandle};
 use amethystate_dioxus::{
-    AmeStateProvider, MapSignal, use_amethystate, use_field, use_map, use_map_subscribe_any,
-    use_map_subscribe_key,
+    AmeStateProvider, MapSignal, use_amethystate, use_field, use_map, use_map_entry,
+    use_map_subscribe_any, use_map_subscribe_key,
 };
 use amethystate_macros_arena::amethystate_framework_arena;
 use dioxus::prelude::*;
@@ -294,6 +294,185 @@ async fn test_use_amethystate_requirements() {
     let child_handle = child_probe.last().unwrap();
 
     assert!(parent_handle == child_handle);
+}
+
+#[derive(Clone, Props)]
+struct SiblingProps {
+    probe: Probe<MyTestStateHandle>,
+}
+
+impl PartialEq for SiblingProps {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+#[component]
+fn Sibling(props: SiblingProps) -> Element {
+    props.probe.push(use_amethystate::<MyTestState>());
+    rsx! { div {} }
+}
+
+#[derive(Clone, Props)]
+struct SiblingsProps {
+    store: Store,
+    probe: Probe<MyTestStateHandle>,
+}
+
+impl PartialEq for SiblingsProps {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+#[component]
+fn Siblings(props: SiblingsProps) -> Element {
+    rsx! {
+        AmeStateProvider {
+            store: props.store.clone(),
+            Sibling { probe: props.probe.clone() }
+            Sibling { probe: props.probe.clone() }
+        }
+    }
+}
+
+#[tokio::test]
+async fn siblings_that_each_ask_for_a_slice_share_one() {
+    let (_at, store) = unique_store("siblings");
+    let probe = Probe::new();
+
+    let mut vdom = VirtualDom::new_with_props(
+        Siblings,
+        SiblingsProps {
+            store,
+            probe: probe.clone(),
+        },
+    );
+    vdom.rebuild(&mut dioxus::core::NoOpMutations);
+
+    let asked = probe.0.lock().unwrap().clone();
+    assert_eq!(asked.len(), 2);
+    assert!(asked[0] == asked[1]);
+}
+
+#[derive(Clone, Props)]
+struct ChosenProps {
+    field: FieldHandle<i32>,
+    map: MapHandle<String, String>,
+    entry: String,
+    probe: Probe<(i32, Option<String>)>,
+}
+
+impl PartialEq for ChosenProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field && self.map == other.map && self.entry == other.entry
+    }
+}
+
+#[component]
+fn Chosen(props: ChosenProps) -> Element {
+    let (value, _) = use_field(props.field);
+    let entry = use_map_entry(props.map, props.entry.clone());
+    props.probe.push((*value.read(), entry.read().clone()));
+    rsx! { div {} }
+}
+
+#[derive(Clone, Props)]
+struct ChooserProps {
+    arena: DefaultArena,
+    fields: [FieldHandle<i32>; 2],
+    map: MapHandle<String, String>,
+    probe: Probe<(i32, Option<String>)>,
+    chosen: Probe<Signal<usize>>,
+}
+
+impl PartialEq for ChooserProps {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+#[component]
+fn Chooser(props: ChooserProps) -> Element {
+    use_context_provider(|| props.arena.clone());
+    let chosen = use_signal(|| 0usize);
+    use_hook(|| props.chosen.push(chosen));
+    let at = *chosen.read();
+
+    rsx! {
+        Chosen {
+            field: props.fields[at],
+            map: props.map,
+            entry: ["first", "second"][at].to_string(),
+            probe: props.probe.clone(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_hook_given_another_handle_follows_it() {
+    let (_at, store) = unique_store("chosen");
+    let arena = DefaultArena::new();
+    let field = |name: &str, value: i32| {
+        let field =
+            amethystate::store::field_with_path(&store, [name], value, uuid::Uuid::new_v4())
+                .unwrap();
+        arena.register_field(field)
+    };
+    let fields = [field("one", 1), field("two", 2)];
+    let map = amethystate::store::reactive_map_with_path::<String, String>(
+        &store,
+        ["entries"],
+        HashMap::from([
+            ("first".to_string(), "a".to_string()),
+            ("second".to_string(), "b".to_string()),
+        ]),
+        uuid::Uuid::new_v4(),
+    )
+    .unwrap();
+    let map = arena.register_map(map);
+    let probe = Probe::new();
+    let chosen = Probe::new();
+
+    let mut vdom = VirtualDom::new_with_props(
+        Chooser,
+        ChooserProps {
+            arena: arena.clone(),
+            fields,
+            map,
+            probe: probe.clone(),
+            chosen: chosen.clone(),
+        },
+    );
+    vdom.rebuild(&mut dioxus::core::NoOpMutations);
+    let settle = async |vdom: &mut VirtualDom| {
+        tokio::task::yield_now().await;
+        let _ =
+            tokio::time::timeout(std::time::Duration::from_millis(100), vdom.wait_for_work()).await;
+        vdom.render_immediate(&mut dioxus::core::NoOpMutations);
+    };
+
+    chosen.last().unwrap().set(1);
+    settle(&mut vdom).await;
+    let switched = probe.last();
+
+    let _ = arena.set_field(fields[0], 10);
+    let _ = arena.set_map_entry(map, "first".to_string(), "x".to_string());
+    settle(&mut vdom).await;
+    let after_the_old_ones_moved = probe.last();
+
+    let _ = arena.set_field(fields[1], 20);
+    let _ = arena.set_map_entry(map, "second".to_string(), "y".to_string());
+    settle(&mut vdom).await;
+
+    assert_eq!(
+        [switched, after_the_old_ones_moved, probe.last()],
+        [
+            Some((2, Some("b".to_string()))),
+            Some((2, Some("b".to_string()))),
+            Some((20, Some("y".to_string()))),
+        ]
+    );
 }
 
 #[derive(Clone, Props)]

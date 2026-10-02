@@ -61,9 +61,9 @@ The failure is `OpenStruct::Taken`, and it names both sides at both paths:
 reaches the other through an ancestor - `root.b` holding `root.b.x` - and the
 pair is the whole diagnosis.
 
-Nothing has to be searched out of a rendered message, and nothing can be missed
-by a `match` that had a `_` arm: the variant is one of five a constructor can
-answer with, and [Errors](/amethystate/concepts/errors/) has the rest.
+Nothing has to be searched out of a rendered message. `Taken` is one of the six
+variants a constructor can answer with, and a `match` without a `_` arm has to
+name it. [Errors](/amethystate/concepts/errors/) has the other five.
 
 Refusing is the cheaper end of the same collision. Two structs writing the same
 path is one struct silently overwriting the other's value on every save, and

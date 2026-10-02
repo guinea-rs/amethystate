@@ -177,6 +177,18 @@ where
         }
     }
 
+    /// Writes what `f` makes of the key's value, or of its absence, and yields
+    /// it.
+    pub async fn upsert<F>(&self, key: K, f: F) -> ReactiveMapResult<V>
+    where
+        F: FnOnce(Option<&V>) -> V,
+    {
+        let held = self.get(&key).await?;
+        let value = f(held.as_ref());
+        self.insert(key, &value).await?;
+        Ok(value)
+    }
+
     pub async fn insert(&self, key: K, value: &V) -> ReactiveMapResult<()> {
         crate::map_insert_async(
             &self.backend,

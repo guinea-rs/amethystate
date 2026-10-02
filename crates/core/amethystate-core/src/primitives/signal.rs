@@ -278,11 +278,21 @@ impl<T: 'static> Signal<T> {
 
     /// Announces everything that has landed and not been announced, until
     /// nothing is left or somebody else is already doing it.
+    ///
+    /// A subscriber that panicked unwound through the lock and poisoned it.
+    /// The panic reached the writer it ran for, and the lock is taken back:
+    /// what it guards is only the order of announcing, which a panic leaves
+    /// as it was, and refusing it would silence every subscriber for good.
     fn announce(&self) {
         loop {
             {
-                let Ok(_in_order) = self.announcing.try_lock() else {
-                    return;
+                let _in_order = match self.announcing.try_lock() {
+                    Ok(held) => held,
+                    Err(std::sync::TryLockError::Poisoned(poisoned)) => {
+                        self.announcing.clear_poison();
+                        poisoned.into_inner()
+                    }
+                    Err(std::sync::TryLockError::WouldBlock) => return,
                 };
 
                 while let Some((landed, source)) = self.next_to_announce() {

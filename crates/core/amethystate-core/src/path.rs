@@ -1429,6 +1429,11 @@ impl StaticPath {
         self.segments.is_empty()
     }
 
+    /// The levels of the path, where a `const` can read them.
+    pub const fn segments(&self) -> &'static [&'static str] {
+        self.segments
+    }
+
     /// The same path, as the type the store addresses by. Allocates nothing:
     /// both halves are already `'static`.
     pub fn path(&self) -> StorePath {

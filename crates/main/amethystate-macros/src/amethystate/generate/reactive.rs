@@ -44,7 +44,6 @@ pub(crate) fn inherent(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
     let name = &schema.name;
     let constructor = accessors::constructor(crate_name, schema);
     let methods = accessors::methods(crate_name, schema);
-    let refused = accessors::refused_marker(crate_name, schema);
     let forking = fork(crate_name, schema);
     let watching = subscriptions(crate_name, schema);
 
@@ -52,7 +51,6 @@ pub(crate) fn inherent(crate_name: &TokenStream2, schema: &Schema) -> TokenStrea
         impl #name {
             #constructor
             #methods
-            #refused
             #forking
             #watching
         }

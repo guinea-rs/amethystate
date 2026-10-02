@@ -8,4 +8,4 @@ publish = false
 [dependencies]
 serde_json = { workspace = true, features = ["preserve_order"] }
 syn = { workspace = true }
-shown = { git = "https://github.com/uniproc-dev/shown", tag = "v0.2.0" }
+shown = { git = "https://github.com/guinea-rs/shown", tag = "v0.2.0" }

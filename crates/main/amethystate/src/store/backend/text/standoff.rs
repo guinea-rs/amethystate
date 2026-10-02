@@ -1,9 +1,10 @@
 use super::document::{Navigable, TextDocument};
-use super::files::{Standing, StoreFiles, Wrote, has_no_keys, standing_of};
+use super::files::{Standing, StoreFiles, Wrote, followed, has_no_keys, standing_of};
 use super::store::diff_documents;
 use crate::errors::StorageError;
 use crate::store::backend::utils;
 use crate::store::facts::StoreFile as StoreFileFact;
+use crate::store::traits::StoreLayout;
 use crate::store::{StorageResult, StoreEvent, SubscriptionEntry, WhenItWillNotRead};
 use amethystate_core::path::StorePath;
 use parking_lot::{Mutex, RwLock};
@@ -235,7 +236,7 @@ fn save_in_turn<D: TextDocument>(
             unmoved = read_at;
 
             for event in brought {
-                if let Err(refused) = utils::emit_events(subscriptions, event) {
+                if let Err(refused) = utils::emit_found_events(subscriptions, event) {
                     warn!(
                         file = %files.data.path.display(),
                         "an edit made outside was taken into this save and somebody could not \
@@ -295,12 +296,10 @@ fn what_to_do_about(
         }
 
         WhenItWillNotRead::SetAside => {
-            let aside = file.with_extension(match file.extension() {
-                Some(had) => format!("{}.unreadable", had.to_string_lossy()),
-                None => "unreadable".to_string(),
-            });
+            let unreadable = followed(file);
+            let aside = StoreLayout::set_aside_copy_of(&unreadable);
 
-            match std::fs::rename(file, &aside) {
+            match std::fs::rename(&unreadable, &aside) {
                 Ok(()) => {
                     warn!(
                         file = %file.display(),

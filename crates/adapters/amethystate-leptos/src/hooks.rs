@@ -47,13 +47,14 @@ where
         );
     });
 
-    let state = S::load_slice(&store).unwrap_or_else(|err| {
-        panic!(
-            "amethystate-leptos: Failed to load state slice '{}': {err}",
-            std::any::type_name::<S>()
-        );
-    });
-    let handle = state.register(&arena);
+    let handle = arena
+        .slice(|arena| S::load_slice(&store).map(|state| state.register(arena)))
+        .unwrap_or_else(|err| {
+            panic!(
+                "amethystate-leptos: Failed to load state slice '{}': {err}",
+                std::any::type_name::<S>()
+            );
+        });
 
     provide_context(handle);
 

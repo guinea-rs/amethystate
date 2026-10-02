@@ -16,7 +16,7 @@ use crate::store::screening::Screening;
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
     CodecFormat, InitState, StoreBackend, StoreCallback, StoreEvent, StoreOp, SubscriptionEntry,
-    SubscriptionId, SubscriptionKind, WillNotOpen,
+    SubscriptionId, SubscriptionKind, WillNotOpen, Writer,
 };
 use amethystate_core::path::StorePath;
 use error_stack::{Report, ResultExt};
@@ -578,16 +578,16 @@ impl StoreBackend for LocalStorageStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, source)
+        self.set_owned_erased(path.clone(), value, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
-        source: Option<Uuid>,
+        by: Writer,
     ) -> StorageResult<()> {
         let page = self.page()?;
         let key = self.inner.keys.value(&path);
@@ -610,8 +610,9 @@ impl StoreBackend for LocalStorageStore {
                 op: StoreOp::Set,
                 old: old.map(String::into_bytes),
                 new: Some(text.into_bytes()),
-                source: source.into(),
+                source: by.handle.into(),
                 at: settled,
+                judged: by.judged,
             },
         )
     }
@@ -657,6 +658,7 @@ impl StoreBackend for LocalStorageStore {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
         )
     }
@@ -688,6 +690,7 @@ impl StoreBackend for LocalStorageStore {
                 new: None,
                 source: source.into(),
                 at: settled,
+                judged: false,
             },
         )
     }
@@ -926,6 +929,7 @@ mod other_pages {
                     new: None,
                     source: Source::AnotherPage,
                     at: self.settle(),
+                    judged: false,
                 },
                 Some(key) => {
                     let Some(path) = self.keys.path_of(&key) else {
@@ -942,6 +946,7 @@ mod other_pages {
                         new,
                         source: Source::AnotherPage,
                         at: self.settle(),
+                        judged: false,
                     }
                 }
             };

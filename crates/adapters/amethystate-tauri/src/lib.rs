@@ -26,10 +26,9 @@ impl TauriBackend {
     }
 }
 
-/// The plugin answers with a string, and the trait wants an error a report can
-/// carry. This is the one place the two meet.
-fn commanded(message: String, command: &str, path: &StorePath) -> Report<Error> {
-    Report::new(Error::Command(message))
+/// A command that failed, with the command and the path it was about.
+fn commanded(error: Error, command: &str, path: &StorePath) -> Report<Error> {
+    Report::new(error)
         .attach(format!("command: {command}"))
         .attach(format!("path: {path}"))
 }
@@ -49,12 +48,9 @@ impl AmeBackendAsync for TauriBackend {
 
         const COMMAND: &str = "plugin:amethystate|amethystate_get";
 
-        let raw = core::invoke_result::<Option<serde_json::Value>, String>(
-            COMMAND,
-            &GetArgs { key: path },
-        )
-        .await
-        .map_err(|e| commanded(e, COMMAND, path))?;
+        let raw = core::invoke_result::<Option<serde_json::Value>>(COMMAND, &GetArgs { key: path })
+            .await
+            .map_err(|e| commanded(e, COMMAND, path))?;
 
         raw.map(serde_json::from_value)
             .transpose()
@@ -86,7 +82,7 @@ impl AmeBackendAsync for TauriBackend {
         let value = serde_json::to_value(value).map_err(|e| {
             Report::new(Error::Serde(e.to_string())).attach(format!("path: {path}"))
         })?;
-        core::invoke_result::<(), String>(
+        core::invoke_result::<()>(
             COMMAND,
             &SetArgs {
                 key: path,
@@ -124,7 +120,7 @@ impl AmeBackendAsync for TauriBackend {
 
         const COMMAND: &str = "plugin:amethystate|amethystate_delete";
 
-        core::invoke_result::<(), String>(COMMAND, &DeleteArgs { key: path, source })
+        core::invoke_result::<()>(COMMAND, &DeleteArgs { key: path, source })
             .await
             .map_err(|e| commanded(e, COMMAND, path))
     }
@@ -142,7 +138,7 @@ impl AmeBackendAsync for TauriBackend {
 
         const COMMAND: &str = "plugin:amethystate|amethystate_delete_prefix";
 
-        core::invoke_result::<(), String>(COMMAND, &DeletePrefixArgs { prefix, source })
+        core::invoke_result::<()>(COMMAND, &DeletePrefixArgs { prefix, source })
             .await
             .map_err(|e| commanded(e, COMMAND, prefix))
     }
@@ -155,7 +151,7 @@ impl AmeBackendAsync for TauriBackend {
 
         const COMMAND: &str = "plugin:amethystate|amethystate_scan_keys";
 
-        let keys: Vec<String> = core::invoke_result::<_, String>(COMMAND, &PrefixArgs { prefix })
+        let keys: Vec<String> = core::invoke_result(COMMAND, &PrefixArgs { prefix })
             .await
             .map_err(|e| commanded(e, COMMAND, prefix))?;
 
@@ -182,7 +178,7 @@ impl AmeBackendAsync for TauriBackend {
         const COMMAND: &str = "plugin:amethystate|amethystate_get_prefix";
 
         let raw: std::collections::HashMap<String, serde_json::Value> =
-            core::invoke_result::<_, String>(COMMAND, &PrefixArgs { prefix })
+            core::invoke_result(COMMAND, &PrefixArgs { prefix })
                 .await
                 .map_err(|e| commanded(e, COMMAND, prefix))?;
 
@@ -220,19 +216,27 @@ impl AsyncSubscriptionBackend for TauriBackend {
                 key: &'a StorePath,
             }
 
-            let _ = core::invoke_result::<(), String>(
+            let _ = core::invoke_result::<()>(
                 "plugin:amethystate|amethystate_subscribe",
                 &SubArgs { key: &path },
             )
             .await;
 
-            if let Ok(stream) = event::listen::<T>(&event_channel).await {
+            if let Ok(stream) = event::listen::<serde_json::Value>(&event_channel).await {
                 let mut aborted_stream =
                     futures::stream::Abortable::new(stream, abort_registration);
                 while let Some(Event { payload, .. }) = aborted_stream.next().await {
-                    amethystate_core::field_apply_remote_value(&core, payload, None);
+                    if let Some(value) = taken::<T>(payload) {
+                        amethystate_core::field_apply_remote_value(&core, value, None);
+                    }
                 }
             }
+
+            let _ = core::invoke_result::<()>(
+                "plugin:amethystate|amethystate_unsubscribe",
+                &SubArgs { key: &path },
+            )
+            .await;
         });
 
         SubscriptionHandle::new(move || abort_handle.abort())
@@ -256,7 +260,7 @@ impl AsyncSubscriptionBackend for TauriBackend {
                 key: &'a StorePath,
             }
 
-            let _ = core::invoke_result::<(), String>(
+            let _ = core::invoke_result::<()>(
                 "plugin:amethystate|amethystate_subscribe",
                 &SubArgs { key: &path },
             )
@@ -273,9 +277,61 @@ impl AsyncSubscriptionBackend for TauriBackend {
                     }
                 }
             }
+
+            let _ = core::invoke_result::<()>(
+                "plugin:amethystate|amethystate_unsubscribe",
+                &SubArgs { key: &path },
+            )
+            .await;
         });
 
         SubscriptionHandle::new(move || abort_handle.abort())
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "type")]
+enum FieldChange<T> {
+    Value {
+        value: T,
+    },
+    Deleted {
+        #[serde(default = "Option::default", deserialize_with = "present")]
+        value: Option<T>,
+    },
+}
+
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
+fn taken<T: DeserializeOwned>(payload: serde_json::Value) -> Option<T> {
+    match serde_json::from_value::<FieldChange<T>>(payload) {
+        Ok(FieldChange::Value { value }) => Some(value),
+        Ok(FieldChange::Deleted { value }) => value,
+        Err(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::taken;
+    use serde_json::json;
+
+    #[test]
+    fn a_key_gone_under_an_optional_field_takes_its_default_of_none() {
+        assert_eq!(
+            (
+                taken::<Option<u32>>(json!({ "type": "Deleted", "value": null, "source": null })),
+                taken::<Option<u32>>(json!({ "type": "Deleted", "source": null })),
+                taken::<u32>(json!({ "type": "Deleted", "value": 3, "source": null })),
+            ),
+            (Some(None), None, Some(3))
+        );
     }
 }
 

@@ -43,6 +43,22 @@ test("a refused set puts the old value back and says so", async () => {
   expect(seen).toEqual([1, 9, 1]);
 });
 
+test("two refused sets leave the field on what the store holds", async () => {
+  const store = new FakeStore();
+  const { field } = watched(store);
+  store.hold = true;
+
+  const first = field.set(2);
+  const second = field.set(3);
+  store.deny(0);
+  await expect(first).rejects.toThrow("refused");
+  store.deny(1);
+  await expect(second).rejects.toThrow("refused");
+
+  expect(store.values.get("todos.next_id")).toBe(1);
+  expect(field.get()).toBe(1);
+});
+
 test("a write made elsewhere reaches the field", () => {
   const store = new FakeStore();
   const { field, seen } = watched(store);
@@ -53,6 +69,31 @@ test("a write made elsewhere reaches the field", () => {
     expect(field.get()).toBe(5);
     expect(seen).toEqual([1, 5]);
   });
+});
+
+test("a key the store loses gives the field its default where it takes one", async () => {
+  const store = new FakeStore();
+  const { field, seen } = watched(store);
+  store.resetTo.set("todos.next_id", 0);
+
+  store.write(at, 5);
+  store.delete(at);
+  await Promise.resolve();
+
+  expect(field.get()).toBe(0);
+  expect(seen).toEqual([1, 5, 0]);
+});
+
+test("a key the store loses leaves the field as it was where it keeps its value", async () => {
+  const store = new FakeStore();
+  const { field, seen } = watched(store);
+
+  store.write(at, 5);
+  store.delete(at);
+  await Promise.resolve();
+
+  expect(field.get()).toBe(5);
+  expect(seen).toEqual([1, 5]);
 });
 
 test("an unsubscribed listener hears nothing more", async () => {

@@ -33,6 +33,15 @@ pub enum MigrationError {
     )]
     VersionUnknown { prefix: String },
 
+    /// A step reached into a line whose own migration failed earlier in the
+    /// same open. What it would read there is not migrated, and a value worked
+    /// out from it would be committed as if it were.
+    #[error(
+        "a migration reached into [{prefix}], whose own migration failed in this open: what it \
+         would read there is not migrated"
+    )]
+    ReachedAFailure { prefix: String },
+
     /// What this step would record at the prefix says two things at once: two
     /// declarations at one version, both owning the same place. Which of them
     /// owns it is then whichever is looked at first, so the step is rolled back
