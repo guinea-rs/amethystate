@@ -14,7 +14,7 @@ title: guinea
 amethystate-guinea = "0.23"
 ```
 
-Версия у крейта та же, что у amethystate. Собирается он с guinea 0.18 и 0.19 и, как и guinea, требует Rust 1.95.
+Версия у крейта та же, что у amethystate. Собирается он с guinea 0.18, 0.19 и 0.20 и, как и guinea, требует Rust 1.95.
 
 ## Период по полю
 
