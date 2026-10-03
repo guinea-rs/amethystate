@@ -14,7 +14,7 @@ period at once, without waiting out the old one.
 amethystate-guinea = "0.23"
 ```
 
-The crate's version is amethystate's. It builds against guinea 0.18, and like guinea it needs Rust 1.95.
+The crate's version is amethystate's. It builds against guinea 0.18, 0.19 and 0.20, and like guinea it needs Rust 1.95.
 
 ## A period that follows a field
 
