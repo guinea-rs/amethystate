@@ -83,6 +83,13 @@ leaves it out of the test runs.
 
 `sqlite` compiles SQLite in from source, so building it needs a C toolchain.
 
+A pull request does not always run the whole workflow. One that touches only
+the book and the README runs nothing heavy. One that touches only the guinea
+adapter, the book, the `version` lines of `Cargo.toml`, and in `Cargo.lock`
+only this workspace's packages and guinea's, is a guinea bound being moved:
+it runs fmt, clippy and the tests of `amethystate-guinea` alone. The `changes`
+job in `ci.yml` decides, and anything else gets the whole workflow.
+
 ### The same suite in a browser
 
 `tests/` also runs in headless Chrome, on the engines a page has:

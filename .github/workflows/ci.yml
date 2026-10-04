@@ -14,18 +14,41 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.paths.outputs.code }}
+      guinea: ${{ steps.paths.outputs.guinea }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - id: paths
         run: |
+          locked() {
+            git show "$1:Cargo.lock" | awk '/^name = /{n=$3} /^version = /{print n, $3}' | tr -d '"' | sort
+          }
+          only_versions() {
+            ! git diff -U0 "$base...HEAD" -- Cargo.toml | grep -E '^[-+][^-+]' \
+              | grep -qvE '^[-+](version = "[^"]*"|amethystate[a-z-]* = \{ path = "[^"]*", version = "[^"]*" \})$'
+          }
+          only_ours_locked() {
+            ! diff <(locked "$base") <(locked HEAD) | grep -E '^[<>]' \
+              | grep -qvE '^[<>] (amethystate[a-z-]*|tauri-plugin-amethystate|guinea-[a-z]+) '
+          }
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qvE '^(landing/|README\.md$)'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
+            echo "guinea=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="origin/${{ github.base_ref }}"
+          files=$(git diff --name-only "$base...HEAD")
+          if ! echo "$files" | grep -qvE '^(landing/|README\.md$)'; then
             echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "guinea=false" >> "$GITHUB_OUTPUT"
+          elif ! echo "$files" | grep -qvE '^(landing/|README\.md$|Cargo\.toml$|Cargo\.lock$|crates/adapters/amethystate-guinea/)' \
+              && only_versions && only_ours_locked; then
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "guinea=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "guinea=false" >> "$GITHUB_OUTPUT"
           fi
 
   fmt:
@@ -154,6 +177,23 @@ jobs:
           key: engine-${{ matrix.engine }}
       - if: needs.changes.outputs.code == 'true'
         run: cargo clippy -p amethystate --no-default-features --features ${{ matrix.engine }} -- -D warnings
+
+  guinea:
+    needs: changes
+    if: needs.changes.outputs.guinea == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: guinea
+      - run: cargo fmt -p amethystate-guinea --check
+      - run: cargo clippy -p amethystate-guinea --all-targets --locked -- -D warnings
+      - run: cargo test -p amethystate-guinea --locked
 
   no-engine:
     needs: changes
