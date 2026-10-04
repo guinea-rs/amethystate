@@ -189,7 +189,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "amethystate"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-core",
@@ -246,7 +246,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-arena"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-core",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-codegen"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-core",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-core"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-dioxus"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-arena",
@@ -310,7 +310,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-gpui"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "futures",
@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-guinea"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "guinea-app",
@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-leptos"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-arena",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate-macros-core",
  "darling 0.23.0",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-arena"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate-macros-core",
  "darling 0.23.0",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-core"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-slint"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "i-slint-compiler",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-tauri"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate-core",
  "error-stack",
@@ -431,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-yew"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "futures",
@@ -2419,7 +2419,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2745,7 +2745,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4071,9 +4071,9 @@ checksum = "17e2ac29387b1aa07a1e448f7bb4f35b500787971e965b02842b900afa5c8f6f"
 
 [[package]]
 name = "guinea-app"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efdad4816ca1556f282e7f7464b011402a767285dcd522e5a3ad55376b71897f"
+checksum = "dda0328ccca5b3ad35d12d1a610099336e6537b569889795256496f4cbf37c0d"
 dependencies = [
  "anyhow",
  "guinea-core",
@@ -4083,9 +4083,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-core"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee2ca234d281a6222744b1cb11fdb81f3c71e839e3b01ee1a9efb4efe6ec8061"
+checksum = "d1a549f9de6a5b5ea2bcdcc02043707e36035b33fa4a8baa63085f38b366b0f5"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -4106,15 +4106,15 @@ dependencies = [
 
 [[package]]
 name = "guinea-mark"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc540a90c2652c8704aa9dee648525ad42ec4f8fa67026fa7ea13ac4552b2db"
+checksum = "ae056af82bb97223e7e2c9f093160e5b499bcf8785ec4f0f5e8abb51c44b8531"
 
 [[package]]
 name = "guinea-trace"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a54f7591dbe05e0a38355034ff8322b3341ed455410ac6cb0ce2e4cabef6bdb"
+checksum = "add9dc1155292aa2bb1f53ffa28346d1beeaf18706aea911158cc9d364d4e48c"
 dependencies = [
  "serde_json",
  "tracing",
@@ -5926,7 +5926,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.18",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6087,7 +6087,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8061,7 +8061,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8886,7 +8886,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9581,7 +9581,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-amethystate"
-version = "0.23.4"
+version = "0.23.5"
 dependencies = [
  "amethystate",
  "amethystate-codegen",
@@ -9678,7 +9678,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9707,7 +9707,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10365,7 +10365,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
