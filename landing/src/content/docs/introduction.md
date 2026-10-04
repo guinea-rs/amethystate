@@ -112,6 +112,4 @@ engines let both in and sort it out when they save.
 ## Where to go next
 
 [Quick start](/amethystate/getting-started/quick-start/) is the shortest path
-from nothing to a running store. [Architecture](/amethystate/architecture/) is
-the same library from underneath: what a path is, what the two engine families
-do differently, and what happens between a write and the disk.
+from nothing to a running store.
