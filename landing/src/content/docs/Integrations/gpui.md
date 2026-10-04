@@ -15,7 +15,7 @@ This means GPUI reads state synchronously during `render` via `.get()`, while ch
 
 ```toml
 [dependencies]
-amethystate-gpui = "*"
+amethystate-gpui = "0.23"
 ```
 
 Initialize the store before opening any windows:

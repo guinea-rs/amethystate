@@ -1,6 +1,6 @@
 [package]
 name = "amethystate-guinea"
-version = "0.18.0"
+version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,8 +14,8 @@ rust-version = "1.95"
 
 [dependencies]
 amethystate.workspace = true
-guinea-app = { version = "0.18.7", default-features = false }
+guinea-app = { version = ">=0.18.7, <0.23", default-features = false }
 
 [dev-dependencies]
 amethystate = { workspace = true, features = ["test-utils", "redb"] }
-guinea-app = { version = "0.18.7", default-features = false }
+guinea-app = { version = ">=0.18.7, <0.23", default-features = false }

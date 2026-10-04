@@ -8,8 +8,6 @@ remote="$1"
 url="$2"
 
 # Only the crates that are actually published from this workspace version.
-# amethystate-dioxus/gpui/leptos/slint/yew track their own framework's
-# version and are intentionally excluded.
 PUBLISHED_PATHS=(
   "crates/core/amethystate-macros-core"
   "crates/core/amethystate-core"
@@ -20,6 +18,12 @@ PUBLISHED_PATHS=(
   "crates/tauri/amethystate-codegen"
   "crates/tauri/tauri-plugin-amethystate"
   "crates/main/amethystate-arena"
+  "crates/adapters/amethystate-dioxus"
+  "crates/adapters/amethystate-leptos"
+  "crates/adapters/amethystate-yew"
+  "crates/adapters/amethystate-slint"
+  "crates/adapters/amethystate-gpui"
+  "crates/adapters/amethystate-guinea"
 )
 
 while read -r local_ref local_sha remote_ref remote_sha; do

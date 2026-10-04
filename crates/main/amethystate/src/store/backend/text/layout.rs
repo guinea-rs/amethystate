@@ -13,7 +13,23 @@ pub(super) fn levels<D: TextDocument>(doc: &D, declared: &Declared, path: &Store
         return path.clone();
     }
 
-    plane_name(doc, path)
+    let plane = plane_name(doc, path);
+    if doc.get(&plane).is_none() && in_a_tree(declared, path) && doc.get(path).is_some() {
+        return path.clone();
+    }
+
+    plane
+}
+
+/// Whether `path` starts on a declared prefix's outermost level, so that a file
+/// can hold it inside that prefix's tree as well as on the plane - a key a
+/// field no longer declares, or one written there by hand.
+fn in_a_tree(declared: &Declared, path: &StorePath) -> bool {
+    path.len() > 1
+        && path
+            .segments()
+            .next()
+            .is_some_and(|first| declared.covers(&StorePath::segment(first.into_owned())))
 }
 
 /// The node `path` is written at, without building a path to find it by.
@@ -30,6 +46,10 @@ pub(super) fn node_at<'a, D: TextDocument>(
 
     if let Some(node) = root.get_child(Stored::whole(path.into())) {
         return Some(node);
+    }
+
+    if in_a_tree(declared, path) {
+        return doc.get(path);
     }
 
     root.get_child(Stored::level(&bare_name(path)?))

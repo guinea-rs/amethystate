@@ -20,4 +20,4 @@ cx.every(
 through `map.entry_cell(key)`: while the key is absent, or once the map is
 dropped, there is nothing to read and the timer does not tick.
 
-The crate's version follows guinea's.
+The crate's version is amethystate's; it builds against guinea 0.18 to 0.22.
