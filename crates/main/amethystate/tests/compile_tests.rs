@@ -17,8 +17,6 @@ fn test_macro_expansion_compilation() {
     t.pass("tests/expand/flattened_beside_a_path_of_its_own.rs");
     t.pass("tests/expand/map_through_an_alias.rs");
     t.pass("tests/expand/a_type_named_like_a_map_is_one_value.rs");
-    #[cfg(feature = "tauri")]
-    t.pass("tests/expand/tauri_wasm.rs");
 
     t.compile_fail("tests/fails/subscription_not_clone.rs");
     t.compile_fail("tests/fails/field_loosens_the_struct_rule.rs");
@@ -65,8 +63,6 @@ fn test_macro_expansion_compilation() {
     t.compile_fail("tests/fails/volatile_and_nested.rs");
     t.compile_fail("tests/fails/volatile_map.rs");
     t.compile_fail("tests/fails/unreadable_rule_misspelt.rs");
-    t.compile_fail("tests/fails/wasm_asked_to_persist.rs");
-    t.compile_fail("tests/fails/a_rule_on_a_frontend_field.rs");
     t.compile_fail("tests/fails/a_mode_that_is_not_one.rs");
     t.compile_fail("tests/fails/a_modifier_said_twice.rs");
     t.compile_fail("tests/fails/a_field_behind_a_cfg.rs");

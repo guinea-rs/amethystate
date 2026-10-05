@@ -15,7 +15,7 @@ use syn::{Data, DataStruct, DeriveInput, Fields};
 
 use super::diagnostics::Diagnostics;
 use super::model::{
-    At, Field, Mode, OnDelete, OnUnreadable, Placement, Rules, Schema, Shape, StoredAs, Target,
+    At, Field, Mode, OnDelete, OnUnreadable, Placement, Rules, Schema, Shape, StoredAs,
     UnreadableEntries,
 };
 use super::naming;
@@ -70,7 +70,6 @@ pub(crate) fn schema(
 
     let prefix = prefix_of(args, found);
     let mode = mode_of(args, found);
-    let target = target_of(args, found);
     let rules = rules_of(
         args.on_unreadable.as_ref(),
         args.on_delete.as_ref(),
@@ -112,7 +111,6 @@ pub(crate) fn schema(
             .as_ref()
             .map(|written| At::new(written.as_ref().clone(), written.span())),
         mode,
-        target,
         rules,
         manual_open,
         fields,
@@ -397,23 +395,6 @@ fn mode_of(args: &MacroArgs, found: &mut Diagnostics) -> Mode {
                 ),
             );
             Mode::Reactive
-        }
-    }
-}
-
-fn target_of(args: &MacroArgs, found: &mut Diagnostics) -> Target {
-    match args.target.as_deref() {
-        None | Some("native") => Target::Native,
-        Some("tauri-wasm") => Target::TauriWasm,
-        Some(other) => {
-            found.at(
-                Span::call_site(),
-                format!(
-                    "`{other}` is not a target. `native` builds against a store this process \
-                     holds, and `tauri-wasm` against one on the other side of a Tauri command"
-                ),
-            );
-            Target::Native
         }
     }
 }

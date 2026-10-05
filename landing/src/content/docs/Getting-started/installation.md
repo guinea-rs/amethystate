@@ -90,20 +90,11 @@ about a file that is perfectly intact.
 amethystate = { version = "0.23", features = ["sqlite"] }
 ```
 
-## Tauri
-
-Tauri integration includes a plugin, async backend, and Rust and TypeScript bindings generator. Enable it with the `tauri` feature, next to an engine:
-
-```toml
-amethystate = { version = "0.23", features = ["tauri", "redb"] }
-```
-
-See [Tauri integration](/amethystate/integrations/tauri/) for setup and usage.
-
 ## Migrating from an existing solution
 
 See [Migrating from a custom solution](/amethystate/migrations/custom/).
 
-## Framework integrations
+## guinea
 
-See [Integrations](/amethystate/integrations/overview/).
+A guinea timer whose period follows a stored setting: see
+[guinea](/amethystate/integrations/guinea/).

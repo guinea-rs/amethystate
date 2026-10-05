@@ -19,11 +19,7 @@ Everything else sits beside it under `landing/src/content/docs/`:
 | `Getting-started/` | installation, first store, the smallest working app |
 | `Concepts/` | fields and subscriptions, reactive cells, `Kv`, durability, observability |
 | `Migrations/` | defining steps, custom and manual migrations |
-| `Integrations/` | one page per GUI framework, plus an overview of the execution models |
-
-`Integrations/overview.md` is the fastest way to understand why each adapter is
-shaped differently — the frameworks disagree about who owns state, and that
-disagreement drives everything else.
+| `Integrations/` | the guinea adapter |
 
 Per-item reference is rustdoc: <https://docs.rs/amethystate>, or `cargo doc
 --open` for the working tree.
@@ -35,12 +31,13 @@ crates/core/amethystate-core      backend-agnostic primitives (Signal, FieldCore
 crates/core/amethystate-macros-core   parsing types shared by the macro crates
 crates/main/amethystate           the crate users depend on: store, backends, reactive types
 crates/main/amethystate-macros    #[amethystate], #[migrate], derive(AmeType)
-crates/main/amethystate-arena     Copy handles for frameworks that want them
-crates/adapters/*                 one crate per GUI framework
-crates/tauri/*                    plugin and TypeScript binding generation
+crates/adapters/amethystate-guinea  a guinea timer whose period follows a field
 landing/                          the book (Astro + Starlight)
-examples/                         runnable apps, one per framework
 ```
+
+The other framework adapters, the Tauri plugin with its TypeScript package,
+the arena handles and the examples live on the `archive/adapters` branch. They
+are not built, tested or published from `master`.
 
 ## Checks
 
@@ -59,12 +56,6 @@ hides plenty; a change can pass under one engine and fail under another.
 It pins `INSTA_UPDATE=no`, so snapshot tests report a mismatch instead of
 quietly rewriting the snapshot.
 
-It also type-checks and tests the npm package in `js/`: vitest, with the
-Tauri side mocked through `@tauri-apps/api/mocks`. The path spellings and
-event channel names it builds are checked against
-`crates/core/amethystate-core/tests/fixtures/paths.json`, the same file the
-Rust side reads, so the two cannot drift apart.
-
 It ends with `cargo semver-checks`, which compares the public API of every
 published library crate against its latest release on crates.io and fails when
 the version in `Cargo.toml` is too small for what changed. Below 1.0 a breaking
@@ -74,12 +65,10 @@ have no Rust API to compare. The tool is installed separately, with
 the same check on every push and pull request, and `publish.yml` will not
 publish a tag that fails it.
 
-The toolchain is pinned at 1.95, which `gpui-pre` and guinea need, and every
-library crate but `amethystate-gpui` and `amethystate-guinea` declares
-`rust-version = "1.90"`. That floor is checked rather than trusted: `ci.ps1`
-and the `msrv` job build the workspace without those two on `cargo +1.90.0`. The GitHub workflow lints gpui in a job of
-its own, since it needs system libraries the other jobs do not install, and
-leaves it out of the test runs.
+The toolchain is pinned at 1.95, which guinea needs, and every library crate
+but `amethystate-guinea` declares `rust-version = "1.90"`. That floor is
+checked rather than trusted: `ci.ps1` and the `msrv` job build the workspace
+without it on `cargo +1.90.0`.
 
 `sqlite` compiles SQLite in from source, so building it needs a C toolchain.
 
@@ -253,9 +242,9 @@ command line says.
 ## Releasing
 
 The version lives once, in `[workspace.package]`, and the internal path
-dependencies pin it too — both move together. The framework adapters carry it
-as well, so a tag publishes every adapter beside the store it was built and
-tested with; the framework version an adapter supports is in its manifest and
-on its book page, not in its own number. Pushing a `v*` tag is what
+dependencies pin it too — both move together. `amethystate-guinea` carries it
+as well, so a tag publishes the adapter beside the store it was built and
+tested with; the guinea versions it takes are in its manifest and on its book
+page, not in its own number. Pushing a `v*` tag is what
 publishes; CI must be green first, because a published version cannot be taken
 back.

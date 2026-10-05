@@ -2,7 +2,6 @@ use proc_macro::TokenStream;
 
 mod amethystate;
 mod migrate;
-mod ts_mapping;
 
 /// Generates a persistent state wrapper for a struct.
 ///

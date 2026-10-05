@@ -90,22 +90,11 @@ SQLite — скажем, `STRICT`-таблицами, — и минимум пр
 amethystate = { version = "0.23", features = ["sqlite"] }
 ```
 
-## Tauri
-
-Интеграция с Tauri включает плагин, асинхронный бэкенд и генератор биндингов
-для Rust и TypeScript. Включается через feature `tauri`, рядом с движком:
-
-```toml
-amethystate = { version = "0.23", features = ["tauri", "redb"] }
-```
-
-Настройка и использование:
-[Интеграция с Tauri](/amethystate/ru/integrations/tauri/).
-
 ## Переход с существующего решения
 
 См. [Переход со своего решения](/amethystate/ru/migrations/custom/).
 
-## Интеграции с фреймворками
+## guinea
 
-См. [Интеграции](/amethystate/ru/integrations/overview/).
+Таймер guinea, период которого следует за сохранённой настройкой:
+см. [guinea](/amethystate/ru/integrations/guinea/).

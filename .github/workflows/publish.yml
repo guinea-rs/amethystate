@@ -38,16 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y \
-            libglib2.0-dev libgtk-3-dev libatk1.0-dev \
-            libwebkit2gtk-4.1-dev libsoup-3.0-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev \
-            libx11-dev libxcb1-dev libxcb-xkb-dev
       - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
-          package: amethystate-macros-core,amethystate-core,amethystate-tauri,amethystate,amethystate-codegen,amethystate-arena,tauri-plugin-amethystate
+          package: amethystate-macros-core,amethystate-core,amethystate
           feature-group: all-features
 
   publish:
@@ -55,16 +48,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install -y \
-            libglib2.0-dev libgtk-3-dev libatk1.0-dev \
-            libwebkit2gtk-4.1-dev libsoup-3.0-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev \
-            libx11-dev libx11-xcb-dev libxcb1-dev libxcb-xkb-dev \
-            libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev \
-            libasound2-dev libssl-dev libzstd-dev
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
@@ -82,17 +65,7 @@ jobs:
             amethystate-macros-core
             amethystate-core
             amethystate-macros
-            amethystate-macros-arena
-            amethystate-tauri
             amethystate
-            amethystate-codegen
-            amethystate-arena
-            tauri-plugin-amethystate
-            amethystate-dioxus
-            amethystate-leptos
-            amethystate-yew
-            amethystate-slint
-            amethystate-gpui
             amethystate-guinea
           )
           VERSION="${GITHUB_REF_NAME#v}"

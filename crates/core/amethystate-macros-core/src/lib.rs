@@ -17,8 +17,6 @@ pub struct MacroArgs {
     #[darling(default)]
     pub mode: Option<String>,
     #[darling(default)]
-    pub target: Option<String>,
-    #[darling(default)]
     pub as_root: bool,
     /// How every field's own name is spelled where it is stored, said once for
     /// the whole struct. A field with `path` of its own is not touched by it.

@@ -199,15 +199,6 @@ impl Mode {
     }
 }
 
-/// Where the generated code runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Target {
-    /// This process, against a store it holds.
-    Native,
-    /// A browser, against a store on the other side of a Tauri command.
-    TauriWasm,
-}
-
 /// One `#[amethystate]` declaration, lowered.
 #[derive(Debug, Clone)]
 pub(crate) struct Schema {
@@ -229,7 +220,6 @@ pub(crate) struct Schema {
     pub id: Option<At<String>>,
 
     pub mode: Mode,
-    pub target: Target,
     pub rules: Rules,
 
     /// Where `open = manual` was written: the struct's `Open` is its author's,

@@ -15,7 +15,7 @@ jobs:
   audit:
     uses: guinea-rs/.github/.github/workflows/deps-audit.yml@02c22ffa63298c80099e037effd27005e0e78939
     with:
-      manifests: '["Cargo.toml", "examples/dioxus/Cargo.toml", "examples/egui/Cargo.toml", "examples/gpui/Cargo.toml", "examples/iced/Cargo.toml", "examples/ratatui/Cargo.toml", "examples/slint/Cargo.toml", "examples/tauri-leptos/Cargo.toml", "examples/tauri-typescript/src-tauri/Cargo.toml", "examples/tauri-yew/Cargo.toml", "examples/web-dioxus/Cargo.toml", "examples/web-leptos/Cargo.toml", "examples/web-yew/Cargo.toml"]'
+      manifests: '["Cargo.toml"]'
 
   tags:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -24,4 +24,4 @@ jobs:
       issues: write
     uses: guinea-rs/.github/.github/workflows/deps-tags.yml@02c22ffa63298c80099e037effd27005e0e78939
     with:
-      manifests: '["Cargo.toml", "examples/dioxus/Cargo.toml", "examples/egui/Cargo.toml", "examples/gpui/Cargo.toml", "examples/iced/Cargo.toml", "examples/ratatui/Cargo.toml", "examples/slint/Cargo.toml", "examples/tauri-leptos/Cargo.toml", "examples/tauri-typescript/src-tauri/Cargo.toml", "examples/tauri-yew/Cargo.toml", "examples/web-dioxus/Cargo.toml", "examples/web-leptos/Cargo.toml", "examples/web-yew/Cargo.toml"]'
+      manifests: '["Cargo.toml"]'

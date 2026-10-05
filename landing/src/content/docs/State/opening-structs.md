@@ -103,6 +103,4 @@ the global store is a compile error rather than something a review has to
 catch.
 
 `open` belongs to a struct with a place of its own. A nested struct is opened
-by the struct holding it, so the macro refuses `open` on one, as it does on a
-struct built for a Tauri frontend, which opens through `load_async` against the
-host.
+by the struct holding it, so the macro refuses `open` on one.

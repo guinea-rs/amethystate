@@ -6,9 +6,8 @@ mod introspect;
 mod native;
 mod policy;
 mod reactive;
-mod wasm;
 
-use super::model::{OnDelete, OnUnreadable, Schema, Target, UnreadableEntries};
+use super::model::{OnDelete, OnUnreadable, Schema, UnreadableEntries};
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
 use syn::parse::{Parse, ParseStream, Parser};
@@ -201,16 +200,8 @@ pub(crate) fn entries_tokens(crate_name: &TokenStream2, rule: UnreadableEntries)
     }
 }
 
-/// Where the generated code runs, which decides what is generated at all.
-///
-/// The two targets share a declaration and nothing else: one builds against a
-/// store this process holds, the other against one on the other side of a
-/// Tauri command.
 pub fn generate_code(crate_name: TokenStream2, schema: &Schema) -> TokenStream2 {
-    match schema.target {
-        Target::Native => native::generate(&crate_name, schema),
-        Target::TauriWasm => wasm::generate(&crate_name, schema),
-    }
+    native::generate(&crate_name, schema)
 }
 
 struct MapEntry {

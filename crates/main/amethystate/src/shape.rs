@@ -150,15 +150,6 @@ pub trait Kind: Sized + 'static {
     fn peek(handle: &Self::Handle) -> Self::Peek;
 
     fn disagreement(handle: &Self::Handle) -> Option<Disagreement>;
-
-    /// Whether a frontend's JSON reads as what this field stores: the value,
-    /// or for a map one entry's value.
-    #[cfg(feature = "tauri")]
-    fn accepts(json: &str, stored_as: StoredAs<Self>) -> bool;
-
-    /// The JSON a frontend is handed once the field's key is gone.
-    #[cfg(feature = "tauri")]
-    fn written(seed: Self::Seed, stored_as: StoredAs<Self>) -> Option<String>;
 }
 
 /// What a field declared about reading, handed to [`Kind::build`] whole.
@@ -272,16 +263,6 @@ impl<T: FieldValue> Kind for T {
     fn disagreement(handle: &Field<T>) -> Option<Disagreement> {
         handle.__ame_disagreement()
     }
-
-    #[cfg(feature = "tauri")]
-    fn accepts(json: &str, stored_as: StoredAs<T>) -> bool {
-        crate::tauri::accepts::<T>(json, stored_as)
-    }
-
-    #[cfg(feature = "tauri")]
-    fn written(seed: T, stored_as: StoredAs<T>) -> Option<String> {
-        crate::tauri::written::<T>(&seed, stored_as)
-    }
 }
 
 impl<K, V> Kind for ReactiveMap<K, V>
@@ -394,16 +375,6 @@ where
     }
 
     fn disagreement(_handle: &Self) -> Option<Disagreement> {
-        None
-    }
-
-    #[cfg(feature = "tauri")]
-    fn accepts(json: &str, _stored_as: StoredAs<Self>) -> bool {
-        crate::tauri::accepts::<V>(json, StoredAs::default())
-    }
-
-    #[cfg(feature = "tauri")]
-    fn written(_seed: HashMap<K, V>, _stored_as: StoredAs<Self>) -> Option<String> {
         None
     }
 }

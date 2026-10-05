@@ -70,7 +70,7 @@ pub use amethystate_macros::{amethystate, migrate};
 pub mod prelude;
 pub use global::*;
 
-#[cfg(any(feature = "tauri", feature = "json"))]
+#[cfg(feature = "json")]
 pub use serde_json;
 pub use store::StoreBackend;
 pub use store::StoreExt;
@@ -78,10 +78,7 @@ pub use store::StoreExt;
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
 
-#[cfg(feature = "tauri")]
-pub mod tauri;
-
-#[cfg(any(feature = "async", feature = "tauri"))]
+#[cfg(feature = "async")]
 pub mod client {
     pub use amethystate_core::AmeBackendAsync;
     pub use amethystate_core::AmeStateSliceAsync;
@@ -90,15 +87,8 @@ pub mod client {
 
     use amethystate_core::async_impl::Field as CoreField;
     use amethystate_core::async_impl::ReactiveMap as CoreReactiveMap;
-    #[cfg(feature = "tauri")]
-    pub type ReactiveMap<K, V, B = crate::tauri::TauriBackend> = CoreReactiveMap<K, V, B>;
 
-    #[cfg(all(feature = "async", not(feature = "tauri")))]
     pub type ReactiveMap<K, V, B> = CoreReactiveMap<K, V, B>;
 
-    #[cfg(feature = "tauri")]
-    pub type Field<V, B = crate::tauri::TauriBackend> = CoreField<V, B>;
-
-    #[cfg(all(feature = "async", not(feature = "tauri")))]
     pub type Field<V, B> = CoreField<V, B>;
 }

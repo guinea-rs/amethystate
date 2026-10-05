@@ -12,17 +12,7 @@ PUBLISHED_PATHS=(
   "crates/core/amethystate-macros-core"
   "crates/core/amethystate-core"
   "crates/main/amethystate-macros"
-  "crates/main/amethystate-macros-arena"
-  "crates/adapters/amethystate-tauri"
   "crates/main/amethystate"
-  "crates/tauri/amethystate-codegen"
-  "crates/tauri/tauri-plugin-amethystate"
-  "crates/main/amethystate-arena"
-  "crates/adapters/amethystate-dioxus"
-  "crates/adapters/amethystate-leptos"
-  "crates/adapters/amethystate-yew"
-  "crates/adapters/amethystate-slint"
-  "crates/adapters/amethystate-gpui"
   "crates/adapters/amethystate-guinea"
 )
 
