@@ -15,9 +15,9 @@ pub struct ConnectionState {
 fn writing_the_same_value_wakes_nobody(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("identical_field");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     let woken = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&woken);
@@ -25,9 +25,9 @@ fn writing_the_same_value_wakes_nobody(backend: Backend) -> anyhow::Result<()> {
         count.fetch_add(1, Ordering::Release);
     });
 
-    state.port().set(9090)?;
-    state.port().set(9090)?;
-    state.port().set(9090)?;
+    state.port().set(9090);
+    state.port().set(9090);
+    state.port().set(9090);
 
     assert_eq!(
         woken.load(Ordering::Acquire),
@@ -44,9 +44,9 @@ fn writing_the_same_value_wakes_nobody(backend: Backend) -> anyhow::Result<()> {
 fn a_different_value_still_arrives(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("identical_changed");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     let woken = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&woken);
@@ -54,7 +54,7 @@ fn a_different_value_still_arrives(backend: Backend) -> anyhow::Result<()> {
         count.fetch_add(1, Ordering::Release);
     });
 
-    state.port().set(9091)?;
+    state.port().set(9091);
 
     assert_eq!(
         woken.load(Ordering::Acquire),
@@ -112,7 +112,7 @@ fn the_store_itself_deduplicates(backend: Backend) -> anyhow::Result<()> {
 fn a_committed_value_deduplicates_too(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("identical_after_flush");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
     state.port().durable().set(9090)?;
 
@@ -122,7 +122,7 @@ fn a_committed_value_deduplicates_too(backend: Backend) -> anyhow::Result<()> {
         count.fetch_add(1, Ordering::Release);
     });
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     assert_eq!(
         woken.load(Ordering::Acquire),

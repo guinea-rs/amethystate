@@ -34,7 +34,7 @@ process-wide store is installed once and reached from anywhere:
 ```rust
 let _ame = "./app.redb".init_global();
 
-let state = NetworkState::new()?;
+let state = NetworkState::new();
 ```
 <!-- /shown -->
 

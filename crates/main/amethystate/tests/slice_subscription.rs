@@ -30,7 +30,7 @@ pub struct AppState {
 fn test_slice_subscribe_all(backend: Backend) {
     let path = TempPath::new("slice_sub_all");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = AppState::new_with(&store).unwrap();
+    let state = AppState::new_with(&store);
 
     let change_count = Arc::new(AtomicUsize::new(0));
     let cc_clone = change_count.clone();
@@ -41,10 +41,10 @@ fn test_slice_subscribe_all(backend: Backend) {
 
     assert_eq!(change_count.load(Ordering::SeqCst), 0);
 
-    state.username().set("superuser".to_string()).unwrap();
+    state.username().set("superuser".to_string());
     assert_eq!(change_count.load(Ordering::SeqCst), 1);
 
-    state.server().host().set("127.0.0.1".to_string()).unwrap();
+    state.server().host().set("127.0.0.1".to_string());
     assert_eq!(change_count.load(Ordering::SeqCst), 2);
 
     state.tags().insert("env".into(), &"prod".into()).unwrap();
@@ -52,7 +52,7 @@ fn test_slice_subscribe_all(backend: Backend) {
 
     scope.clear();
 
-    state.username().set("guest".to_string()).unwrap();
+    state.username().set("guest".to_string());
     assert_eq!(
         change_count.load(Ordering::SeqCst),
         3,
@@ -65,7 +65,7 @@ fn test_slice_subscribe_all_external(backend: Backend) {
     let path = TempPath::new("slice_sub_all_ext");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let state = AppState::new_with(&store).unwrap();
+    let state = AppState::new_with(&store);
     let fork = state.fork();
 
     let change_count = Arc::new(AtomicUsize::new(0));
@@ -77,28 +77,28 @@ fn test_slice_subscribe_all_external(backend: Backend) {
 
     assert_eq!(change_count.load(Ordering::SeqCst), 0);
 
-    state.username().set("superuser".to_string()).unwrap();
+    state.username().set("superuser".to_string());
     assert_eq!(
         change_count.load(Ordering::SeqCst),
         0,
         "Own flat field changes must be ignored"
     );
 
-    fork.username().set("fork_user".to_string()).unwrap();
+    fork.username().set("fork_user".to_string());
     assert_eq!(
         change_count.load(Ordering::SeqCst),
         1,
         "Updates from fork must be processed"
     );
 
-    state.server().port().set(9090).unwrap();
+    state.server().port().set(9090);
     assert_eq!(
         change_count.load(Ordering::SeqCst),
         1,
         "Own nested structure changes must be ignored"
     );
 
-    fork.server().port().set(3000).unwrap();
+    fork.server().port().set(3000);
     assert_eq!(
         change_count.load(Ordering::SeqCst),
         2,

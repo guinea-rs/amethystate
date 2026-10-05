@@ -34,7 +34,7 @@ fn a_renamed_map_keeps_every_entry_and_leaves_nothing_at_the_old_place(backend: 
             .backend(backend)
             .build()
             .unwrap();
-        let panel = v1::Panel::new_with(&store).unwrap();
+        let panel = v1::Panel::new_with(&store);
         panel.widths().insert("cpu".into(), &110).unwrap();
         panel.widths().insert("gpu".into(), &120).unwrap();
         store.save_now().unwrap();
@@ -69,6 +69,6 @@ fn a_renamed_map_keeps_every_entry_and_leaves_nothing_at_the_old_place(backend: 
         "{backend:?}: the map's old subtree outlived the rename"
     );
 
-    let panel = Panel::new_with(&store).unwrap();
+    let panel = Panel::new_with(&store);
     assert_eq!(panel.sizes().len(), 2);
 }

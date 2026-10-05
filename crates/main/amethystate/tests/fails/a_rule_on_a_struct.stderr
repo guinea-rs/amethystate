@@ -1,5 +1,5 @@
 error: a struct is the place its fields are kept, and a rule belongs on a field: `#[amestate(rule = ..)]` judges one value wherever it comes from. A rule between fields goes where the struct is opened - `open = manual` and an `Open` of its own, which sees every field at once
-  --> tests/fails/a_rule_on_a_struct.rs:15:41
-   |
-15 | #[amethystate(prefix = "window", rule = the_window_can_be_drawn)]
-   |                                         ^^^^^^^^^^^^^^^^^^^^^^^
+ --> tests/fails/a_rule_on_a_struct.rs:8:41
+  |
+8 | #[amethystate(prefix = "window", rule = the_window_can_be_drawn)]
+  |                                         ^^^^^^^^^^^^^^^^^^^^^^^

@@ -28,7 +28,7 @@ fn a_reset_puts_back_the_defaults_of_a_map_inside_a_flattened_node(backend: Back
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
     {
-        let held = Holder::new_with(&store).unwrap();
+        let held = Holder::new_with(&store);
         held.part().items().insert("beta".into(), &2u32).unwrap();
         assert_eq!(held.part().items().get("alpha"), Some(1));
         drop(held);
@@ -41,7 +41,7 @@ fn a_reset_puts_back_the_defaults_of_a_map_inside_a_flattened_node(backend: Back
         .reset_to_defaults()
         .unwrap();
 
-    let again = Holder::new_with(&store).unwrap();
+    let again = Holder::new_with(&store);
     let back: Vec<String> = again.part().items().keys().collect();
 
     assert_eq!(

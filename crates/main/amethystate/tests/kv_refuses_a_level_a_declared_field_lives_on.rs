@@ -17,7 +17,7 @@ fn kv_refuses_a_level_a_declared_field_lives_on(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let _look = Look::new_with(&store).unwrap();
+    let _look = Look::new_with(&store);
 
     let refused = store.kv().namespace("look").set("font", &1u32).unwrap_err();
 

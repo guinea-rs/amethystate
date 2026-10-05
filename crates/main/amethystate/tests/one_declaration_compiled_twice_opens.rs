@@ -33,6 +33,6 @@ fn one_declaration_compiled_twice_opens(backend: Backend) {
         .unwrap_or_else(|refused| panic!("{backend:?}: {refused:?}"));
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
-    assert_eq!(current::Note::new_with(&store).unwrap().pages().get(), 4);
+    assert_eq!(current::Note::new_with(&store).pages().get(), 4);
     let _ = archive::Note::new_with;
 }

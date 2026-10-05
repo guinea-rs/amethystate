@@ -35,9 +35,9 @@ fn use_default_reports_the_declared_default_again(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = Resets::new_with(&store).unwrap();
+    let state = Resets::new_with(&store);
 
-    state.width().set(1200).unwrap();
+    state.width().set(1200);
     assert_eq!(state.width().get(), 1200);
 
     StoreBackend::delete(&store, &StorePath::from_segments(["resets", "width"])).unwrap();
@@ -52,9 +52,9 @@ fn a_deleted_key_goes_on_reporting_the_last_value(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = Holds::new_with(&store).unwrap();
+    let state = Holds::new_with(&store);
 
-    state.width().set(1200).unwrap();
+    state.width().set(1200);
 
     StoreBackend::delete(&store, &StorePath::from_segments(["holds", "width"])).unwrap();
 
@@ -69,10 +69,10 @@ fn a_field_may_disagree_with_the_struct(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = MixedDelete::new_with(&store).unwrap();
+    let state = MixedDelete::new_with(&store);
 
-    state.width().set(1200).unwrap();
-    state.height().set(900).unwrap();
+    state.width().set(1200);
+    state.height().set(900);
 
     StoreBackend::delete(&store, &StorePath::from_segments(["mixed_delete", "width"])).unwrap();
     StoreBackend::delete(

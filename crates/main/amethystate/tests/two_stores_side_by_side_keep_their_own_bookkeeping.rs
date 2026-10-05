@@ -32,7 +32,7 @@ fn written_at_v1(at: &Path, hits: u32) {
         .backend(Backend::Json)
         .build()
         .unwrap();
-    v1::Ui::new_with(&store).unwrap().hits().set(hits).unwrap();
+    v1::Ui::new_with(&store).hits().set(hits);
     store.save_now().unwrap();
 }
 
@@ -92,7 +92,7 @@ fn a_file_under_the_former_name_that_does_not_read_is_not_the_bookkeeping() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        Ui::new_with(&store).unwrap().hits().set(21).unwrap();
+        Ui::new_with(&store).hits().set(21);
         store.save_now().unwrap();
     }
     std::fs::remove_file(bookkeeping_of(&at)).unwrap();
@@ -101,7 +101,7 @@ fn a_file_under_the_former_name_that_does_not_read_is_not_the_bookkeeping() {
     let hits = StoreBuilder::new(&at)
         .backend(Backend::Json)
         .build()
-        .map(|store| Ui::new_with(&store).unwrap().hits().get())
+        .map(|store| Ui::new_with(&store).hits().get())
         .map_err(|why| why.to_string());
 
     assert_eq!(

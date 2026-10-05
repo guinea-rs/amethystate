@@ -23,7 +23,7 @@ fn a_struct_at_the_root_does_not_make_every_key_declared() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _settings = Settings::new_with(&store).unwrap();
+        let _settings = Settings::new_with(&store);
         store.kv().set("note", &"kept by hand".to_string()).unwrap();
         store.set(["elsewhere", "note"], &"kept by hand").unwrap();
         store.save_now().unwrap();

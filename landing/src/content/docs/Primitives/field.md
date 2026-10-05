@@ -12,11 +12,11 @@ debounce.
 ```rust
 let port = state.port().get();
 
-state.port().set(9090)?;
+state.port().set(9090);
 
-let raised = state.port().update(|port| port + 1)?;
+let raised = state.port().update(|port| port + 1);
 
-state.port().modify(|port| *port += 1)?;
+state.port().modify(|port| *port += 1);
 ```
 <!-- /shown -->
 
@@ -26,14 +26,15 @@ answers with the default its declaration gave it.
 ```rust
 fn get(&self) -> T
 fn try_get(&self) -> Result<T, Disagreement>
-fn set(&self, value: T) -> Result<(), WriteValue>
-fn update<F: FnOnce(T) -> T>(&self, f: F) -> Result<T, WriteValue>
-fn modify<F: FnOnce(&mut T)>(&self, f: F) -> Result<(), WriteValue>
+fn set(&self, value: T)
+fn update<F: FnOnce(T) -> T>(&self, f: F) -> T
+fn modify<F: FnOnce(&mut T)>(&self, f: F)
 ```
 
-The two `Err` types are different on purpose. A write can fail; a read cannot,
-because the field always holds something. `try_get`'s `Err` is not a failure of
-the asking - it is what this field and the store do not agree about.
+A write answers nothing, because there is nothing for a caller to do about
+what could stop it - see [what a write will not take](#what-a-write-will-not-take).
+`try_get`'s `Err` is not a failure of the asking either - it is what this field
+and the store do not agree about.
 
 ## Reading when the answer might not be the store's
 
@@ -43,7 +44,7 @@ can draw. `try_get` is the same read with the doubt kept.
 It answers `Err` when a change arrived that would not decode into this field's
 type - a file edited outside the process, a migration that left something
 behind, a codec that accepted a value it cannot read back - or when a declared
-rule turned the value down.
+rule put a stored value right and the store would not take the correction.
 
 The field goes on reporting the last value the store agreed with, and nothing
 is delivered to subscribers. What is on screen was true a moment ago; the
@@ -68,9 +69,10 @@ matters, give the field one writer: one thread, or a lock of your own around the
 read and the write -
 [Concurrent access](/amethystate/concepts/durability/#concurrent-access).
 
-`update` returning the stored value is the difference worth knowing: it saves
-the `get` you would otherwise write on the next line, and it is the value that
-actually landed rather than the one you computed.
+`update` returns the value it computed, which saves the `get` you would
+otherwise write on the next line. Where the field has a
+[rule](/amethystate/state/rules/), what landed is what the rule left of it, and
+`get` is the way to read that.
 
 ## What a write costs
 
@@ -82,15 +84,20 @@ To wait for the disk instead: [Durability](/amethystate/concepts/durability/).
 Waiting can commit more than this one field, and how much more is the engine's
 answer — the same page says which.
 
-## What a write is refused for
+## What a write will not take
 
-Four things refuse a write: a value the running engine's codec cannot encode, a
-path deeper than the store allows, an interceptor that says no, and the
-field's declared [rule](/amethystate/state/rules/).
+A field's declared [rule](/amethystate/state/rules/) refuses nothing: it puts
+the value right, and the write lands as the rule left it.
 
-All four answer at the `set` that made them. The value is encoded where it is
-written, so the refusal arrives in the caller's own control flow and the value
-never reaches the buffer.
+Two things stop a write, and neither is a circumstance to handle at the call
+site. A value the running engine's codec cannot encode, or a path deeper than
+the store allows, is the declaration disagreeing with the engine: it fails the
+same way on every run, so `set` panics naming the field, before the value
+reaches the buffer. A store that was closed takes nothing: the write is
+dropped, the field keeps its value, and a warning in the log says so.
+
+Where a write has to answer - a value typed in by a person, an engine chosen at
+run time - `durable()` is the write that does, with a `Result`.
 
 ## Where to go next
 

@@ -39,7 +39,7 @@ fn a_nested_struct_inherits_what_the_one_holding_it_decided(backend: Backend) {
         .set(["lenient_root", "db", "port"], &"not a number".to_string())
         .unwrap();
 
-    let state = LenientRoot::new_with(&store).unwrap();
+    let state = LenientRoot::new_with(&store);
 
     assert_eq!(state.db().port().get(), 5432);
     assert!(state.db().port().try_get().is_err());
@@ -57,7 +57,7 @@ fn what_the_nested_struct_declared_wins(backend: Backend) {
         .set(["strict_child", "db", "port"], &"not a number".to_string())
         .unwrap();
 
-    assert!(StrictChild::new_with(&store).is_err());
+    assert!(StrictChild::try_new_with(&store).is_err());
 }
 
 #[backends(all)]
@@ -68,7 +68,7 @@ fn a_nested_struct_opens_normally_when_nothing_is_wrong(backend: Backend) {
         .build()
         .unwrap();
 
-    let state = LenientRoot::new_with(&store).unwrap();
+    let state = LenientRoot::new_with(&store);
 
     assert_eq!(state.db().port().try_get().unwrap(), 5432);
 }

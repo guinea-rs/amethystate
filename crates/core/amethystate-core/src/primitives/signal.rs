@@ -197,7 +197,7 @@ impl<T: 'static> Signal<T> {
     /// Writes a value that originates elsewhere, carrying its provenance.
     ///
     /// For propagation layers - a store subscription applying a committed
-    /// change, an interceptor rewriting one - so subscribers can tell whose
+    /// change - so subscribers can tell whose
     /// write they are seeing. Application code wants [`Signal::set`].
     pub fn set_with_source(&self, value: T, source: Uuid) {
         self.set_forwarded(value, Some(source));

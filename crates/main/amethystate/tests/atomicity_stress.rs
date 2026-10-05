@@ -117,7 +117,7 @@ fn a_reader_never_meets_a_half_written_file() {
                 && started.elapsed() < CEILING
             {
                 written += 1;
-                n.set(written).unwrap();
+                n.set(written);
                 highest.store(written, Ordering::SeqCst);
                 let _ = store.save_now();
                 schedule.brief_pause(300);
@@ -219,7 +219,7 @@ fn writers_racing_each_other_all_land() {
                     )
                     .unwrap();
                     for round in 1..=EACH {
-                        field.set(round).unwrap();
+                        field.set(round);
                         if schedule.below(3) == 0 {
                             let _ = store.save_now();
                         }
@@ -317,7 +317,7 @@ fn a_holder_coming_and_going_never_leaves_a_broken_file() {
     while (refused == 0 || times_held.load(Ordering::SeqCst) < HOLDS) && started.elapsed() < CEILING
     {
         written += 1;
-        n.set(written).unwrap();
+        n.set(written);
         if store.save_now().is_err() {
             refused += 1;
         }
@@ -429,7 +429,7 @@ fn the_metadata_file_is_never_half_written_either() {
             Uuid::new_v4(),
         )
         .unwrap();
-        field.set(declared).unwrap();
+        field.set(declared);
         let _ = store.save_now();
         schedule.brief_pause(300);
     }

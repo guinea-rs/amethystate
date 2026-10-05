@@ -17,7 +17,7 @@ fn a_map_keyed_by_an_id_round_trips_through_a_declaration(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let net = Net::new_with(&store).unwrap();
+        let net = Net::new_with(&store);
 
         net.ports().insert(Id::new(9), &true).unwrap();
         net.ports().insert(Id::new(10), &false).unwrap();
@@ -30,7 +30,7 @@ fn a_map_keyed_by_an_id_round_trips_through_a_declaration(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let net = Net::new_with(&store).unwrap();
+    let net = Net::new_with(&store);
 
     let listed: Vec<u16> = net.ports().keys().map(|id| *id.get()).collect();
     assert_eq!(listed, [10, 100, 9]);

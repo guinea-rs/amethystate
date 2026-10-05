@@ -57,7 +57,7 @@ fn the_recorded_shape_survives_this_engines_codec(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let _state = Recorded::new_with(&store).unwrap();
+        let _state = Recorded::new_with(&store);
         store.save_now().unwrap();
     }
 
@@ -75,7 +75,7 @@ fn snapshot_of(backend: Backend, path: &TempPath) -> SchemaSnapshot {
             .backend(backend)
             .build()
             .unwrap();
-        let _state = Recorded::new_with(&store).unwrap();
+        let _state = Recorded::new_with(&store);
         store.save_now().unwrap();
     }
 
@@ -181,7 +181,7 @@ fn the_snapshot_names_the_path_rather_than_the_field(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = Recorded::new_with(&store).unwrap();
+    let state = Recorded::new_with(&store);
     assert_eq!(
         state.bind().get(),
         "0.0.0.0",

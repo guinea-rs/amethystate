@@ -52,8 +52,8 @@ fn seeded(suffix: &str) -> TempPath {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let settings = v1::Settings::new_with(&store).unwrap();
-        settings.host().set("10.0.0.1".to_string()).unwrap();
+        let settings = v1::Settings::new_with(&store);
+        settings.host().set("10.0.0.1".to_string());
         drop(settings);
         store.save_now().unwrap();
     }
@@ -65,7 +65,7 @@ fn seeded(suffix: &str) -> TempPath {
             .migrate()
             .unwrap();
         assert!(!report.has_failures());
-        let _settings = Settings::new_with(&store).unwrap();
+        let _settings = Settings::new_with(&store);
         store.save_now().unwrap();
     }
     settle();

@@ -29,8 +29,8 @@ fn two_schemas_at_one_prefix_each_keep_their_own_snapshot(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let _a = UiColors::new_with(&store).unwrap();
-        let _b = UiLayout::new_with(&store).unwrap();
+        let _a = UiColors::new_with(&store);
+        let _b = UiLayout::new_with(&store);
         store.save_now().unwrap();
     }
 

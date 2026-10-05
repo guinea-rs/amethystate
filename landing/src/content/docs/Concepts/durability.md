@@ -27,7 +27,7 @@ Reads are cheap for the same reason. `get()` looks in that buffer first and answ
 
 <!-- shown: a write you can read and the disk cannot -->
 ```rust
-state.port().set(9090)?;
+state.port().set(9090);
 
 let reads_back = state.port().get();
 ```
@@ -63,7 +63,7 @@ A smaller value narrows the window and flushes more often. A larger one widens i
 
 Everything above is about the buffer and the disk, and there the disk is allowed to lag. Between a field and the store the answer is stricter: **what a field holds is what the store holds.** This is the guarantee the library is built around, and a place where it fails is a bug worth reporting.
 
-- A write through a field lands in both or in neither. One an interceptor or a rule turns down, or the store refuses, leaves the field as it was.
+- A write through a field lands in both or in neither. A write to a closed store leaves the field as it was and says so in the log; a value the engine cannot hold panics before it lands anywhere.
 - A change that arrives some other way - `Store::set` by path, a person editing the file, a second store on it - reaches the field as the store took it.
 - A declared rule that puts a value right writes the corrected value back, wherever the value came from, so the file never keeps a value the field does not show.
 - `save` on a loaded struct leaves the struct in hand holding what it wrote.
@@ -72,11 +72,11 @@ Everything above is about the buffer and the disk, and there the disk is allowed
 
 A few places, each on purpose, and each one a field can be asked about:
 
-- **A value the field will not take.** Bytes that do not decode, a value a rule refuses, a default that could not be written because the path already held something else. The field shows its last good value or its default, and `try_get` answers `Err` saying why. The store keeps what it had, so nothing anyone wrote is destroyed before somebody fixes it.
+- **A value the field will not take.** Bytes that do not decode, a default that could not be written because the path already held something else. The field shows its last good value or its default, and `try_get` answers `Err` saying why. The store keeps what it had, so nothing anyone wrote is destroyed before somebody fixes it.
 - **A key removed under a field that keeps its value.** Under `on_delete = Keep`, the default, the field goes on showing the last value, and the store holds nothing there until the next write.
 - **A correction the store will not take.** A rule put a stored value right, and writing the correction back failed - the store is closed, or the engine cannot hold what the rule made. The field holds the corrected value, the store the one it was given, and `try_get` answers `Reason::NotWrittenBack`.
 - **A loaded struct between load and save.** It is plain data in your hands: assigning to it changes nothing until `save`, and an edit from outside never reaches it.
-- **A save the store fails partway.** `save` judges every field before it writes any, so a rule's refusal writes none of them. A store error partway through - the store closed, a value the engine refuses - leaves the fields written before it, and `save` answers with the one it stopped at.
+- **A save the store fails partway.** `save` puts every field through its rule before it writes any. A store error partway through - the store closed, a value the engine refuses - leaves the fields written before it, and `save` answers with the one it stopped at.
 - **A closed store.** A field answers the last value it heard, and `try_get` says the store is closed.
 - **A `volatile` field**, which is never stored at all.
 
@@ -97,7 +97,7 @@ committed it.
 
 <!-- shown: forcing everything out -->
 ```rust
-state.port().set(9090)?;
+state.port().set(9090);
 store.save_now()?;
 ```
 <!-- /shown -->
@@ -124,7 +124,7 @@ Reach for these at points where losing the last few hundred milliseconds actuall
 
 <!-- shown: what else a durable write commits -->
 ```rust
-state.host().set("10.0.0.1".to_string())?;
+state.host().set("10.0.0.1".to_string());
 
 state.port().durable().set(9090)?;
 ```

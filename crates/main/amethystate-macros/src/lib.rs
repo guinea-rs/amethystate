@@ -15,14 +15,17 @@ mod migrate;
 ///   * `as_root` (optional flag): If specified, fields are written directly to the store root without
 ///     a namespace. It cannot be given beside `prefix`.
 ///   * `prefix` (String): Sets the top-level namespace path in the store.
-///     Generates `pub fn new() -> Result<Self, OpenStruct>`, which opens on the
-///     global store, and `pub fn new_with(store: &Store) -> Result<Self, OpenStruct>`
-///     for a store the caller holds, both through the struct's `Open`, and
-///     implements `Schema` and `Open`.
+///     Generates `pub fn new() -> Self`, which opens on the global store, and
+///     `pub fn new_with(store: &Store) -> Self` for a store the caller holds,
+///     both through the struct's `Open`, and implements `Schema` and `Open`.
+///     Both panic where the struct will not open; `try_new` and `try_new_with`
+///     return `Result<Self, OpenStruct>` instead. A persistent struct has
+///     `load`, `load_with`, `try_load` and `try_load_with` in their place.
 ///   * `open = manual` (optional): The struct's `Open` is written by hand,
-///     starting from `<Self as Schema>::open(store)`. There is then no `new()`
-///     or `load()` over the global store, and `new_with`, `load_with` and
-///     `AmeStateSlice::load_slice` go through the hand-written impl.
+///     implementing `try_new_with` and starting from
+///     `<Self as Schema>::open(store)`. There is then no `new()` or `load()`
+///     over the global store, and the `_with` constructors and `AmeStateSlice`
+///     go through the hand-written impl.
 ///   * `version` (optional u32): Schema version for migrations (defaults to 0).
 ///   * `mode` (optional String): Controls the generated code paradigm. One of:
 ///     * `"reactive"` (default): Generates fine-grained reactive `Field<T>` accessors.
@@ -82,7 +85,7 @@ mod migrate;
 /// | :--- | :--- | :--- |
 /// | `default` | `= Expr` | Initial value if not present in store. Falls back to `Default::default()`. |
 /// | `path` | `= String` | Where the field sits, instead of its own name. A dot in it is a level. |
-/// | `rule` | `= path` | A `fn(&mut T, &RuleContext) -> Result<(), Invalid>` every value the field takes has to pass: read from the store, brought in by an edit, or written. It takes the value by `&mut`, so a rule that knows what the value should have been may put it right and answer `Ok`; a write lands as the rule left it, and a value read is written back the way the rule left it. |
+/// | `rule` | `= path` | A `fn(&mut T, &RuleContext)` every value the field takes goes through: read from the store, brought in by an edit, or written. It leaves the value acceptable; a write lands as the rule left it, and a value read is written back the way the rule left it. |
 /// | `on_unreadable` | `= path` | What this field does about a stored value it will not accept - see `store::OnUnreadable`. |
 /// | `on_delete` | `= path` | What this field does when its key is deleted under it - see `store::OnDelete`. |
 /// | `unreadable_entries` | `= path` | On a `ReactiveMap`: what it does with an entry it cannot read - see `store::UnreadableEntries`. |
@@ -107,9 +110,9 @@ mod migrate;
 /// }
 ///
 /// // Usage:
-/// // let settings = AppSettings::new_with(&store)?;
+/// // let settings = AppSettings::new_with(&store);
 /// // let _sub = settings.host().subscribe(|val| println!("Host: {val}"));
-/// // settings.host().set("10.0.0.1".to_string())?;
+/// // settings.host().set("10.0.0.1".to_string());
 /// ```
 ///
 /// ### Persistent-only Mode
@@ -123,7 +126,7 @@ mod migrate;
 /// }
 ///
 /// // Usage:
-/// // let mut cfg = NetworkConfig::load_with(&store)?;
+/// // let mut cfg = NetworkConfig::load_with(&store);
 /// // cfg.host = "10.0.0.1".to_string(); // Direct field mutation (plain types)
 /// // cfg.save_lazy()?;                  // RAM-buffer write (debounced/background)
 /// // cfg.save()?;                       // Immediate synchronous flush to disk

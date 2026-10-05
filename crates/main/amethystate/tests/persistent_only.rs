@@ -20,7 +20,7 @@ fn persistent_only_load_save_and_mutate(backend: Backend) {
     store.set(["network", "host"], &"10.0.0.1").unwrap();
     store.set(["network", "port"], &3030u16).unwrap();
 
-    let mut data = NetworkState::load_with(&store).unwrap();
+    let mut data = NetworkState::load_with(&store);
     assert_eq!(data.host, "10.0.0.1");
     assert_eq!(data.port, 3030);
 

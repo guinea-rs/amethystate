@@ -54,7 +54,7 @@ fn a_declared_with_is_honoured_where_there_is_no_field(backend: Backend) {
 
     store.set(["session", "opened"], &1_700_000_000u64).unwrap();
 
-    let held = Session::load_with(&store).unwrap();
+    let held = Session::load_with(&store);
 
     assert_eq!(held.opened, UNIX_EPOCH + Duration::from_secs(1_700_000_000));
 }
@@ -67,7 +67,7 @@ fn what_a_save_writes_is_what_a_load_reads_back(backend: Backend) {
         .build()
         .unwrap();
 
-    let mut held = Session::load_with(&store).unwrap();
+    let mut held = Session::load_with(&store);
     held.opened = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
     held.save().unwrap();
 
@@ -78,7 +78,7 @@ fn what_a_save_writes_is_what_a_load_reads_back(backend: Backend) {
         "the save wrote a shape the declared `with` does not read"
     );
 
-    let again = Session::load_with(&store).unwrap();
+    let again = Session::load_with(&store);
     assert_eq!(
         again.opened,
         UNIX_EPOCH + Duration::from_secs(1_700_000_000)
@@ -95,7 +95,7 @@ fn a_value_that_will_not_read_takes_the_default_where_that_was_asked_for(backend
 
     store.set(["cfg", "port"], &"noon".to_string()).unwrap();
 
-    let held = Cfg::load_with(&store).unwrap();
+    let held = Cfg::load_with(&store);
 
     assert_eq!(held.port, 8080);
 }
@@ -110,5 +110,5 @@ fn a_value_that_will_not_read_refuses_the_load_by_default(backend: Backend) {
 
     store.set(["strict", "port"], &"noon".to_string()).unwrap();
 
-    assert!(Strict::load_with(&store).is_err());
+    assert!(Strict::try_load_with(&store).is_err());
 }

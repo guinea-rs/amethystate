@@ -167,8 +167,8 @@ pub(crate) fn slice_impl(crate_name: &TokenStream2, schema: &Schema) -> TokenStr
 
     quote! {
         impl #crate_name::AmeStateSlice for #name {
-            fn load_slice(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
-                <Self as #crate_name::store::Open>::new_with(store)
+            fn try_load_slice(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                <Self as #crate_name::store::Open>::try_new_with(store)
             }
 
             #subs
@@ -197,7 +197,7 @@ pub(crate) fn opening(crate_name: &TokenStream2, schema: &Schema) -> TokenStream
         Some(_) => quote! {},
         None => quote! {
             impl #crate_name::store::Open for #name {
-                fn new_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                fn try_new_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
                     <Self as #crate_name::store::Schema>::open(store)
                 }
             }
@@ -228,9 +228,22 @@ pub(crate) fn global_new(crate_name: &TokenStream2, schema: &Schema) -> TokenStr
 
     quote! {
         impl #name {
-            pub fn new() -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+            /// Opens the struct over the global store.
+            ///
+            /// # Panics
+            ///
+            /// Where `try_new` answers `Err`, with what it said.
+            #[track_caller]
+            pub fn new() -> Self {
                 let store = #crate_name::global_store();
                 Self::new_with(&store)
+            }
+
+            /// Opens the struct over the global store, or says why it would
+            /// not open.
+            pub fn try_new() -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                let store = #crate_name::global_store();
+                Self::try_new_with(&store)
             }
         }
     }
@@ -241,8 +254,20 @@ pub(crate) fn constructor(crate_name: &TokenStream2, schema: &Schema) -> TokenSt
 
     if schema.is_root() {
         quote! {
-            pub fn new_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+            /// Opens the struct over `store` through its `Open`.
+            ///
+            /// # Panics
+            ///
+            /// Where `try_new_with` answers `Err`, with what it said.
+            #[track_caller]
+            pub fn new_with(store: &#crate_name::Store) -> Self {
                 <Self as #crate_name::store::Open>::new_with(store)
+            }
+
+            /// Opens the struct over `store` through its `Open`, or says why it
+            /// would not open.
+            pub fn try_new_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                <Self as #crate_name::store::Open>::try_new_with(store)
             }
 
             /// Builds the struct as declared, under `instance_id` - the way

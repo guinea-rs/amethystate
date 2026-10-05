@@ -71,13 +71,13 @@ fn a_file_that_will_not_open_leaves_a_working_store_in_memory_and_is_left_alone(
     );
     assert_eq!(store.files_layout(), Some(StoreLayout::InMemory));
 
-    let held = Cache::new_with(&store).unwrap();
+    let held = Cache::new_with(&store);
     assert_eq!(
         held.generation().get(),
         1,
         "{backend:?}: defaults were not seeded"
     );
-    held.generation().set(7).unwrap();
+    held.generation().set(7);
     assert_eq!(held.generation().get(), 7);
 
     store.save_now().unwrap();

@@ -45,7 +45,7 @@ fn settings_v1_to_v2(
 
 fn a_store_at_v1(backend: Backend, path: &std::path::Path) {
     let store = StoreBuilder::new(path).backend(backend).build().unwrap();
-    let _v1 = v1::Settings::new_with(&store).unwrap();
+    let _v1 = v1::Settings::new_with(&store);
     store.save_now().unwrap();
 }
 
@@ -58,7 +58,7 @@ fn an_explicit_step_is_not_collected_from_the_linker(backend: Backend) {
 
     let (store, _report) = StoreBuilder::new(&path).backend(backend).migrate().unwrap();
 
-    let settings = Settings::new_with(&store).unwrap();
+    let settings = Settings::new_with(&store);
     assert_eq!(
         settings.host().get(),
         "untouched",
@@ -82,7 +82,7 @@ fn an_explicit_step_runs_when_it_is_handed_over(backend: Backend) {
 
     assert!(!report.has_failures(), "{report:?}");
 
-    let settings = Settings::new_with(&store).unwrap();
+    let settings = Settings::new_with(&store);
     assert_eq!(
         settings.host().get(),
         "the step ran",

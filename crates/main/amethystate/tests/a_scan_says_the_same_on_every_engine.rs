@@ -44,7 +44,7 @@ fn listed(store: &Store) -> Vec<String> {
 fn a_declared_shape_lists_its_places(backend: Backend) {
     let path = TempPath::new("scan_same_declared");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let shape = Shape::new_with(&store).unwrap();
+    let shape = Shape::new_with(&store);
 
     assert_eq!(
         listed(&store),
@@ -72,7 +72,7 @@ fn a_declared_shape_lists_its_places(backend: Backend) {
 fn a_map_emptied_entry_by_entry_leaves_no_key_of_its_own(backend: Backend) {
     let path = TempPath::new("scan_same_emptied");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let shape = Shape::new_with(&store).unwrap();
+    let shape = Shape::new_with(&store);
 
     shape.items().remove("alpha").unwrap();
 
@@ -89,7 +89,7 @@ fn a_map_emptied_entry_by_entry_leaves_no_key_of_its_own(backend: Backend) {
 fn a_map_cleared_whole_leaves_no_key_of_its_own(backend: Backend) {
     let path = TempPath::new("scan_same_cleared");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let shape = Shape::new_with(&store).unwrap();
+    let shape = Shape::new_with(&store);
 
     shape.items().insert("beta".into(), &2u32).unwrap();
     shape.items().clear().unwrap();
@@ -106,7 +106,7 @@ fn a_map_cleared_whole_leaves_no_key_of_its_own(backend: Backend) {
 fn a_key_nothing_declares_is_listed_beside_the_declared_ones(backend: Backend) {
     let path = TempPath::new("scan_same_undeclared");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let _shape = Shape::new_with(&store).unwrap();
+    let _shape = Shape::new_with(&store);
 
     store.kv().namespace("shape").set("beside", &7u32).unwrap();
 
@@ -128,14 +128,14 @@ fn a_map_under_a_prefix_deleted_whole_stays_empty_after_a_reopen(backend: Backen
     let path = TempPath::new("scan_same_prefix_deleted");
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let shape = Shape::new_with(&store).unwrap();
+        let shape = Shape::new_with(&store);
         store.delete_prefix(["shape"]).unwrap();
-        shape.leaf().set(5).unwrap();
+        shape.leaf().set(5);
         store.save_now().unwrap();
     }
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let shape = Shape::new_with(&store).unwrap();
+    let shape = Shape::new_with(&store);
 
     assert_eq!(
         (shape.items().len(), listed(&store)),
@@ -153,13 +153,13 @@ fn a_shape_that_survives_a_reopen_lists_the_same(backend: Backend) {
     let path = TempPath::new("scan_same_reopen");
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let shape = Shape::new_with(&store).unwrap();
+        let shape = Shape::new_with(&store);
         shape.items().remove("alpha").unwrap();
         store.save_now().unwrap();
     }
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let _shape = Shape::new_with(&store).unwrap();
+    let _shape = Shape::new_with(&store);
 
     assert_eq!(
         listed(&store),

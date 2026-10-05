@@ -54,8 +54,8 @@ fn a_migrated_line_is_not_put_back_by_a_save_the_open_scheduled() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        v1::First::new_with(&store).unwrap().hits().set(21).unwrap();
-        v1::Second::new_with(&store).unwrap().n().set(1).unwrap();
+        v1::First::new_with(&store).hits().set(21);
+        v1::Second::new_with(&store).n().set(1);
         store.save_now().unwrap();
     }
 

@@ -61,7 +61,7 @@ fn a_provided_value_reaches_a_migration_step(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let _v1 = v1::Settings::new_with(&store).unwrap();
+        let _v1 = v1::Settings::new_with(&store);
         store.save_now().unwrap();
     }
 
@@ -75,7 +75,7 @@ fn a_provided_value_reaches_a_migration_step(backend: Backend) {
         "the migration should have run cleanly: {report:?}"
     );
 
-    let settings = Settings::new_with(&store).unwrap();
+    let settings = Settings::new_with(&store);
     assert_eq!(
         settings.port().get(),
         4321,
@@ -97,7 +97,7 @@ fn a_value_that_is_not_send_can_still_be_provided(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let _v1 = v1::Settings::new_with(&store).unwrap();
+        let _v1 = v1::Settings::new_with(&store);
         store.save_now().unwrap();
     }
 
@@ -123,7 +123,7 @@ fn a_step_that_needs_something_nobody_provided_says_which(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let _v1 = v1::Settings::new_with(&store).unwrap();
+        let _v1 = v1::Settings::new_with(&store);
         store.save_now().unwrap();
     }
 

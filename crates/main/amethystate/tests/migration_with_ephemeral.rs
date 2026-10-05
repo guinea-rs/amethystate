@@ -71,11 +71,11 @@ fn test_nested_and_ephemeral_integration(backend: Backend) {
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-        let sys = v1::SystemConfig::new_with(&store).unwrap();
-        let ui = v1::Dashboard::new_with(&store).unwrap();
+        let sys = v1::SystemConfig::new_with(&store);
+        let ui = v1::Dashboard::new_with(&store);
 
-        sys.net().port().set(9999).unwrap();
-        ui.is_loading().set(true).unwrap();
+        sys.net().port().set(9999);
+        ui.is_loading().set(true);
 
         assert_eq!(sys.net().port().get(), 9999);
         assert!(ui.is_loading().get());
@@ -86,8 +86,8 @@ fn test_nested_and_ephemeral_integration(backend: Backend) {
     {
         let (store, _) = StoreBuilder::new(&path).backend(backend).migrate().unwrap();
 
-        let sys = SystemConfig::new_with(&store).expect("Failed to load v2 system");
-        let ui = Dashboard::new_with(&store).expect("Failed to load dashboard");
+        let sys = SystemConfig::new_with(&store);
+        let ui = Dashboard::new_with(&store);
 
         assert_eq!(sys.net().listen_port().get(), 9999);
 

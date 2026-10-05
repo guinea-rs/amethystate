@@ -50,8 +50,8 @@ fn seeded(suffix: &str) -> TempPath {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _widths = Widths::new_with(&store).unwrap();
-        let _theme = Theme::new_with(&store).unwrap();
+        let _widths = Widths::new_with(&store);
+        let _theme = Theme::new_with(&store);
         store.save_now().unwrap();
     }
     settle();
@@ -106,8 +106,8 @@ fn a_neighbour_is_still_recorded_while_the_one_beside_it_drifts() {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _widths = Widths::new_with(&store).unwrap();
-        let _theme = Theme::new_with(&store).unwrap();
+        let _widths = Widths::new_with(&store);
+        let _theme = Theme::new_with(&store);
         store.save_now().unwrap();
     }
     settle();

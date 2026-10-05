@@ -44,7 +44,7 @@ pub use kv::{Cleared, Kv};
 pub use opening::{Open, OpenStore, OpenStruct, Schema, WhenItWillNotRead, WillNotOpen};
 pub use primitives_factory::*;
 pub use reading::{LoadMap, LoadMapResult, ReadResult, ReadValue, ScanKeys, ScanResult};
-pub use rule::{Invalid, Rule, RuleContext, refused, refused_or_default};
+pub use rule::{Rule, RuleContext};
 pub(crate) use rule::{judge_declared, load_declared, save_declared};
 pub use rules::*;
 pub use state_slice::*;

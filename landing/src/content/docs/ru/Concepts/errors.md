@@ -6,7 +6,7 @@ sidebar:
 ---
 
 **Каждая точка апи падает тем набором, который в ней возможен.** Конструктор
-отвечает шестью способами, которыми структура отказывается открыться; запись
+`try_` отвечает четырьмя способами, которыми структура может не открыться; запись
 через `Kv` — шестью, которыми заворачивают сырую запись. Набор их перечисляет —
 значит, `match` по нему полный, и компилятор такой его и держит.
 
@@ -17,18 +17,16 @@ sidebar:
 
 <!-- shown: telling one refusal from another -->
 ```rust
-let refused = match Panel::new_with(&store) {
+let refused = match Panel::try_new_with(&store) {
     Ok(_) => return Ok(()),
     Err(why) => why,
 };
 
 let said = match refused {
-    OpenStruct::Refused { at, said } => format!("{at} was turned down: {said}"),
     OpenStruct::WillNotRead { at, why } => format!("{at} holds something else: {why}"),
     OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
     OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
     OpenStruct::Store(disk) => format!("the store: {disk}"),
-    OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
 };
 ```
 <!-- /shown -->
@@ -71,21 +69,28 @@ fn with_a_box(store: &amethystate::Store) -> Result<(), Box<dyn Error + Send + S
 
 | набор | откуда |
 | --- | --- |
-| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Open::new_with`, `Schema::open`, `Kv::cell` |
+| `OpenStruct` | `try_new`, `try_new_with`, `try_load`, `try_load_with`, `Open::try_new_with`, `AmeStateSlice::try_load_slice`, `new_with_id`, `new_with_id_under`, `Schema::open`, `Kv::cell` |
 | `OpenStore` | `StoreBuilder::build`, `migrate`, `located` |
 | `LoadMap` | `Kv::map` и собственный конструктор поля-карты |
 | `ReadValue` | `Store::get` |
-| `WriteValue` | `Store::set`, `Store::delete`, `Field::set`, `ReactiveCell::set`/`update`/`modify`, `ReactiveMap::insert` |
+| `WriteValue` | `Store::set`, `Store::delete`, записи `Field::durable`, `ReactiveCell::set`/`update`/`modify`, `ReactiveMap::insert` |
 | `KvWrite` | `Kv::get`, `Kv::set`, `Kv::remove` |
 | `ScanKeys` | `Store::scan_keys`, `Store::scan_prefix`, `Kv::keys` |
 | `Flush` | `save_now`, `close`, `flush_prefix` |
 | `RunStep` | каждый метод `MigrationContext` и то, что отдаёт сам шаг |
 
 Они пересекаются и всё равно остаются разными типами. У `WriteValue` есть
-`Intercepted`, `Recursed`, `Absent` и `SourceGone`, до которых сырая запись через `Kv` не
-дотягивается; у `KvWrite` есть `Declared`, до которого не дотягивается запись
-через поле. Общих вариантов четыре. Одним набором каждый вызывающий читал бы
-ветки, которые у него выстрелить не могут.
+`Absent` и `SourceGone`, до которых сырая запись через `Kv` не дотягивается; у
+`KvWrite` есть `Declared`, до которого не дотягивается запись через поле. Общих
+вариантов пять. Одним набором каждый вызывающий читал бы ветки, которые у него
+выстрелить не могут.
+
+У двух дверей набора нет вовсе: то, что их останавливает, — ошибка в коде, а не
+обстоятельство. Простые конструкторы — `new`, `new_with`, `load`, `load_with`,
+`load_slice` — паникуют с тем, что ответил бы их двойник `try_`. А `Field::set`,
+`update` и `modify` принимают любую запись: значение, которое движок не удержит,
+вызывает панику с именем поля, а запись в закрытый store отбрасывается с
+предупреждением в логе. Запись, которая отвечает `Result`, — `Field::durable`.
 
 У карты набор свой, а не общий с `OpenStruct`, потому что её открывают поверх
 того, что уже лежит под ней, — и она встречает два отказа, которых больше не
@@ -98,7 +103,7 @@ fn with_a_box(store: &amethystate::Store) -> Result<(), Box<dyn Error + Send + S
 store, а то, о чём поле и store не договорились. Он отвечает
 `Disagreement` — путь и одна из четырёх причин, — и это тоже обычный `Error`.
 Что значит каждая причина:
-[Правила](/amethystate/ru/state/rules/#сохранённое-значение-которое-правило-отклонило).
+[Когда значение не читается](/amethystate/ru/state/unreadable-values/).
 
 ## Отчёт никуда не делся
 

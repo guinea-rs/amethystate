@@ -34,7 +34,7 @@ fn with_a_record_of_the_old_section(name: &str, version: Option<u32>) -> TempPat
             .backend(Backend::Json)
             .build()
             .unwrap();
-        Old::new_with(&store).unwrap();
+        Old::new_with(&store);
         store
             .set(StorePath::from_segments(["legacy", "theme"]), &"light")
             .unwrap();

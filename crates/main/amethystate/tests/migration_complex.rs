@@ -247,45 +247,38 @@ fn complex_hybrid_migrations_handle_dependency_tree_and_rollback(backend: Backen
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-        let identity = identity_v1::Identity::new_with(&store).unwrap();
-        identity.login().set("ignat".to_string()).unwrap();
-        identity.tier().set("pro".to_string()).unwrap();
-        identity
-            .legacy_token()
-            .set("remove-me".to_string())
-            .unwrap();
+        let identity = identity_v1::Identity::new_with(&store);
+        identity.login().set("ignat".to_string());
+        identity.tier().set("pro".to_string());
+        identity.legacy_token().set("remove-me".to_string());
 
-        let workspace = workspace_v1::Workspace::new_with(&store).unwrap();
-        workspace
-            .title()
-            .set("Analytical Engine".to_string())
-            .unwrap();
-        workspace.theme().set("solarized".to_string()).unwrap();
-        workspace.stale_flag().set(true).unwrap();
+        let workspace = workspace_v1::Workspace::new_with(&store);
+        workspace.title().set("Analytical Engine".to_string());
+        workspace.theme().set("solarized".to_string());
+        workspace.stale_flag().set(true);
 
-        let telemetry = telemetry_v1::Telemetry::new_with(&store).unwrap();
-        telemetry.enabled().set(true).unwrap();
-        telemetry.sample_rate().set(7u16).unwrap();
+        let telemetry = telemetry_v1::Telemetry::new_with(&store);
+        telemetry.enabled().set(true);
+        telemetry.sample_rate().set(7u16);
 
-        let profile = profile_v1::Profile::new_with(&store).unwrap();
-        profile.full_name().set("Ada Lovelace".to_string()).unwrap();
-        profile.age_text().set("36".to_string()).unwrap();
+        let profile = profile_v1::Profile::new_with(&store);
+        profile.full_name().set("Ada Lovelace".to_string());
+        profile.age_text().set("36".to_string());
 
-        let ui = ui_v1::Ui::new_with(&store).unwrap();
-        ui.sidebar_px().set(320u16).unwrap();
-        ui.width_px().set(1280u16).unwrap();
-        ui.left_panel_visible().set(false).unwrap();
+        let ui = ui_v1::Ui::new_with(&store);
+        ui.sidebar_px().set(320u16);
+        ui.width_px().set(1280u16);
+        ui.left_panel_visible().set(false);
 
-        let shortcuts = shortcuts_v1::Shortcuts::new_with(&store).unwrap();
+        let shortcuts = shortcuts_v1::Shortcuts::new_with(&store);
         shortcuts
             .legacy_bindings()
-            .set(vec!["save=Ctrl+S".to_string(), "open=Ctrl+O".to_string()])
-            .unwrap();
+            .set(vec!["save=Ctrl+S".to_string(), "open=Ctrl+O".to_string()]);
 
-        let broken_root = broken_root_v1::BrokenRoot::new_with(&store).unwrap();
-        broken_root.original().set("stable".to_string()).unwrap();
+        let broken_root = broken_root_v1::BrokenRoot::new_with(&store);
+        broken_root.original().set("stable".to_string());
 
-        let _broken_child = broken_child_v1::BrokenChild::new_with(&store).unwrap();
+        let _broken_child = broken_child_v1::BrokenChild::new_with(&store);
     }
 
     let refused = StoreBuilder::new(&path)
@@ -421,34 +414,34 @@ fn complex_hybrid_migrations_handle_dependency_tree_and_rollback(backend: Backen
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let identity = Identity::new_with(&store).unwrap();
+    let identity = Identity::new_with(&store);
     // AI-Doxxed-Driven Development
     assert_eq!(identity.username().get(), "ignat");
     assert_eq!(identity.plan().get(), "professional");
     assert_eq!(identity.created_at_ms().get(), 1_700_000_000_000);
 
-    let profile = Profile::new_with(&store).unwrap();
+    let profile = Profile::new_with(&store);
     assert_eq!(profile.first_name().get(), "Ada");
     assert_eq!(profile.last_name().get(), "Lovelace");
     assert_eq!(profile.age().get(), Some(36));
     assert_eq!(profile.plan_snapshot().get(), "professional");
 
-    let workspace = Workspace::new_with(&store).unwrap();
+    let workspace = Workspace::new_with(&store);
     assert_eq!(workspace.name().get(), "Analytical Engine");
     assert_eq!(workspace.appearance_theme().get(), "solarized");
     assert_eq!(workspace.welcome_title().get(), "Analytical Engine for Ada");
 
-    let ui = Ui::new_with(&store).unwrap();
+    let ui = Ui::new_with(&store);
     assert!((ui.sidebar_ratio().get() - 0.25).abs() < f32::EPSILON);
     assert!(!ui.left_panel_visible().get());
 
-    let shortcuts = Shortcuts::new_with(&store).unwrap();
+    let shortcuts = Shortcuts::new_with(&store);
     assert_eq!(
         shortcuts.bindings().get(),
         vec!["open:Ctrl+O".to_string(), "save:Ctrl+S".to_string()]
     );
 
-    let telemetry = Telemetry::new_with(&store).unwrap();
+    let telemetry = Telemetry::new_with(&store);
     assert!(telemetry.enabled().get());
     assert_eq!(telemetry.sample_rate_per_mille().get(), 70);
 

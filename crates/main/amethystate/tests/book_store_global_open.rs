@@ -18,7 +18,7 @@ fn the_global_store_is_opened_once_and_held_by_a_guard(_backend: Backend) -> any
     //@show opening the process-wide store
     let _ame = "./app.redb".init_global();
 
-    let state = NetworkState::new()?;
+    let state = NetworkState::new();
     //@show-end
 
     assert_eq!(state.port().get(), 8080);

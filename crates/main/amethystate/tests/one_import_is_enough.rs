@@ -60,7 +60,7 @@ fn open_it(at: &TempPath) -> anyhow::Result<(Store, Editor)> {
         .rules(|r| r.on_unreadable(OnUnreadable::UseDefault))
         .build()?;
 
-    let editor = Editor::new_with(&store)?;
+    let editor = Editor::new_with(&store);
 
     Ok((store, editor))
 }
@@ -93,7 +93,7 @@ fn a_program_written_against_the_prelude_alone() {
     let path = StorePath::from_segments(["editor", "fontSize"]);
     assert_eq!(reach_around(&store, &path).unwrap(), Some(1280));
 
-    let whole: Editor = Editor::load_slice(&store).unwrap();
+    let whole: Editor = Editor::load_slice(&store);
     assert_eq!(whole.window.width.get(), 800);
 
     let field: Field<u32> = editor.size.clone();

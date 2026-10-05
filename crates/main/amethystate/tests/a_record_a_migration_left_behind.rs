@@ -83,7 +83,7 @@ fn a_step_that_moves_the_prefix_on_retires_what_it_left_behind() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _early = v1::Keep::new_with(&store).unwrap();
+        let _early = v1::Keep::new_with(&store);
         store.save_now().unwrap();
     }
     settle();
@@ -131,7 +131,7 @@ fn a_record_the_prefix_has_not_moved_past_is_left_where_it_is() {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _now = Keep::new_with(&store).unwrap();
+        let _now = Keep::new_with(&store);
         store.save_now().unwrap();
     }
     settle();

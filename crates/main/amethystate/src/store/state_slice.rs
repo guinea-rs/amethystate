@@ -18,7 +18,19 @@ pub trait StateScope {
 }
 
 pub trait AmeStateSlice: Sized {
-    fn load_slice(store: &Store) -> Result<Self, crate::store::opening::OpenStruct>;
+    /// Opens the struct through its [`Open`](crate::Open), or says why it
+    /// would not open.
+    fn try_load_slice(store: &Store) -> Result<Self, crate::store::opening::OpenStruct>;
+
+    /// Opens the struct through its [`Open`](crate::Open).
+    ///
+    /// # Panics
+    ///
+    /// Where [`AmeStateSlice::try_load_slice`] answers `Err`, with what it said.
+    #[track_caller]
+    fn load_slice(store: &Store) -> Self {
+        crate::store::opening::opened(Self::try_load_slice(store))
+    }
 
     fn subscribe_all<F>(&self, callback: F) -> ReactiveScope
     where

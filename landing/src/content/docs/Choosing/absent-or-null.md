@@ -30,7 +30,7 @@ distinction the other engines keep and this one cannot.
 ## What was done
 
 ```rust
-let held = Held::new_with(&store)?;
+let held = Held::new_with(&store);
 
 held.note().durable().set(Some("here".to_string()))?;
 let with_value = std::fs::read_to_string(path.path())?;

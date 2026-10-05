@@ -19,9 +19,9 @@ reactive, and they outlive the program.
 
 ### Features
 
-- **Struct-defined state** — one attribute turns a struct's fields into persisted reactive ones, with defaults, subscriptions, and [interceptors](https://guinea-rs.github.io/amethystate/concepts/subscriptions/#interceptors) that can refuse a write
-- **Rules on a value** — one `fn` on a field checks every value it takes, read or written, and what it corrects reaches the field and the file alike; an invariant between fields goes in the struct's own `Open`
-- **Runtime-defined keys** — a map entry or a `Kv` path gets the same subscriptions, interceptors and durability as a declared field
+- **Struct-defined state** — one attribute turns a struct's fields into persisted reactive ones, with defaults and subscriptions
+- **Rules on a value** — one `fn` on a field puts right every value it takes, read or written, and the correction reaches the field and the file alike; an invariant between fields goes in the struct's own `Open`
+- **Runtime-defined keys** — a map entry or a `Kv` path gets the same subscriptions and durability as a declared field
 - **Read and write every frame** — writes are buffered and batched, reads answer from memory
 - **Durable when it matters** — `durable()` on a field, a map or a `Kv` path returns only once the value is on disk, for the writes that must not sit in a buffer
 - **Behaviour you choose** — which engine holds the state, when a write reaches the disk, what a field does with a value that will not read, what a new version does to an old file
@@ -50,11 +50,11 @@ pub struct NetworkState {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = StoreBuilder::new("./app").build()?;
-    let state = NetworkState::new_with(&store)?;
+    let state = NetworkState::new_with(&store);
 
     let _sub = state.port().subscribe(|port| println!("port → {port}"));
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     Ok(())
 }

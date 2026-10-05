@@ -73,7 +73,7 @@ fn a_value_that_cannot_be_written_does_not_reach_the_file() {
         .unwrap();
 
     let good = field_with_path::<u32>(&store, ["ser", "good"], 1, Uuid::new_v4()).unwrap();
-    good.set(7).unwrap();
+    good.set(7);
     store.save_now().unwrap();
 
     let fussy =
@@ -84,6 +84,7 @@ fn a_value_that_cannot_be_written_does_not_reach_the_file() {
     let meta_before = std::fs::read(meta_path(path.path())).unwrap();
 
     let report = fussy
+        .durable()
         .set(Fussy(1))
         .expect_err("a value whose serializer refuses was accepted as a write");
     let flushed = store.save_now();
@@ -128,15 +129,15 @@ fn a_refused_value_leaves_a_store_that_still_opens_and_still_writes() {
             .build()
             .unwrap();
         let good = field_with_path::<u32>(&store, ["ser", "good"], 1, Uuid::new_v4()).unwrap();
-        good.set(7).unwrap();
+        good.set(7);
         store.save_now().unwrap();
 
         let fussy =
             field_with_path::<Fussy>(&store, ["ser", "fussy"], Fussy(0), Uuid::new_v4()).unwrap();
-        let _ = fussy.set(Fussy(1));
+        let _ = fussy.durable().set(Fussy(1));
         let _ = store.save_now();
 
-        good.set(8).unwrap();
+        good.set(8);
         store
             .save_now()
             .expect("a refusal must not poison every later flush");
@@ -206,6 +207,7 @@ fn a_value_the_writer_accepts_can_always_be_read_back() {
             field_with_path::<Deep>(&store, ["ser", "deep"], Deep(0), Uuid::new_v4()).unwrap();
 
         let refused = deep
+            .durable()
             .set(Deep(TOO_DEEP))
             .expect_err("a value deeper than the reader accepts was taken");
 
@@ -248,7 +250,10 @@ fn written_at_depth(label: &str, segments: usize, value: u32) -> Result<(), Stri
     )
     .unwrap();
 
-    let wrote = field.set(Deep(value)).map_err(|e| format!("{e:?}"));
+    let wrote = field
+        .durable()
+        .set(Deep(value))
+        .map_err(|e| format!("{e:?}"));
     store.save_now().unwrap();
 
     // Whatever the write answered, the file must still be a store. That is the
@@ -312,7 +317,7 @@ fn the_backup_covers_the_open_and_ends_with_it() {
         .build()
         .unwrap();
     let good = field_with_path::<u32>(&store, ["ser", "good"], 1, Uuid::new_v4()).unwrap();
-    good.set(7).unwrap();
+    good.set(7);
     store.save_now().unwrap();
 
     assert!(

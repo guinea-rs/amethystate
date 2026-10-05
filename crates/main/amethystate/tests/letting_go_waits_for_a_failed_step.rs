@@ -23,7 +23,7 @@ fn an_open_where_a_step_failed_lets_go_of_nothing() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _source = Source::new_with(&store).unwrap();
+        let _source = Source::new_with(&store);
         store.set(["src", "moved"], &7u64).unwrap();
         store.save_now().unwrap();
     }

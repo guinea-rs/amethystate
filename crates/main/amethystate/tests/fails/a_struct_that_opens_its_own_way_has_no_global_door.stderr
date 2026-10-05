@@ -9,6 +9,7 @@ error[E0599]: no function or associated item named `new` found for struct `Agent
    |
 note: if you're trying to build a new `Agent` consider using one of the following associated functions:
       Agent::new_with
+      Agent::try_new_with
       Agent::new_with_id
       Agent::new_with_id_under
   --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:4:1
@@ -34,7 +35,9 @@ error[E0599]: no function or associated item named `load` found for struct `Kept
 30 |     let _ = KeptAgent::load();
    |                        ^^^^ function or associated item not found in `KeptAgent`
    |
-note: if you're trying to build a new `KeptAgent`, consider using `KeptAgent::load_with` which returns `Result<KeptAgent, OpenStruct>`
+note: if you're trying to build a new `KeptAgent` consider using one of the following associated functions:
+      KeptAgent::load_with
+      KeptAgent::try_load_with
   --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:16:1
    |
 16 | #[amethystate(prefix = "kept_agent", mode = "persistent", open = manual)]

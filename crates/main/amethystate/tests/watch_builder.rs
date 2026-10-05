@@ -16,7 +16,7 @@ pub struct Cfg {
 fn cfg(backend: Backend) -> (TempPath, impl amethystate::store::StoreBackend, Cfg) {
     let path = TempPath::new("watch_builder");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
     (path, store, cfg)
 }
 
@@ -30,8 +30,8 @@ fn immediate_register_behaves_like_subscribe(backend: Backend) {
         cap.lock().unwrap().push(*v);
     });
 
-    cfg.counter().set(1).unwrap();
-    cfg.counter().set(2).unwrap();
+    cfg.counter().set(1);
+    cfg.counter().set(2);
 
     assert_eq!(*seen.lock().unwrap(), vec![1, 2]);
 }
@@ -52,8 +52,8 @@ fn external_and_with_source_compose(backend: Backend) {
             cap.lock().unwrap().push((*v, src.is_some()));
         });
 
-    field.set(1).unwrap();
-    other.set(2).unwrap();
+    field.set(1);
+    other.set(2);
 
     assert_eq!(
         *seen.lock().unwrap(),
@@ -118,8 +118,8 @@ fn external_on_a_field_filters_everything_of_its_own(backend: Backend) {
         .external()
         .register(move |_: &u64| *cap.lock().unwrap() += 1);
 
-    cfg.counter().set(1).unwrap();
-    cfg.counter().set(2).unwrap();
+    cfg.counter().set(1);
+    cfg.counter().set(2);
 
     assert_eq!(*seen.lock().unwrap(), 0);
 }
@@ -135,7 +135,7 @@ mod stream {
         let mut changes = cfg.counter().subscription_with().stream();
 
         for n in 1..=3 {
-            cfg.counter().set(n).unwrap();
+            cfg.counter().set(n);
         }
 
         let got: Vec<u64> = block_on(async { changes.by_ref().take(3).collect().await });
@@ -151,7 +151,7 @@ mod stream {
         let writer = cfg.counter();
         let handle = std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(20));
-            writer.set(99).unwrap();
+            writer.set(99);
         });
 
         let got = block_on(changes.next());
@@ -168,8 +168,8 @@ mod stream {
 
         let mut changes = field.subscription_with().external().stream();
 
-        field.set(1).unwrap();
-        other.set(2).unwrap();
+        field.set(1);
+        other.set(2);
 
         assert_eq!(block_on(changes.next()), Some(2));
     }
@@ -184,11 +184,11 @@ mod stream {
         let counter = cfg.counter();
 
         let changes = counter.subscription_with().stream();
-        counter.set(1).unwrap();
+        counter.set(1);
         drop(changes);
 
         let mut fresh = counter.subscription_with().stream();
-        counter.set(2).unwrap();
+        counter.set(2);
 
         assert_eq!(
             block_on(fresh.next()),

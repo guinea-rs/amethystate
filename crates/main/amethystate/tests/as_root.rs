@@ -38,8 +38,8 @@ fn a_root_struct_is_the_file_serde_would_have_written() {
         .build()
         .unwrap();
 
-    let config = Spelled::new_with(&store).unwrap();
-    config.name().set("given".to_string()).unwrap();
+    let config = Spelled::new_with(&store);
+    config.name().set("given".to_string());
     store.save_now().unwrap();
 
     let on_disk: serde_json::Value =
@@ -68,7 +68,7 @@ fn a_key_under_a_root_field_is_a_key_beside_it() {
         .build()
         .unwrap();
 
-    let _config = Spelled::new_with(&store).unwrap();
+    let _config = Spelled::new_with(&store);
     store.set(["name", "inner"], &1u32).unwrap();
     store.save_now().unwrap();
 
@@ -84,7 +84,7 @@ fn a_key_under_a_root_field_leaves_that_field_alone(backend: Backend) {
     let path = TempPath::new("as_root_beside_all");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let _config = Spelled::new_with(&store).unwrap();
+    let _config = Spelled::new_with(&store);
     store.set(["name", "inner"], &1u32).unwrap();
 
     assert_eq!(

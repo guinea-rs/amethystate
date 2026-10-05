@@ -16,7 +16,7 @@ fn a_field_with_no_annotation_takes_its_types_default() -> anyhow::Result<()> {
     let path = TempPath::new("book_serde_bare");
     let store = StoreBuilder::new(path.path()).build()?;
 
-    let _bare = Bare::new_with(&store)?;
+    let _bare = Bare::new_with(&store);
 
     assert_eq!(store.get::<u32>(["bare", "n"])?, Some(0));
     assert_eq!(store.get::<String>(["bare", "name"])?, Some(String::new()));
@@ -41,7 +41,7 @@ fn serde_names_where_a_field_goes() -> anyhow::Result<()> {
     let path = TempPath::new("book_serde_names");
     let store = StoreBuilder::new(path.path()).build()?;
 
-    let _net = NetState::new_with(&store)?;
+    let _net = NetState::new_with(&store);
 
     assert_eq!(store.get::<u16>(["net", "listenPort"])?, Some(8080));
     assert_eq!(store.get::<bool>(["net", "tls", "enabled"])?, Some(false));
@@ -69,7 +69,7 @@ fn a_flattened_child_writes_at_its_holders_level() -> anyhow::Result<()> {
     let path = TempPath::new("book_serde_flatten");
     let store = StoreBuilder::new(path.path()).build()?;
 
-    let _editor = Editor::new_with(&store)?;
+    let _editor = Editor::new_with(&store);
 
     assert_eq!(store.get::<u32>(["editor", "width"])?, Some(800));
     assert_eq!(store.get::<u32>(["editor", "window", "width"])?, None);
@@ -100,7 +100,7 @@ fn a_leaf_keeps_its_own_serde() -> anyhow::Result<()> {
     let path = TempPath::new("book_serde_leaf");
     let store = StoreBuilder::new(path.path()).build()?;
 
-    let _svc = Service::new_with(&store)?;
+    let _svc = Service::new_with(&store);
 
     assert_eq!(
         store.get::<Endpoint>(["svc", "upstream"])?,

@@ -99,7 +99,7 @@ fn a_cell_and_a_map_without_a_struct(backend: Backend) -> anyhow::Result<()> {
 #[backends(all)]
 fn a_path_a_struct_declared_is_refused(backend: Backend) -> anyhow::Result<()> {
     let (_path, store) = open(backend, "book_kv_owned")?;
-    let _network = Network::new_with(&store)?;
+    let _network = Network::new_with(&store);
     let kv = store.kv();
 
     //@show writing where a struct lives
@@ -200,7 +200,7 @@ pub struct Chrome {
 #[backends(Json)]
 fn what_a_kv_write_looks_like_in_the_file(backend: Backend) -> anyhow::Result<()> {
     let (path, store) = open(backend, "book_kv_on_disk")?;
-    let _chrome = Chrome::new_with(&store)?;
+    let _chrome = Chrome::new_with(&store);
 
     //@show a declared struct and a Kv write, side by side in one file
     store

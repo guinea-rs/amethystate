@@ -21,7 +21,7 @@ fn an_entry_that_will_not_read_is_named_until_something_readable_replaces_it(bac
         .backend(backend)
         .build()
         .unwrap();
-    let panel = Panel::new_with(&store).unwrap();
+    let panel = Panel::new_with(&store);
 
     let _ = store.set(entry("npu"), &"not a number".to_string());
     let _ = store.set(entry("gpu"), &"not a number either".to_string());

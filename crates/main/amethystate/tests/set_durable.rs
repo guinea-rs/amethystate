@@ -33,7 +33,7 @@ pub struct Volatile {
 fn a_volatile_field_is_already_durable() {
     let at = TempPath::new("durable_volatile");
     let store = StoreBuilder::new(&at).build().unwrap();
-    let state = Volatile::new_with(&store).unwrap();
+    let state = Volatile::new_with(&store);
 
     state.scratch().durable().set(3).unwrap();
     futures::executor::block_on(state.scratch().durable().set_async(4)).unwrap();
@@ -52,7 +52,7 @@ fn nothing_happens_until_the_future_is_polled() {
         .disk(|d| d.debounce(Duration::from_secs(60)))
         .build()
         .unwrap();
-    let state = Settings::new_with(&store).unwrap();
+    let state = Settings::new_with(&store);
 
     let retries = state.retries();
     let durable = retries.durable();
@@ -87,11 +87,11 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Settings::new_with(&store).unwrap();
+        let state = Settings::new_with(&store);
 
         state.port().durable().set(1).unwrap();
 
-        state.port().set(8080).unwrap();
+        state.port().set(8080);
         let buffered = contents(&path);
         assert!(
             buffered.contains("\"port\": 1") && !buffered.contains("8080"),
@@ -114,7 +114,7 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Settings::new_with(&store).unwrap();
+        let state = Settings::new_with(&store);
 
         futures::executor::block_on(state.retries().durable().set_async(7)).unwrap();
 
@@ -133,7 +133,7 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Mapped::new_with(&store).unwrap();
+        let state = Mapped::new_with(&store);
 
         state.limits().durable().insert("gpu".into(), &90).unwrap();
 
@@ -151,7 +151,7 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Mapped::new_with(&store).unwrap();
+        let state = Mapped::new_with(&store);
 
         state.limits().durable().insert("gpu".into(), &90).unwrap();
         state.limits().durable().remove("gpu").unwrap();
@@ -196,7 +196,7 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Settings::new_with(&store).unwrap();
+        let state = Settings::new_with(&store);
 
         let cell = state.port().cell();
         cell.durable().set(7070).unwrap();
@@ -215,7 +215,7 @@ mod on_disk {
             .disk(|d| d.debounce(Duration::from_secs(60)))
             .build()
             .unwrap();
-        let state = Mapped::new_with(&store).unwrap();
+        let state = Mapped::new_with(&store);
 
         state.limits().insert("cpu".into(), &0).unwrap();
         state

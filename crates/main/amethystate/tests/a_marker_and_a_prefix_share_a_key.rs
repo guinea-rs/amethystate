@@ -45,8 +45,8 @@ fn a_declared_prefix_does_not_land_on_a_namespaces_marker(backend: Backend) {
         let store = opened(backend, &file);
         store.mark_initialized(&ns("foo")).unwrap();
 
-        let held = AtTheMarkersPlace::new_with(&store).unwrap();
-        held.width().set(41).unwrap();
+        let held = AtTheMarkersPlace::new_with(&store);
+        held.width().set(41);
 
         store.save_now().unwrap();
         store.close().unwrap();
@@ -59,7 +59,7 @@ fn a_declared_prefix_does_not_land_on_a_namespaces_marker(backend: Backend) {
          saying the namespace `foo` had been seeded"
     );
 
-    let held = AtTheMarkersPlace::new_with(&store).unwrap();
+    let held = AtTheMarkersPlace::new_with(&store);
     assert_eq!(
         held.width().get(),
         41,

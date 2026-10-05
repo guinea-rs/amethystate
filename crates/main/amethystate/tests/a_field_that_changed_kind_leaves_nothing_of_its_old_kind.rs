@@ -99,8 +99,8 @@ fn a_value_that_became_a_map_leaves_no_value_behind(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let tally = v1::Tally::new_with(&store).unwrap();
-        tally.count().set(5).unwrap();
+        let tally = v1::Tally::new_with(&store);
+        tally.count().set(5);
         store.save_now().unwrap();
     }
 
@@ -111,7 +111,7 @@ fn a_value_that_became_a_map_leaves_no_value_behind(backend: Backend) {
         "{backend:?}: the old value outlived the field becoming a map"
     );
 
-    let tally = Tally::new_with(&store).unwrap();
+    let tally = Tally::new_with(&store);
     assert_eq!(tally.count().get("total"), Some(5));
     assert_eq!(tally.count().len(), 1);
 }
@@ -125,7 +125,7 @@ fn a_map_that_became_a_value_leaves_no_entry_behind(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let sizes = v1::Sizes::new_with(&store).unwrap();
+        let sizes = v1::Sizes::new_with(&store);
         sizes.widths().insert("cpu".into(), &110).unwrap();
         sizes.widths().insert("gpu".into(), &120).unwrap();
         store.save_now().unwrap();
@@ -141,7 +141,7 @@ fn a_map_that_became_a_value_leaves_no_entry_behind(backend: Backend) {
         "{backend:?}: an entry outlived the map becoming a value"
     );
 
-    let sizes = Sizes::new_with(&store).unwrap();
+    let sizes = Sizes::new_with(&store);
     assert_eq!(sizes.widths().get(), 230);
 }
 
@@ -154,9 +154,9 @@ fn a_nested_struct_leaves_nothing_of_a_field_it_changed_or_gave_up(backend: Back
             .backend(backend)
             .build()
             .unwrap();
-        let panel = v1::Panel::new_with(&store).unwrap();
-        panel.layout().gap().set(4).unwrap();
-        panel.layout().legacy().set(9).unwrap();
+        let panel = v1::Panel::new_with(&store);
+        panel.layout().gap().set(4);
+        panel.layout().legacy().set(9);
         store.save_now().unwrap();
     }
 
@@ -172,6 +172,6 @@ fn a_nested_struct_leaves_nothing_of_a_field_it_changed_or_gave_up(backend: Back
         "{backend:?}: a field the nested struct gave up outlived the migration"
     );
 
-    let panel = Panel::new_with(&store).unwrap();
+    let panel = Panel::new_with(&store);
     assert_eq!(panel.layout().gap().get("total"), Some(4));
 }
