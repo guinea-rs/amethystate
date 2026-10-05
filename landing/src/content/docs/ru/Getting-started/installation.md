@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.23", features = ["redb"] }
+amethystate = { version = "0.24", features = ["redb"] }
 ```
 
 Движка по умолчанию нет. Приложение само называет тот, что будет держать его
@@ -60,7 +60,7 @@ store — говорят при открытии, через `StoreBuilder::back
 файла текстового движка. Где угодно, кроме страницы, store не откроется.
 
 ```toml
-amethystate = { version = "0.23", features = ["localstorage"] }
+amethystate = { version = "0.24", features = ["localstorage"] }
 ```
 
 ### Несколько движков сразу
@@ -87,7 +87,7 @@ SQLite — скажем, `STRICT`-таблицами, — и минимум пр
 «схема испорчена» — про целый и невредимый файл.
 
 ```toml
-amethystate = { version = "0.23", features = ["sqlite"] }
+amethystate = { version = "0.24", features = ["sqlite"] }
 ```
 
 ## Переход с существующего решения

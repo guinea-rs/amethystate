@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.23", features = ["redb"] }
+amethystate = { version = "0.24", features = ["redb"] }
 ```
 
 No engine is built in until one is named. The application names the one that
@@ -60,7 +60,7 @@ write another tab makes arrives as a change from outside, the way an edit to a
 text engine's file does. Anywhere but a page the open is refused.
 
 ```toml
-amethystate = { version = "0.23", features = ["localstorage"] }
+amethystate = { version = "0.24", features = ["localstorage"] }
 ```
 
 ### Several engines at once
@@ -87,7 +87,7 @@ older SQLite reports a corrupt schema rather than a version it cannot read,
 about a file that is perfectly intact.
 
 ```toml
-amethystate = { version = "0.23", features = ["sqlite"] }
+amethystate = { version = "0.24", features = ["sqlite"] }
 ```
 
 ## Migrating from an existing solution
