@@ -13,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.23.5"
+version = "0.24.0"
 authors = ["Tam1SH <ignatternyev54@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -27,10 +27,10 @@ rust-version = "1.90.0"
 
 [workspace.dependencies]
 # internal
-amethystate = { path = "crates/main/amethystate", version = "0.23.5" }
-amethystate-core = { path = "crates/core/amethystate-core", version = "0.23.5" }
-amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.23.5" }
-amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.23.5" }
+amethystate = { path = "crates/main/amethystate", version = "0.24.0" }
+amethystate-core = { path = "crates/core/amethystate-core", version = "0.24.0" }
+amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.24.0" }
+amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.24.0" }
 
 # external
 anyhow = "1.0"

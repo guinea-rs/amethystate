@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate"
-version = "0.23.5"
+version = "0.24.0"
 dependencies = [
  "amethystate",
  "amethystate-core",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-core"
-version = "0.23.5"
+version = "0.24.0"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-guinea"
-version = "0.23.5"
+version = "0.24.0"
 dependencies = [
  "amethystate",
  "guinea-app",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros"
-version = "0.23.5"
+version = "0.24.0"
 dependencies = [
  "amethystate-macros-core",
  "darling",
@@ -149,7 +149,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-core"
-version = "0.23.5"
+version = "0.24.0"
 dependencies = [
  "darling",
  "proc-macro2",
