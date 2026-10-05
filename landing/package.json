@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@astrojs/mdx": "^8.0.2",
-    "@astrojs/starlight": "^0.42.4",
+    "@astrojs/starlight": "^0.42.5",
     "@tailwindcss/vite": "^4.2.1",
     "astro": "^7.3.5",
     "delaunator": "^5.0.1",
     "tailwindcss": "^4.2.1",
-    "vite": "^8.3.1"
+    "vite": "^8.3.2"
   }
 }
