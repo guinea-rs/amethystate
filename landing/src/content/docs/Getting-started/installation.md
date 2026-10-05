@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.23", features = ["redb"] }
+amethystate = { version = "0.24", features = ["redb"] }
 ```
 
 No engine is built in until one is named. The application names the one that
@@ -60,7 +60,7 @@ write another tab makes arrives as a change from outside, the way an edit to a
 text engine's file does. Anywhere but a page the open is refused.
 
 ```toml
-amethystate = { version = "0.23", features = ["localstorage"] }
+amethystate = { version = "0.24", features = ["localstorage"] }
 ```
 
 ### Several engines at once
@@ -87,23 +87,14 @@ older SQLite reports a corrupt schema rather than a version it cannot read,
 about a file that is perfectly intact.
 
 ```toml
-amethystate = { version = "0.23", features = ["sqlite"] }
+amethystate = { version = "0.24", features = ["sqlite"] }
 ```
-
-## Tauri
-
-Tauri integration includes a plugin, async backend, and Rust and TypeScript bindings generator. Enable it with the `tauri` feature, next to an engine:
-
-```toml
-amethystate = { version = "0.23", features = ["tauri", "redb"] }
-```
-
-See [Tauri integration](/amethystate/integrations/tauri/) for setup and usage.
 
 ## Migrating from an existing solution
 
 See [Migrating from a custom solution](/amethystate/migrations/custom/).
 
-## Framework integrations
+## guinea
 
-See [Integrations](/amethystate/integrations/overview/).
+A guinea timer whose period follows a stored setting: see
+[guinea](/amethystate/integrations/guinea/).

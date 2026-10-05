@@ -156,6 +156,4 @@ pub struct AppState {
 
 A volatile field still takes a [rule](/amethystate/state/rules/): every write
 goes through it, so it keeps in range a value this process holds and never
-stores. Not on a Tauri frontend's struct: there a rule is a compile error, since
-the host's declaration judges what is stored, and a field kept only in the page
-goes without one.
+stores.

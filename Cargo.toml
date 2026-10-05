@@ -1,20 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/tauri/amethystate-codegen",
-    "crates/tauri/tauri-plugin-amethystate",
     "crates/core/amethystate-core",
     "crates/core/amethystate-macros-core",
     "crates/main/amethystate",
-    "crates/main/amethystate-arena",
     "crates/main/amethystate-macros",
-    "crates/main/amethystate-macros-arena",
-    "crates/adapters/amethystate-tauri",
-    "crates/adapters/amethystate-gpui",
-    "crates/adapters/amethystate-leptos",
-    "crates/adapters/amethystate-dioxus",
-    "crates/adapters/amethystate-yew",
-    "crates/adapters/amethystate-slint",
     "crates/adapters/amethystate-guinea",
     "crates/test/amethystate-test-macros",
     "crates/test/amethystate-page-insta",
@@ -23,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.23.5"
+version = "0.24.0"
 authors = ["Tam1SH <ignatternyev54@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -37,14 +27,10 @@ rust-version = "1.90.0"
 
 [workspace.dependencies]
 # internal
-amethystate = { path = "crates/main/amethystate", version = "0.23.5" }
-amethystate-core = { path = "crates/core/amethystate-core", version = "0.23.5" }
-amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.23.5" }
-amethystate-arena = { path = "crates/main/amethystate-arena", version = "0.23.5" }
-amethystate-tauri = { path = "crates/adapters/amethystate-tauri", version = "0.23.5" }
-amethystate-codegen = { path = "crates/tauri/amethystate-codegen", version = "0.23.5" }
-amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.23.5" }
-amethystate-macros-arena = { path = "crates/main/amethystate-macros-arena", version = "0.23.5" }
+amethystate = { path = "crates/main/amethystate", version = "0.24.0" }
+amethystate-core = { path = "crates/core/amethystate-core", version = "0.24.0" }
+amethystate-macros = { path = "crates/main/amethystate-macros", version = "0.24.0" }
+amethystate-macros-core = { path = "crates/core/amethystate-macros-core", version = "0.24.0" }
 
 # external
 anyhow = "1.0"

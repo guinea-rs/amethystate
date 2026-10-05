@@ -194,6 +194,5 @@ state.mutate(|d| {
 - **Трассировка** — структурированные события: каждая запись помечена
   структурой, которая её сделала:
   [Наблюдаемость](/amethystate/ru/concepts/observability/).
-- **Интеграции с фреймворками** — Tauri с биндингами TypeScript, Leptos,
-  Dioxus, Yew, GPUI:
-  [Интеграции](/amethystate/ru/integrations/overview/).
+- **guinea** — таймер, период которого следует за сохранённой настройкой:
+  [guinea](/amethystate/ru/integrations/guinea/).

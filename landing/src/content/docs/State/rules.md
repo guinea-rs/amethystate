@@ -14,8 +14,7 @@ A rule is declared once, on the field, and it stands at every way a value goes
 through that field, in both directions:
 
 - **in** - read from the store as the struct is built or loaded, brought in by
-  an edit to the file, written past the field by path with `Store::set` or from
-  a Tauri frontend;
+  an edit to the file, written past the field by path with `Store::set`;
 - **out** - written by this process with `set`, `update` or `modify`, or saved
   with a loaded struct's `save`.
 
@@ -175,7 +174,7 @@ sets do not, and [Errors](/amethystate/concepts/errors/) is why.
 | --- | --- |
 | read as the struct is built | runs; a correction is written back |
 | written through the field: `set`, `update`, `modify` | runs; a refusal leaves the field and the store as they were |
-| written past the field: `Store::set` by path, a Tauri frontend | runs as it arrives; a refusal keeps the last good value and wakes nobody, a correction is written back |
+| written past the field: `Store::set` by path | runs as it arrives; a refusal keeps the last good value and wakes nobody, a correction is written back |
 | an edit from outside the process | runs as it arrives, the same way |
 | `load_with` | runs; a correction is written back |
 | `save` on a loaded struct | runs on every field before any is written; a refusal fails the save |

@@ -27,15 +27,13 @@ reactive, and they outlive the program.
 - **Behaviour you choose** — which engine holds the state, when a write reaches the disk, what a field does with a value that will not read, what a new version does to an old file
 - **Migrations** — explicit versions, run at startup; drift is logged
 - **Engines** — `redb`, `sqlite`, and text as `json`/`toml`/`ron` on disk; text files reload on external edits
-- **In a browser** — `localStorage`, no Tauri needed; a page hears the writes another tab makes
-- **[Integrations](https://guinea-rs.github.io/amethystate/integrations/overview)** — Tauri (+TS bindings), Leptos, Dioxus, Yew, GPUI, egui/iced/ratatui
+- **In a browser** — `localStorage`; a page hears the writes another tab makes
+- **[guinea](https://guinea-rs.github.io/amethystate/integrations/guinea)** — a timer whose period follows a stored setting
 - **Tracing** — structured events, each write tagged with its source struct
 
 > [!WARNING]
-> **The framework adapters and about half of the engines are not used in any real application.**
-> They run in CI and were smoke-tested, and they were built as a proof of concept for the
-> architecture of the store: that one store can sit behind very different engines and GUI models.
-> Nobody depends on them day to day, so expect rough edges there, and report what you hit.
+> **About half of the engines are not used in any real application.**
+> They run in CI and were smoke-tested, so expect rough edges there, and report what you hit.
 
 <!-- shown: the readme's first example -->
 ```rust
@@ -65,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-See the **[book](https://guinea-rs.github.io/amethystate/introduction)** for full documentation — concepts, migrations, and per-framework integration guides.
+See the **[book](https://guinea-rs.github.io/amethystate/introduction)** for full documentation — concepts, the store, and migrations.
 
 ### For agents
 

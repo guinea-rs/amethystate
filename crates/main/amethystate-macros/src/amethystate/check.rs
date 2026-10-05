@@ -7,7 +7,7 @@ use syn::spanned::Spanned;
 
 use super::diagnostics::Diagnostics;
 use super::generate::{check_written_path, names_type};
-use super::model::{Field, Mode, OnUnreadable, Placement, Schema, Shape, Target};
+use super::model::{Field, Mode, OnUnreadable, Placement, Schema, Shape};
 
 pub(crate) fn schema(schema: &Schema, found: &mut Diagnostics) {
     if let Some(Placement::Under(prefix)) = &schema.prefix
@@ -48,29 +48,13 @@ pub(crate) fn schema(schema: &Schema, found: &mut Diagnostics) {
         );
     }
 
-    if let Some(written) = schema.manual_open {
-        if schema.prefix.is_none() {
-            found.at(
-                written,
-                "a struct with no prefix is a component, built by the struct holding it, so there \
-                 is no `Open` of its own to write. Write the opening on the holder",
-            );
-        } else if schema.target == Target::TauriWasm {
-            found.at(
-                written,
-                "a struct for a Tauri frontend is opened by `load_async` against the host, not by \
-                 `Open` against a store it holds, so there is no `Open` here to write",
-            );
-        }
-    }
-
-    if schema.target == Target::TauriWasm && schema.mode != Mode::Reactive {
+    if let Some(written) = schema.manual_open
+        && schema.prefix.is_none()
+    {
         found.at(
-            schema.name.span(),
-            "`tauri-wasm` builds against a store on the other side of a command, and `persistent` \
-             is a struct that loads and saves itself against one it holds. There is nothing here \
-             to load from: what the browser has is what the last command answered. Drop the mode, \
-             and let the fields watch",
+            written,
+            "a struct with no prefix is a component, built by the struct holding it, so there \
+             is no `Open` of its own to write. Write the opening on the holder",
         );
     }
 
@@ -112,19 +96,6 @@ fn one(schema: &Schema, field: &Field, found: &mut Diagnostics) {
                 "`{named}` is a nested struct, and a rule judges one value: put it on the \
                  fields of that struct. A rule between them goes where the struct that holds \
                  it is opened - `open = manual` and an `Open` of its own"
-            ),
-        );
-    }
-
-    if let Some(rule) = &field.rules.rule
-        && schema.target == Target::TauriWasm
-    {
-        found.at(
-            rule.span,
-            format!(
-                "`{named}` is on a Tauri frontend, which takes what the host settled: the host \
-                 judges every stored value by the rule on its own declaration, and a field kept \
-                 only in the page has no rule here. Put the rule on the host's struct"
             ),
         );
     }

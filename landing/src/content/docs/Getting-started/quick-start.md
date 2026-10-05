@@ -192,6 +192,5 @@ the debouncer.
   [Interceptors](/amethystate/concepts/subscriptions/#interceptors).
 - **Tracing** - structured events, each write tagged with the struct that made
   it: [Observability](/amethystate/concepts/observability/).
-- **Framework integrations** - Tauri with TypeScript bindings, Leptos, Dioxus,
-  Yew, GPUI:
-  [Integrations](/amethystate/integrations/overview/).
+- **guinea** - a timer whose period follows a stored setting:
+  [guinea](/amethystate/integrations/guinea/).

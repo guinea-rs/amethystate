@@ -11,7 +11,7 @@ period at once, without waiting out the old one.
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.23"
+amethystate-guinea = "0.24"
 ```
 
 The crate's version is amethystate's. It builds against guinea 0.18 and every later release, and like guinea it needs Rust 1.95.

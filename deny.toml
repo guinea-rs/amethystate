@@ -5,26 +5,10 @@ all-features = true
 version = 2
 yanked = "deny"
 ignore = [
-    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.39 in plist, which tauri-build and tauri-codegen use to read the application's own Info.plist at build time; waits on tauri" },
-    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.39 in plist, which tauri-build and tauri-codegen use to read the application's own Info.plist at build time; waits on tauri" },
     { id = "RUSTSEC-2023-0126", reason = "im, a dev-dependency only two comparison benches use; OrdSet is not one of them" },
     { id = "RUSTSEC-2026-0248", reason = "im is unmaintained; a dev-dependency only two comparison benches use" },
     { id = "RUSTSEC-2026-0247", reason = "bitmaps is unmaintained; comes with im, a bench-only dev-dependency" },
     { id = "RUSTSEC-2026-0251", reason = "sized-chunks is unmaintained; comes with im, a bench-only dev-dependency" },
-    { id = "RUSTSEC-2025-0141", reason = "bincode 1 is unmaintained; yew 0.23 brings it through gloo-worker; waits on yew" },
-    { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained; slint and gpui-pre bring it for text shaping; waits on them" },
-    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; slint and gpui-pre bring it for fonts; waits on them" },
-    { id = "RUSTSEC-2025-0081", reason = "unic-* is unmaintained; tauri-codegen and tauri-macros bring it; waits on tauri" },
-    { id = "RUSTSEC-2025-0075", reason = "unic-* is unmaintained; tauri-codegen and tauri-macros bring it; waits on tauri" },
-    { id = "RUSTSEC-2025-0080", reason = "unic-* is unmaintained; tauri-codegen and tauri-macros bring it; waits on tauri" },
-    { id = "RUSTSEC-2025-0100", reason = "unic-* is unmaintained; tauri-codegen and tauri-macros bring it; waits on tauri" },
-    { id = "RUSTSEC-2025-0098", reason = "unic-* is unmaintained; tauri-codegen and tauri-macros bring it; waits on tauri" },
-    { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; leptos and slint's compiler bring it; waits on them" },
-    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained; yew-macro 0.23 brings it; waits on yew" },
-    { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 is unmaintained; leptos_macro brings it; waits on leptos" },
-    { id = "RUSTSEC-2025-0057", reason = "fxhash is unmaintained; dioxus brings it into examples/dioxus; waits on dioxus" },
-    { id = "RUSTSEC-2024-0384", reason = "instant is unmaintained; gpui-pre brings it into examples/gpui; waits on gpui" },
-    { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile is unmaintained; gpui-pre brings it into examples/gpui; waits on gpui" },
 ]
 
 [bans]
@@ -60,27 +44,7 @@ allow = [
     "Unicode-DFS-2016",
     "Zlib",
 ]
-exceptions = [
-    { crate = "slint", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "slint-build", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "slint-macros", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-backend-linuxkms", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-backend-selector", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-backend-winit", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-common", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-compiler", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-core", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-core-macros", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-renderer-femtovg", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-renderer-skia", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "i-slint-renderer-software", allow = ["LicenseRef-Slint-Royalty-free-2.0"] },
-    { crate = "ksni", allow = ["Unlicense"] },
-    { crate = "libbz2-rs-sys", allow = ["bzip2-1.0.6"] },
-    { crate = "libfuzzer-sys", allow = ["NCSA"] },
-    { crate = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },
-    { crate = "enum-iterator", allow = ["0BSD"] },
-    { crate = "enum-iterator-derive", allow = ["0BSD"] },
-]
+exceptions = []
 
 [licenses.private]
 ignore = true

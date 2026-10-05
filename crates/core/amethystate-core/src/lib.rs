@@ -9,7 +9,6 @@ pub mod failure;
 pub mod async_impl;
 pub mod path;
 pub mod primitives;
-pub mod scheme;
 mod state;
 
 #[cfg(feature = "test-utils")]
@@ -29,7 +28,6 @@ pub use primitives::map_ops_async::*;
 
 pub use backend::*;
 pub use primitives::*;
-pub use scheme::*;
 #[cfg(feature = "async")]
 pub use state::*;
 

@@ -1,5 +1,0 @@
----
-source: crates/tauri/amethystate-codegen/tests/two_structs_of_one_name.rs
-expression: refused.unwrap().to_string()
----
-`two_structs_of_one_name::network::Config` and `two_structs_of_one_name::window::Config` would both be written as `Config`; the bindings name a struct by its own name, so one of them needs another

@@ -4,18 +4,6 @@ updates:
   - package-ecosystem: cargo
     directories:
       - /
-      - /examples/dioxus
-      - /examples/egui
-      - /examples/gpui
-      - /examples/iced
-      - /examples/ratatui
-      - /examples/slint
-      - /examples/tauri-leptos
-      - /examples/tauri-typescript/src-tauri
-      - /examples/tauri-yew
-      - /examples/web-dioxus
-      - /examples/web-leptos
-      - /examples/web-yew
     schedule:
       interval: weekly
       day: monday
@@ -39,9 +27,7 @@ updates:
 
   - package-ecosystem: npm
     directories:
-      - /js
       - /landing
-      - /examples/tauri-typescript
     schedule:
       interval: weekly
       day: monday

@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.23", features = ["redb"] }
+amethystate = { version = "0.24", features = ["redb"] }
 ```
 
 Движка по умолчанию нет. Приложение само называет тот, что будет держать его
@@ -60,7 +60,7 @@ store — говорят при открытии, через `StoreBuilder::back
 файла текстового движка. Где угодно, кроме страницы, store не откроется.
 
 ```toml
-amethystate = { version = "0.23", features = ["localstorage"] }
+amethystate = { version = "0.24", features = ["localstorage"] }
 ```
 
 ### Несколько движков сразу
@@ -87,25 +87,14 @@ SQLite — скажем, `STRICT`-таблицами, — и минимум пр
 «схема испорчена» — про целый и невредимый файл.
 
 ```toml
-amethystate = { version = "0.23", features = ["sqlite"] }
+amethystate = { version = "0.24", features = ["sqlite"] }
 ```
-
-## Tauri
-
-Интеграция с Tauri включает плагин, асинхронный бэкенд и генератор биндингов
-для Rust и TypeScript. Включается через feature `tauri`, рядом с движком:
-
-```toml
-amethystate = { version = "0.23", features = ["tauri", "redb"] }
-```
-
-Настройка и использование:
-[Интеграция с Tauri](/amethystate/ru/integrations/tauri/).
 
 ## Переход с существующего решения
 
 См. [Переход со своего решения](/amethystate/ru/migrations/custom/).
 
-## Интеграции с фреймворками
+## guinea
 
-См. [Интеграции](/amethystate/ru/integrations/overview/).
+Таймер guinea, период которого следует за сохранённой настройкой:
+см. [guinea](/amethystate/ru/integrations/guinea/).

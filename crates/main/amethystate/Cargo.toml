@@ -32,7 +32,6 @@ memory = ["dep:rmp-serde"]
 localstorage = ["dep:web-sys", "dep:wasm-bindgen"]
 
 async = ["amethystate-core/async"]
-tauri = ["amethystate-macros/tauri", "amethystate-tauri", "async"]
 
 test-utils = ["amethystate-core/test-utils"]
 
@@ -71,7 +70,6 @@ rusqlite = { workspace = true, optional = true }
 sonic-rs = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["v4"] }
 amethystate-core = { workspace = true }
-amethystate-tauri = { workspace = true, optional = true }
 amethystate-macros = { workspace = true }
 serde = { workspace = true }
 error-stack = { workspace = true }
@@ -123,7 +121,7 @@ im.workspace = true
 rpds = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-amethystate = { path = ".", features = ["memory", "localstorage", "test-utils", "tauri"] }
+amethystate = { path = ".", features = ["memory", "localstorage", "test-utils"] }
 wasm-bindgen-test = "0.3"
 wasm-bindgen = "0.2.125"
 wasm-bindgen-futures = "0.4.72"
