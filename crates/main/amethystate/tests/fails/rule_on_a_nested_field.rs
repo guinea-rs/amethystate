@@ -1,11 +1,9 @@
 use amethystate::amethystate;
-use amethystate::store::{Invalid, RuleContext};
+use amethystate::store::RuleContext;
 
-fn a_reachable_host(inner: &mut Inner, _cx: &RuleContext) -> Result<(), Invalid> {
+fn a_reachable_host(inner: &mut Inner, _cx: &RuleContext) {
     if inner.host().get().is_empty() {
-        Err(Invalid::new("a host nobody can reach"))
-    } else {
-        Ok(())
+        inner.host().set("localhost".to_string());
     }
 }
 

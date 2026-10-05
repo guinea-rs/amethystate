@@ -33,7 +33,7 @@ fn an_awaited_durable_write_resolves_once_it_is_on_disk(backend: Backend) {
         .disk(|d| d.debounce(Duration::from_secs(60)))
         .build()
         .unwrap();
-    let state = Awaited::new_with(&store).unwrap();
+    let state = Awaited::new_with(&store);
 
     let written = resolved_within(move || {
         futures::executor::block_on(state.port().durable().set_async(8080))
@@ -50,7 +50,7 @@ fn an_awaited_durable_write_with_nothing_left_to_flush_resolves_too(backend: Bac
         .disk(|d| d.debounce(Duration::from_secs(60)))
         .build()
         .unwrap();
-    let state = Awaited::new_with(&store).unwrap();
+    let state = Awaited::new_with(&store);
     store.save_now().unwrap();
 
     let written =

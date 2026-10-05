@@ -37,8 +37,8 @@ fn todays_build(path: &TempPath, rules: impl FnOnce(Fallbacks) -> Fallbacks) -> 
         .rules(rules)
         .migrate()
         .unwrap();
-    let processes = Processes::new_with(&store).unwrap();
-    let agents = Agents::new_with(&store).unwrap();
+    let processes = Processes::new_with(&store);
+    let agents = Agents::new_with(&store);
     store.save_now().unwrap();
     drop((processes, agents, store));
     settle();

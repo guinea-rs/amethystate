@@ -36,7 +36,7 @@ fn two_steps_to_one_version_are_not_one_quietly(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        v1::Twice::new_with(&store).unwrap().count().set(7).unwrap();
+        v1::Twice::new_with(&store).count().set(7);
         store.save_now().unwrap();
     }
 

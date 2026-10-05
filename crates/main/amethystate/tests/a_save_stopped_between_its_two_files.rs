@@ -80,7 +80,7 @@ fn a_save_that_gave_an_empty_store_its_first_key_and_stopped_opens_again() {
 #[test]
 fn a_map_seeded_by_a_save_that_stopped_comes_up_with_its_defaults() {
     in_the_child(|store| {
-        Shipped::new_with(store).unwrap();
+        Shipped::new_with(store);
     });
 
     let at = TempPath::new("a_save_stopped_seeding");
@@ -96,7 +96,7 @@ fn a_map_seeded_by_a_save_that_stopped_comes_up_with_its_defaults() {
     );
 
     let store = opened(at.path());
-    let shipped = Shipped::new_with(&store).unwrap();
+    let shipped = Shipped::new_with(&store);
     assert_eq!(shipped.items().get("one"), Some(1));
 }
 

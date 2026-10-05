@@ -3,16 +3,16 @@ use crate::store::StorageError;
 use crate::store::traits::StoredAs;
 use error_stack::Report;
 
-/// What building a struct does about a stored value it will not accept: one
-/// that does not decode into the field's type, and one a declared rule
-/// refuses.
+/// What building a struct does about a stored value that does not decode into
+/// the field's type.
 ///
 /// The value got there somehow - a file edited by hand, a migration that left
 /// something behind, a codec that took what it cannot read back - and the two
 /// answers serve different applications.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OnUnreadable {
-    /// Construction fails, naming the path. Nothing half-built is handed out.
+    /// Construction fails, naming the path: `new_with` panics, `try_new_with`
+    /// answers `Err`. Nothing half-built is handed out.
     #[default]
     Refuse,
 
@@ -166,7 +166,7 @@ pub enum OnDelete {
 }
 
 /// What a field does about the store disagreeing with it: a value it cannot
-/// read, a key removed under it, and a value its declared rule refuses.
+/// read, a key removed under it, and a value its declared rule puts right.
 ///
 /// One value carries all of it, so "what did this field decide" has a single
 /// answer to hold and a single place to add to.

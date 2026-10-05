@@ -16,7 +16,7 @@ pub struct ConnectionState {
 fn open(backend: Backend, tag: &str) -> anyhow::Result<(TempPath, ConnectionState)> {
     let path = TempPath::new(tag);
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let held = ConnectionState::new_with(&store)?;
+    let held = ConnectionState::new_with(&store);
     Ok((path, held))
 }
 
@@ -31,12 +31,12 @@ fn a_subscription_lasts_as_long_as_its_handle(backend: Backend) -> anyhow::Resul
         seen.lock().unwrap().push(*port);
     });
 
-    state.port().set(9090)?;
+    state.port().set(9090);
     assert_eq!(*heard.lock().unwrap(), [9090]);
 
     drop(sub);
 
-    state.port().set(1234)?;
+    state.port().set(1234);
     assert_eq!(*heard.lock().unwrap(), [9090]);
     //@show-end
 
@@ -46,7 +46,7 @@ fn a_subscription_lasts_as_long_as_its_handle(backend: Backend) -> anyhow::Resul
         ignored.lock().unwrap().push(*port);
     });
 
-    state.port().set(4321)?;
+    state.port().set(4321);
     assert_eq!(*heard.lock().unwrap(), [9090]);
     //@show-end
 
@@ -62,8 +62,8 @@ fn a_stream_yields_every_change_to_a_loop(backend: Backend) -> anyhow::Result<()
     //@show taking the changes into a loop of your own
     let mut ports = state.port().subscription_with().stream();
 
-    state.port().set(9090)?;
-    state.port().set(1234)?;
+    state.port().set(9090);
+    state.port().set(1234);
 
     let mut heard = Vec::new();
     futures::executor::block_on(async {
@@ -120,8 +120,8 @@ fn ignoring_your_own_writes(backend: Backend) -> anyhow::Result<()> {
             seen.lock().unwrap().push(*port);
         });
 
-    state.port().set(8080)?;
-    watcher.set(9090)?;
+    state.port().set(8080);
+    watcher.set(9090);
 
     assert_eq!(*heard.lock().unwrap(), [9090]);
     //@show-end
@@ -146,8 +146,8 @@ fn a_clone_is_the_same_actor_and_a_fork_is_not(backend: Backend) -> anyhow::Resu
         .external()
         .register(move |value| seen.lock().unwrap().push(*value));
 
-    same.set(1111)?;
-    other.set(2222)?;
+    same.set(1111);
+    other.set(2222);
 
     assert_eq!(*heard.lock().unwrap(), [2222]);
 
@@ -172,7 +172,7 @@ fn who_made_the_change(backend: Backend) -> anyhow::Result<()> {
             seen.lock().unwrap().push((*port, who));
         });
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     let (port, who) = heard.lock().unwrap()[0];
     assert_eq!(port, 9090);

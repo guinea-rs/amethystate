@@ -40,8 +40,8 @@ fn a_migration_is_not_undone_by_the_watcher_of_the_store_it_opened(backend: Back
                 .backend(backend)
                 .build()
                 .unwrap();
-            let v1 = watched_v1::Watched::new_with(&store).unwrap();
-            v1.gone().set(42).unwrap();
+            let v1 = watched_v1::Watched::new_with(&store);
+            v1.gone().set(42);
             store.flush_prefix(StorePath::root()).unwrap();
         }
 

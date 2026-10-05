@@ -40,8 +40,8 @@ fn clear_reports_once_to_every_handle(backend: Backend) {
     let path = TempPath::new("clear_one_event");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let a = Cfg::new_with(&store).unwrap();
-    let b = Cfg::new_with(&store).unwrap();
+    let a = Cfg::new_with(&store);
+    let b = Cfg::new_with(&store);
 
     let (seen_a, _sa) = watch(&a.items());
     let (seen_b, _sb) = watch(&b.items());
@@ -57,8 +57,8 @@ fn clear_empties_every_handle(backend: Backend) {
     let path = TempPath::new("clear_empties");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let a = Cfg::new_with(&store).unwrap();
-    let b = Cfg::new_with(&store).unwrap();
+    let a = Cfg::new_with(&store);
+    let b = Cfg::new_with(&store);
 
     a.items().clear().unwrap();
 
@@ -74,14 +74,14 @@ fn clear_survives_a_store_rebuild(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         cfg.items().clear().unwrap();
         store.save_now().unwrap();
     }
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         assert_eq!(cfg.items().len(), 0);
     }
 }
@@ -90,7 +90,7 @@ fn clear_survives_a_store_rebuild(backend: Backend) {
 fn clear_carries_the_provenance_of_the_handle_that_issued_it(backend: Backend) {
     let path = TempPath::new("clear_source");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     let items = cfg.items();
     let observer = items.fork();

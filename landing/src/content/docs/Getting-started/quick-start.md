@@ -49,7 +49,7 @@ let store = StoreBuilder::new(settings)
     .disk(|d| d.debounce(Duration::from_millis(500)))
     .build()?;
 
-let state = NetworkState::new_with(&store)?;
+let state = NetworkState::new_with(&store);
 ```
 <!-- /shown -->
 
@@ -71,7 +71,7 @@ let _sub = state.port().subscribe(|port| {
     println!("port changed to {port}");
 });
 
-state.port().set(9090)?;
+state.port().set(9090);
 ```
 <!-- /shown -->
 
@@ -170,7 +170,7 @@ pub struct KeptSettings {
 
 <!-- shown: writing a persistent struct -->
 ```rust
-let mut state = KeptSettings::load_with(&store)?;
+let mut state = KeptSettings::load_with(&store);
 
 state.port = 9090;
 state.save()?;
@@ -187,9 +187,8 @@ the debouncer.
 
 ## What else there is
 
-- **Interceptors** - a callback that sees a write before it lands and may
-  rewrite or refuse it:
-  [Interceptors](/amethystate/concepts/subscriptions/#interceptors).
+- **Rules** - a function on a field that puts every value it takes right:
+  [Rules](/amethystate/state/rules/).
 - **Tracing** - structured events, each write tagged with the struct that made
   it: [Observability](/amethystate/concepts/observability/).
 - **guinea** - a timer whose period follows a stored setting:

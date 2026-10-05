@@ -26,7 +26,7 @@ fn a_struct_given_an_id_reports_what_its_old_line_left() {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _badge = Badge::new_with(&store).unwrap();
+        let _badge = Badge::new_with(&store);
         store.save_now().unwrap();
     }
     std::thread::sleep(std::time::Duration::from_millis(120));

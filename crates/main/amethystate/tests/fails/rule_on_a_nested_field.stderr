@@ -1,5 +1,5 @@
 error: `net` is a nested struct, and a rule judges one value: put it on the fields of that struct. A rule between them goes where the struct that holds it is opened - `open = manual` and an `Open` of its own
-  --> tests/fails/rule_on_a_nested_field.rs:20:31
+  --> tests/fails/rule_on_a_nested_field.rs:18:31
    |
-20 |     #[amestate(nested, rule = a_reachable_host)]
+18 |     #[amestate(nested, rule = a_reachable_host)]
    |                               ^^^^^^^^^^^^^^^^

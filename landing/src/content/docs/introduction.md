@@ -69,11 +69,12 @@ itself, in that document's own syntax. The same declaration works against all
 five, and what a given format cannot hold is reported rather than discovered
 later.
 
-**Where a value is checked.** A `rule` on a field stands at every way in and
+**Where a value is put right.** A `rule` on a field stands at every way in and
 out: a value read at startup, an edit made to the file, a write from your own
-code. What it corrects is written back, so the screen and the file never hold
-different values, and what it refuses never lands. A check between two fields
-goes where the struct is opened, in an `Open` of its own.
+code. It corrects the value rather than refusing it, and the correction is
+written back, so the screen and the file never hold different values. An
+invariant between two fields goes where the struct is opened, in an `Open` of
+its own.
 
 **What to do when the struct changed.** The shape each struct had is recorded
 beside the data. A version that went up runs the steps you declared; fields that

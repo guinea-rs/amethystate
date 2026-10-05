@@ -17,11 +17,11 @@ pub struct NetworkState {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = StoreBuilder::new("./app").build()?;
-    let state = NetworkState::new_with(&store)?;
+    let state = NetworkState::new_with(&store);
 
     let _sub = state.port().subscribe(|port| println!("port → {port}"));
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     Ok(())
 }

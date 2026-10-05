@@ -34,7 +34,7 @@ fn a_volatile_field_and_the_cell_viewing_it_agree_after_a_race() {
         let width = Field::<u64>::new_volatile(["ui", "width"], 0);
         let view = width.cell();
 
-        raced(|value| width.set(value).unwrap());
+        raced(|value| width.set(value));
 
         assert_eq!(
             view.get(),
@@ -53,7 +53,7 @@ fn a_volatile_field_never_ends_on_a_value_it_no_longer_holds() {
         let sink = Arc::clone(&last);
         let _sub = width.subscribe(move |v: &u64| *sink.lock().unwrap() = *v);
 
-        raced(|value| width.set(value).unwrap());
+        raced(|value| width.set(value));
 
         assert_eq!(
             *last.lock().unwrap(),
@@ -75,7 +75,7 @@ fn a_stored_field_agrees_with_the_store_after_a_race() {
         let at = format!("w{round}");
         let width = field_with_path::<u64>(&store, ["racers", &at], 0, Uuid::new_v4()).unwrap();
 
-        raced(|value| width.set(value).unwrap());
+        raced(|value| width.set(value));
 
         let stored: Option<u64> = store.get(["racers", &at]).unwrap();
         assert_eq!(

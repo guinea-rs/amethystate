@@ -48,11 +48,7 @@ fn a_line_whose_steps_stop_below_its_declared_version_is_a_gap() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        v1::Ledger::new_with(&store)
-            .unwrap()
-            .millis()
-            .set(5000)
-            .unwrap();
+        v1::Ledger::new_with(&store).millis().set(5000);
         store.save_now().unwrap();
     }
 

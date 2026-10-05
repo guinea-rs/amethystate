@@ -44,7 +44,7 @@ fn a_map_subscriber_may_write_to_the_map_it_watches(backend: Backend) {
     within("map subscriber writing to its own map", move || {
         let path = TempPath::new("reentrancy_map");
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         let items = cfg.items();
 
         let writer = items.clone();
@@ -73,7 +73,7 @@ fn a_keyed_subscriber_may_write_to_the_map_it_watches(backend: Backend) {
     within("keyed subscriber writing to its own map", move || {
         let path = TempPath::new("reentrancy_key");
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         let items = cfg.items();
 
         let writer = items.clone();
@@ -96,7 +96,7 @@ fn a_subscriber_may_add_another_subscription_while_being_notified(backend: Backe
     within("subscriber subscribing during a notification", move || {
         let path = TempPath::new("reentrancy_sub");
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         let items = cfg.items();
 
         let nested = items.clone();
@@ -126,7 +126,7 @@ fn a_subscriber_may_add_another_subscription_while_being_notified(backend: Backe
 fn a_panicking_subscriber_does_not_disable_the_map(backend: Backend) {
     let path = TempPath::new("reentrancy_panic");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
     let items = cfg.items();
 
     let boom = items.subscribe_any(|_| panic!("subscriber blew up"));
@@ -163,7 +163,7 @@ fn a_panicking_subscriber_does_not_disable_the_map(backend: Backend) {
 fn a_panicking_subscriber_does_not_disable_the_field(backend: Backend) {
     let path = TempPath::new("reentrancy_panic_field");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
     let counter = cfg.counter();
 
     let boom = counter.subscribe(|_| panic!("subscriber blew up"));
@@ -171,7 +171,7 @@ fn a_panicking_subscriber_does_not_disable_the_field(backend: Backend) {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _ = counter.set(1);
+        counter.set(1);
     }));
     std::panic::set_hook(previous);
     assert!(result.is_err());
@@ -183,7 +183,7 @@ fn a_panicking_subscriber_does_not_disable_the_field(backend: Backend) {
         cap.fetch_add(1, Ordering::SeqCst);
     });
 
-    counter.set(2).unwrap();
+    counter.set(2);
 
     assert_eq!(seen.load(Ordering::SeqCst), 1);
 }

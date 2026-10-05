@@ -17,7 +17,7 @@ pub struct Ui {
 fn four_things_erase_into_one_type(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_cell_sources");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = Ui::new_with(&store)?;
+    let state = Ui::new_with(&store);
 
     //@show four ways to reach a cell
     let width = state.sidebar_width().cell();
@@ -44,7 +44,7 @@ fn four_things_erase_into_one_type(backend: Backend) -> anyhow::Result<()> {
 fn a_cell_reads_writes_and_is_watched(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_cell_ops");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = Ui::new_with(&store)?;
+    let state = Ui::new_with(&store);
     let cell = state.sidebar_width().cell();
 
     //@show reading, writing and watching a cell
@@ -68,7 +68,7 @@ fn a_cell_reads_writes_and_is_watched(backend: Backend) -> anyhow::Result<()> {
 fn an_entry_cell_is_empty_until_its_key_exists(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_cell_entry");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = Ui::new_with(&store)?;
+    let state = Ui::new_with(&store);
 
     //@show a cell onto a map entry
     state.widths().insert("cpu".to_string(), &120)?;
@@ -92,7 +92,7 @@ fn an_entry_cell_is_empty_until_its_key_exists(backend: Backend) -> anyhow::Resu
 fn a_view_dies_with_its_source_and_an_owning_cell_does_not(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_cell_owning");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = Ui::new_with(&store)?;
+    let state = Ui::new_with(&store);
 
     //@show a view, and a cell that owns what feeds it
     let view = state.sidebar_width().cell();

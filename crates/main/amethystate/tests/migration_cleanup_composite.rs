@@ -39,7 +39,7 @@ fn dropping_a_reactive_map_field_removes_its_entries(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = dropmap_v1::DropMap::new_with(&store).unwrap();
+        let v1 = dropmap_v1::DropMap::new_with(&store);
         v1.cache().insert("alpha".into(), &7u32).unwrap();
         v1.cache().insert("beta".into(), &9u32).unwrap();
         store.flush_prefix(StorePath::root()).unwrap();
@@ -58,7 +58,7 @@ fn dropping_a_reactive_map_field_removes_its_entries(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let _v2 = DropMap::new_with(&store).unwrap();
+    let _v2 = DropMap::new_with(&store);
 
     assert_eq!(
         store.get::<u32>(["dropmap", "cache", "alpha"]).unwrap(),
@@ -106,8 +106,8 @@ fn dropping_a_scalar_field_removes_its_value(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = dropscalar_v1::DropScalar::new_with(&store).unwrap();
-        v1.gone().set(42).unwrap();
+        let v1 = dropscalar_v1::DropScalar::new_with(&store);
+        v1.gone().set(42);
         store.flush_prefix(StorePath::root()).unwrap();
         assert_eq!(store.get::<u32>(["dropscalar", "gone"]).unwrap(), Some(42));
     }
@@ -120,7 +120,7 @@ fn dropping_a_scalar_field_removes_its_value(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let _v2 = DropScalar::new_with(&store).unwrap();
+    let _v2 = DropScalar::new_with(&store);
 
     assert_eq!(store.get::<u32>(["dropscalar", "gone"]).unwrap(), None);
 }
@@ -166,8 +166,8 @@ fn dropping_a_nested_struct_field_removes_its_leaves(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = dropnested_v1::DropNested::new_with(&store).unwrap();
-        v1.legacy().inner().set(77).unwrap();
+        let v1 = dropnested_v1::DropNested::new_with(&store);
+        v1.legacy().inner().set(77);
         store.flush_prefix(StorePath::root()).unwrap();
         assert_eq!(
             store.get::<u32>(["dropnested", "legacy", "inner"]).unwrap(),
@@ -183,7 +183,7 @@ fn dropping_a_nested_struct_field_removes_its_leaves(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let _v2 = DropNested::new_with(&store).unwrap();
+    let _v2 = DropNested::new_with(&store);
 
     assert_eq!(
         store.get::<u32>(["dropnested", "legacy", "inner"]).unwrap(),
@@ -248,7 +248,7 @@ fn dropping_a_map_inside_a_nested_part_removes_its_entries(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = dropinside_v1::Holder::new_with(&store).unwrap();
+        let v1 = dropinside_v1::Holder::new_with(&store);
         v1.part().cache().insert("alpha".into(), &7u32).unwrap();
         store.flush_prefix(StorePath::root()).unwrap();
 
@@ -268,7 +268,7 @@ fn dropping_a_map_inside_a_nested_part_removes_its_entries(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let _v2 = Holder::new_with(&store).unwrap();
+    let _v2 = Holder::new_with(&store);
 
     assert_eq!(
         store

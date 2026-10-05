@@ -21,8 +21,8 @@ fn written(backend: Backend, at: &TempPath) -> std::path::PathBuf {
         .build()
         .unwrap();
 
-    let held = Cache::new_with(&store).unwrap();
-    held.generation().set(42).unwrap();
+    let held = Cache::new_with(&store);
+    held.generation().set(42);
     store.save_now().unwrap();
     store.close().unwrap();
 
@@ -78,14 +78,14 @@ fn a_store_told_to_start_fresh_opens_empty_over_what_it_could_not_read(backend: 
         "{backend:?}: the store that opened is holding what the old one did"
     );
 
-    let held = Cache::new_with(&store).unwrap();
+    let held = Cache::new_with(&store);
     assert_eq!(
         held.generation().get(),
         1,
         "{backend:?}: the declared default did not seed the fresh store"
     );
 
-    held.generation().set(7).unwrap();
+    held.generation().set(7);
     store.save_now().unwrap();
     store.close().unwrap();
 
@@ -95,7 +95,7 @@ fn a_store_told_to_start_fresh_opens_empty_over_what_it_could_not_read(backend: 
         .unwrap_or_else(|why| panic!("{backend:?}: the fresh store did not reopen: {why}"));
 
     assert_eq!(
-        Cache::new_with(&store).unwrap().generation().get(),
+        Cache::new_with(&store).generation().get(),
         7,
         "{backend:?}: what the fresh store wrote did not survive"
     );
@@ -108,8 +108,8 @@ fn starting_fresh_leaves_a_file_another_store_holds(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let held = Cache::new_with(&holder).unwrap();
-    held.generation().set(42).unwrap();
+    let held = Cache::new_with(&holder);
+    held.generation().set(42);
     holder.save_now().unwrap();
 
     let second = StoreBuilder::new(at.path())
@@ -118,7 +118,7 @@ fn starting_fresh_leaves_a_file_another_store_holds(backend: Backend) {
         .build();
     drop(second);
 
-    held.generation().set(43).unwrap();
+    held.generation().set(43);
     holder.save_now().unwrap();
     holder.close().unwrap();
     drop(held);
@@ -129,7 +129,7 @@ fn starting_fresh_leaves_a_file_another_store_holds(backend: Backend) {
         .build()
         .unwrap_or_else(|why| panic!("{backend:?}: the held store did not reopen: {why}"));
     assert_eq!(
-        Cache::new_with(&store).unwrap().generation().get(),
+        Cache::new_with(&store).generation().get(),
         43,
         "{backend:?}: starting fresh took away a file another store was writing"
     );
@@ -157,7 +157,7 @@ fn starting_fresh_leaves_a_file_it_may_not_read(backend: Backend) {
         .build()
         .unwrap_or_else(|why| panic!("{backend:?}: {why}"));
     assert_eq!(
-        Cache::new_with(&store).unwrap().generation().get(),
+        Cache::new_with(&store).generation().get(),
         42,
         "{backend:?}"
     );

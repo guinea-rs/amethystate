@@ -23,9 +23,6 @@ fn store(name: &str) -> (TempPath, Store) {
 
 fn every_way_a_write_can_fail(why: WriteValue) -> String {
     match why {
-        WriteValue::Intercepted { at, said } => format!("{at} was turned down: {said}"),
-        WriteValue::Refused { at, said } => format!("a rule turned {at} down: {said}"),
-        WriteValue::Recursed { at } => format!("interceptors wrote back into {at} too deep"),
         WriteValue::Absent { at } => format!("nothing at {at}"),
         WriteValue::NotAPath(said) => format!("no path to land at: {said}"),
         WriteValue::TooDeep { at, why } => format!("{at} is too deep: {}", why.current_context()),
@@ -55,10 +52,10 @@ fn every_way_a_raw_write_can_fail(why: KvWrite) -> String {
 fn a_match_over_every_way_a_write_fails_needs_no_catch_all() {
     let (_at, store) = store("writes_exhaustive");
 
-    let panel = Panel::new_with(&store).unwrap();
-    let _guard = panel.width().intercept(|_| None);
+    let panel = Panel::new_with(&store);
+    store.close().unwrap();
 
-    let refused = panel.width().set(1024).unwrap_err();
+    let refused = panel.width().durable().set(1024).unwrap_err();
 
     assert!(
         every_way_a_write_can_fail(refused).contains("writes.width"),
@@ -70,7 +67,7 @@ fn a_match_over_every_way_a_write_fails_needs_no_catch_all() {
 fn a_match_over_every_way_a_raw_write_fails_needs_no_catch_all() {
     let (_at, store) = store("writes_raw_exhaustive");
 
-    let _panel = Panel::new_with(&store).unwrap();
+    let _panel = Panel::new_with(&store);
     let refused = store
         .kv()
         .namespace("writes")
@@ -110,19 +107,18 @@ fn a_failed_raw_write_goes_into_anyhow_and_into_a_box() {
     );
 }
 
-fn a_field_write_through_anyhow(store: &Store) -> anyhow::Result<()> {
+fn a_durable_field_write_through_anyhow(store: &Store) -> anyhow::Result<()> {
     let width = field_with_path::<u32>(store, ["loose", "width"], 800, Uuid::new_v4())?;
-    width.set(1024)?;
+    store.close()?;
+    width.durable().set(1024)?;
     Ok(())
 }
 
 #[test]
-fn a_failed_field_write_goes_into_anyhow_too() {
+fn a_failed_durable_field_write_goes_into_anyhow_too() {
     let (_at, store) = store("writes_field_anyhow");
 
-    store.close().unwrap();
-
-    let carried = a_field_write_through_anyhow(&store).unwrap_err();
+    let carried = a_durable_field_write_through_anyhow(&store).unwrap_err();
 
     assert!(
         carried.to_string().contains("closed"),

@@ -35,11 +35,7 @@ fn every_place_moved_by_a_step_leaves_no_old_declaration_standing(backend: Backe
             .backend(backend)
             .build()
             .unwrap();
-        v1::Relabel::new_with(&store)
-            .unwrap()
-            .before()
-            .set(42)
-            .unwrap();
+        v1::Relabel::new_with(&store).before().set(42);
         store.save_now().unwrap();
     }
 
@@ -58,7 +54,7 @@ fn every_place_moved_by_a_step_leaves_no_old_declaration_standing(backend: Backe
         );
         assert!(!report.has_drift(), "{backend:?} open {open}: {report:?}");
         assert_eq!(
-            Relabel::new_with(&store).unwrap().after().get(),
+            Relabel::new_with(&store).after().get(),
             42,
             "{backend:?} open {open}"
         );

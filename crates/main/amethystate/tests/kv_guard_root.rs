@@ -26,7 +26,7 @@ fn kv_refuses_a_path_owned_by_a_prefixed_struct(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let _cfg = GuardedConfig::new_with(&store).unwrap();
+    let _cfg = GuardedConfig::new_with(&store);
 
     let err = store
         .kv()
@@ -47,7 +47,7 @@ fn kv_refuses_a_path_owned_by_a_root_struct(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let cfg = RootConfig::new_with(&store).unwrap();
+    let cfg = RootConfig::new_with(&store);
 
     let err = store.kv().set("width", &"oops".to_string()).unwrap_err();
 
@@ -68,7 +68,7 @@ fn a_root_field_survives_a_kv_write_of_another_type(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let _cfg = RootConfig::new_with(&store).unwrap();
+        let _cfg = RootConfig::new_with(&store);
         store.kv().set("width", &"oops".to_string()).ok();
         store.flush_prefix(StorePath::root()).unwrap();
     }
@@ -77,6 +77,6 @@ fn a_root_field_survives_a_kv_write_of_another_type(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let cfg = RootConfig::new_with(&store);
+    let cfg = RootConfig::try_new_with(&store);
     assert!(cfg.is_ok(), "the struct still loads after a reopen");
 }

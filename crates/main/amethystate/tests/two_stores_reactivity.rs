@@ -41,8 +41,8 @@ fn subscriptions_from_two_stores_are_independent(backend: Backend) {
         .build()
         .unwrap();
 
-    let fast = Fast::new_with(&fast_store).unwrap();
-    let slow = Slow::new_with(&slow_store).unwrap();
+    let fast = Fast::new_with(&fast_store);
+    let slow = Slow::new_with(&slow_store);
 
     let fast_hits = Arc::new(AtomicUsize::new(0));
     let slow_hits = Arc::new(AtomicUsize::new(0));
@@ -56,9 +56,9 @@ fn subscriptions_from_two_stores_are_independent(backend: Backend) {
         s.fetch_add(1, Ordering::SeqCst);
     });
 
-    fast.ticks().set(1).unwrap();
-    fast.ticks().set(2).unwrap();
-    slow.phase().set("busy".to_string()).unwrap();
+    fast.ticks().set(1);
+    fast.ticks().set(2);
+    slow.phase().set("busy".to_string());
 
     assert_eq!(fast_hits.load(Ordering::SeqCst), 2);
     assert_eq!(

@@ -3,7 +3,6 @@ pub mod field_core;
 pub mod field_ops;
 #[cfg(feature = "async")]
 pub mod field_ops_async;
-pub mod intercept;
 pub mod map_core;
 pub mod map_ops;
 #[cfg(feature = "async")]

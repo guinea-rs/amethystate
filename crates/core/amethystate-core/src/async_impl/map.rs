@@ -2,7 +2,7 @@ use crate::async_impl::{AsyncSubscriptionBackend, SubscriptionHandle};
 use crate::path::StorePath;
 use crate::primitives::error::{ReactiveMapError, ReactiveMapResult};
 use crate::primitives::map_core::{MapEntryPath, ReactiveMapKey, ReactiveMapValue};
-use crate::{InterceptDisposer, MapChange, ReactiveMapCore, SignalSubscription};
+use crate::{MapChange, ReactiveMapCore, SignalSubscription};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
@@ -279,19 +279,5 @@ where
         F: Fn(&MapChange<K, V>) + Send + Sync + 'static,
     {
         self.core.subscribe_key(key, callback)
-    }
-
-    pub fn intercept<F>(&self, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        self.core.intercept(self.prefix.clone(), callback)
-    }
-
-    pub fn intercept_key<F>(&self, key: K, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        self.core.intercept_key(key, callback)
     }
 }

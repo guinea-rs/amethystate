@@ -47,7 +47,7 @@ fn a_field_named_with_a_separator_is_registered_under_that_name() {
 fn instance_registered_on_new(backend: Backend) {
     let path = TempPath::new("obs_instance_reg");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let _state = ObsState::new_with(&store).unwrap();
+    let _state = ObsState::new_with(&store);
 
     let port_meta = observability::resolve_field(&StorePath::from_segments(["obs", "port"]))
         .expect("obs.port must be in schema registry after construction");
@@ -63,7 +63,7 @@ fn instance_registered_on_new(backend: Backend) {
 fn fields_registered_in_schema_registry(backend: Backend) {
     let path = TempPath::new("obs_schema_reg");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let _state = ObsState::new_with(&store).unwrap();
+    let _state = ObsState::new_with(&store);
 
     let port_meta = observability::resolve_field(&StorePath::from_segments(["obs", "port"]))
         .expect("obs.port must be in schema registry");
@@ -90,9 +90,9 @@ fn fields_registered_in_schema_registry(backend: Backend) {
 fn field_set_emits_trace(backend: Backend) {
     let path = TempPath::new("obs_write_trace");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
 
-    state.port().set(9090).unwrap();
+    state.port().set(9090);
 
     assert!(logs_contain("field write"), "expected 'field write' trace");
     assert!(
@@ -106,9 +106,9 @@ fn field_set_emits_trace(backend: Backend) {
 fn field_set_trace_contains_source_name(backend: Backend) {
     let path = TempPath::new("obs_source_name");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
 
-    state.host().set("example.com".to_string()).unwrap();
+    state.host().set("example.com".to_string());
 
     assert!(
         logs_contain("ObsState"),
@@ -121,10 +121,10 @@ fn field_set_trace_contains_source_name(backend: Backend) {
 fn subscription_fire_emits_trace_with_location(backend: Backend) {
     let path = TempPath::new("obs_sub_trace");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
 
     let _sub = state.port().subscribe(|_| {});
-    state.port().set(1234).unwrap();
+    state.port().set(1234);
 
     assert!(
         logs_contain("signal emit"),
@@ -144,10 +144,10 @@ fn subscription_fire_emits_trace_with_location(backend: Backend) {
 fn a_built_subscription_traces_the_call_site_and_not_the_builder(backend: Backend) {
     let path = TempPath::new("obs_watch_trace");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
 
     let _sub = state.port().subscription_with().register(|_| {});
-    state.port().set(4321).unwrap();
+    state.port().set(4321);
 
     assert!(
         logs_contain("signal emit"),
@@ -168,10 +168,10 @@ fn a_built_subscription_traces_the_call_site_and_not_the_builder(backend: Backen
 fn named_subscription_appears_in_trace(backend: Backend) {
     let path = TempPath::new("obs_named_sub");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
 
     let _sub = state.port().subscribe(|_| {}).named("PortWatcher");
-    state.port().set(5555).unwrap();
+    state.port().set(5555);
 
     assert!(
         logs_contain("PortWatcher"),
@@ -184,10 +184,10 @@ fn named_subscription_appears_in_trace(backend: Backend) {
 fn forked_write_traces_with_source(backend: Backend) {
     let path = TempPath::new("obs_fork_trace");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let state = ObsState::new_with(&store).unwrap();
+    let state = ObsState::new_with(&store);
     let fork = state.fork();
 
-    fork.port().set(7777).unwrap();
+    fork.port().set(7777);
 
     assert!(
         logs_contain("field write"),

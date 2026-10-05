@@ -1,15 +1,8 @@
 use amethystate::amethystate;
-use amethystate::store::{Invalid, RuleContext};
+use amethystate::store::RuleContext;
 
-fn the_window_can_be_drawn(
-    window: &amethystate::AmeData<Window>,
-    _cx: &RuleContext,
-) -> Result<(), Invalid> {
-    if window.min <= window.max {
-        Ok(())
-    } else {
-        Err(Invalid::new("the smallest window is wider than the largest"))
-    }
+fn the_window_can_be_drawn(window: &mut amethystate::AmeData<Window>, _cx: &RuleContext) {
+    window.max = window.max.max(window.min);
 }
 
 #[amethystate(prefix = "window", rule = the_window_can_be_drawn)]

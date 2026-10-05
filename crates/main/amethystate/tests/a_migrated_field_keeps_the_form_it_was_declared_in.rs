@@ -58,7 +58,7 @@ fn a_step_reads_and_writes_a_declared_with_in_its_own_form(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        v1::Clock::new_with(&store).unwrap();
+        v1::Clock::new_with(&store);
         store.set(["clock", "opened"], &1_700_000_000u64).unwrap();
         store.save_now().unwrap();
     }
@@ -79,7 +79,7 @@ fn a_step_reads_and_writes_a_declared_with_in_its_own_form(backend: Backend) {
         "the step wrote the field in its type's own form rather than its declared one"
     );
 
-    let clock = Clock::new_with(&store).unwrap();
+    let clock = Clock::new_with(&store);
     assert_eq!(
         clock.started().get(),
         UNIX_EPOCH + Duration::from_secs(1_700_000_000)

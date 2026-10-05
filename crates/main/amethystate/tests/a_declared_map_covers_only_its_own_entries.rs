@@ -19,7 +19,7 @@ fn a_key_nobody_declares_is_written_as_one_name_beside_a_declared_map() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let shop = Shop::new_with(&store).unwrap();
+        let shop = Shop::new_with(&store);
         shop.prices.insert("tea".to_string(), &3).unwrap();
         store.set(["misc", "a", "b"], &"loose".to_string()).unwrap();
         store.save_now().unwrap();

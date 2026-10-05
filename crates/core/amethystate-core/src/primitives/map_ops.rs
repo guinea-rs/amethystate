@@ -11,7 +11,6 @@ use uuid::Uuid;
 /// [`ReactiveMapError::Absent`] otherwise.
 pub fn map_update<B, K, V>(
     backend: &B,
-    core: &ReactiveMapCore<K, V>,
     path: StorePath,
     key: K,
     value: &V,
@@ -35,14 +34,13 @@ where
         source,
     };
 
-    map_apply_change(backend, core, path, change)
+    map_apply_change(backend, path, change)
 }
 
 /// Writes a key whether or not it exists, emitting [`MapChange::Insert`] for
 /// a new one and [`MapChange::Update`] for one that was already there.
 pub fn map_insert<B, K, V>(
     backend: &B,
-    core: &ReactiveMapCore<K, V>,
     path: StorePath,
     key: K,
     value: &V,
@@ -70,7 +68,7 @@ where
         }
     };
 
-    map_apply_change(backend, core, path, change)
+    map_apply_change(backend, path, change)
 }
 
 pub fn map_remove<B, K, V>(
@@ -98,7 +96,7 @@ where
             old_value: Some(old_value.clone()),
             source,
         };
-        map_apply_change(backend, core, path, change)?;
+        map_apply_change(backend, path, change)?;
         Ok(Some(old_value))
     } else {
         core.cache.remove(key.as_ref());
@@ -119,7 +117,6 @@ where
 
 pub fn map_clear<B, K, V>(
     backend: &B,
-    core: &ReactiveMapCore<K, V>,
     path: StorePath,
     source: Option<Uuid>,
 ) -> ReactiveMapResult<()>
@@ -128,10 +125,10 @@ where
     K: ReactiveMapKey,
     V: ReactiveMapValue,
 {
-    map_apply_change(backend, core, path, MapChange::Clear { source })
+    map_apply_change(backend, path, MapChange::<K, V>::Clear { source })
 }
 
-/// Runs the interceptors over a change and writes what they let through.
+/// Writes a change to the backend.
 ///
 /// The key cache is not touched here. The backend tells the map about every
 /// write through its subscription, in the order the backend settled them, and
@@ -139,22 +136,14 @@ where
 /// out would put this write back over one another thread landed in between.
 pub fn map_apply_change<B, K, V>(
     backend: &B,
-    core: &ReactiveMapCore<K, V>,
     path: StorePath,
-    change: MapChange<K, V>,
+    processed: MapChange<K, V>,
 ) -> ReactiveMapResult<()>
 where
     B: AmeBackendSync,
     K: ReactiveMapKey,
     V: ReactiveMapValue,
 {
-    let subject = change.key().map(|key| path.entry(key.as_ref()));
-    let context_path = subject.clone().unwrap_or_else(|| path.clone());
-
-    let processed = core
-        .run_interceptors(context_path.clone(), change)
-        .map_err(|refusal| ReactiveMapError::refused(&context_path, refusal))?;
-
     match &processed {
         MapChange::Insert { key, value, .. }
         | MapChange::Update {

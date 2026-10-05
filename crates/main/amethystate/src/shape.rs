@@ -128,12 +128,7 @@ pub trait Kind: Sized + 'static {
         seed: impl FnOnce() -> Self::Seed,
     ) -> Result<Self::Data, OpenStruct>;
 
-    fn judge_plain(
-        data: &mut Self::Data,
-        store: &Store,
-        at: &StorePath,
-        rule: Option<Rule<Self>>,
-    ) -> Result<(), WriteValue>;
+    fn judge_plain(data: &mut Self::Data, store: &Store, rule: Option<Rule<Self>>);
 
     fn save_plain(
         data: &Self::Data,
@@ -231,13 +226,8 @@ impl<T: FieldValue> Kind for T {
         crate::store::load_declared(store, at, stored_as, rule, policy, seed)
     }
 
-    fn judge_plain(
-        data: &mut T,
-        store: &Store,
-        at: &StorePath,
-        rule: Option<Rule<T>>,
-    ) -> Result<(), WriteValue> {
-        crate::store::judge_declared(store, at, data, rule)
+    fn judge_plain(data: &mut T, store: &Store, rule: Option<Rule<T>>) {
+        crate::store::judge_declared(store, data, rule)
     }
 
     fn save_plain(
@@ -327,14 +317,7 @@ where
         Ok(crate::store::load_map::<K, V>(store, at)?)
     }
 
-    fn judge_plain(
-        _data: &mut IndexMap<K, V>,
-        _store: &Store,
-        _at: &StorePath,
-        _rule: Option<Rule<Self>>,
-    ) -> Result<(), WriteValue> {
-        Ok(())
-    }
+    fn judge_plain(_data: &mut IndexMap<K, V>, _store: &Store, _rule: Option<Rule<Self>>) {}
 
     fn save_plain(
         data: &IndexMap<K, V>,

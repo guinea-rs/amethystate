@@ -27,7 +27,7 @@ fn a_field_reads_what_it_holds_now() {
 
     assert_eq!(changing.now(), Some(500));
 
-    interval.set(250).unwrap();
+    interval.set(250);
 
     assert_eq!(changing.now(), Some(250));
 }
@@ -40,7 +40,7 @@ fn a_write_to_the_field_calls_whoever_watches_it() {
     let (calls, changed) = counter();
 
     let _guard = changing.watch(changed);
-    interval.set(250).unwrap();
+    interval.set(250);
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
@@ -53,9 +53,9 @@ fn a_dropped_guard_hears_no_more_writes() {
     let (calls, changed) = counter();
 
     let guard = changing.watch(changed);
-    interval.set(250).unwrap();
+    interval.set(250);
     drop(guard);
-    interval.set(100).unwrap();
+    interval.set(100);
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

@@ -7,7 +7,7 @@ use crate::store::facts::Facts;
 use crate::store::{Commit, Durable, StoreBackend, StoreSubscription, StoredAs, Writer};
 use amethystate_core::Signal;
 use amethystate_core::path::{IntoStorePath, StorePath};
-use amethystate_core::{Change, FieldCore, InterceptDisposer, SignalSubscription};
+use amethystate_core::{FieldCore, SignalSubscription};
 use error_stack::Report;
 use std::fmt::{self, Debug};
 use std::sync::Arc;
@@ -28,9 +28,9 @@ pub(crate) struct FieldInner<TValue> {
 /// Why this field is not reporting what the store holds, while that is the
 /// case.
 ///
-/// Set when a change will not decode into the field's type, when a declared
-/// `rule` turns one down, or when the path already held something else -
-/// none of which is hypothetical: a value can be edited into a document by
+/// Set when a change will not decode into the field's type, when the store
+/// would not take back what a declared `rule` put right, or when the path
+/// already held something else - none of which is hypothetical: a value can be edited into a document by
 /// hand, left behind by a migration, or written by a codec that accepted
 /// something it cannot read back. Cleared by the next change that does decode,
 /// so a field says so exactly as long as it is true.
@@ -52,7 +52,7 @@ pub(crate) type Unreadable = Arc<std::sync::Mutex<Option<Reason>>>;
 /// ).unwrap();
 ///
 /// assert_eq!(port.get(), 8080);
-/// port.set(9090).unwrap();
+/// port.set(9090);
 /// assert_eq!(port.get(), 9090);
 /// ```
 pub struct Field<TValue> {
@@ -90,9 +90,9 @@ impl<TValue: Clone + 'static> Field<TValue> {
     #[doc(hidden)]
     pub fn __ame_rule(&self, rule: crate::store::Rule<TValue>, store: &crate::Store) {
         let store = store.clone();
-        self.inner.core.rule(move |value| {
-            rule(value, store.context()).map_err(|invalid| invalid.reason().to_string())
-        });
+        self.inner
+            .core
+            .rule(move |value| rule(value, store.context()));
     }
 }
 
@@ -129,9 +129,9 @@ where
     ///     sink.lock().unwrap().push(*v);
     /// });
     ///
-    /// port.set(1).unwrap();    // our own write
-    /// twin.set(2).unwrap();    // a clone is still us
-    /// other.set(3).unwrap();   // a fork is somebody else
+    /// port.set(1);    // our own write
+    /// twin.set(2);    // a clone is still us
+    /// other.set(3);   // a fork is somebody else
     ///
     /// assert_eq!(*seen.lock().unwrap(), [3], "only the fork's write got through");
     /// ```
@@ -141,15 +141,6 @@ where
     /// [clone and fork](https://guinea-rs.github.io/amethystate/concepts/subscriptions/#clone-and-fork).
     pub fn fork(&self) -> Self {
         self.fork_with_id(Uuid::new_v4())
-    }
-
-    /// The value this handle's interceptors let through, as the change they
-    /// made of it.
-    fn intercepted(&self, value: TValue) -> ReactiveFieldResult<Change<TValue>> {
-        self.inner
-            .core
-            .run_interceptors(self.inner.path.clone(), value, Some(self.inner.instance_id))
-            .map_err(|refusal| FieldError::refused(&self.inner.path, refusal))
     }
 
     /// [`Field::fork`] with the instance id chosen rather than generated.
@@ -208,8 +199,7 @@ where
     /// `Err` when the store holds something this field will not report: a
     /// change that would not decode into its type - from an edit to the file
     /// outside the process, a migration that left something behind, or a codec
-    /// that accepted a value it cannot read back - or a value a declared
-    /// `rule` refused. The field goes on reporting the last value it agreed with,
+    /// that accepted a value it cannot read back. The field goes on reporting the last value it agreed with,
     /// and subscribers hear nothing, because the alternative is waking a
     /// redraw with a value nobody chose. The write that carried the value
     /// lands all the same, and a writer that went through
@@ -245,7 +235,6 @@ where
     ///     Err(no) => {
     ///         match no.reason {
     ///             Reason::WillNotRead(said) => eprintln!("{} holds {said}", no.at),
-    ///             Reason::Refused(said) => eprintln!("{} was turned down: {said}", no.at),
     ///             Reason::Occupied(said) => eprintln!("{} was taken: {said}", no.at),
     ///             _ => eprintln!("{} is not what the store has", no.at),
     ///         }
@@ -358,7 +347,7 @@ where
     ///     let _ = tx.send(val.clone());
     /// });
     ///
-    /// host.set("10.0.0.1".to_string()).unwrap();
+    /// host.set("10.0.0.1".to_string());
     /// assert_eq!(rx.recv().unwrap(), "10.0.0.1");
     /// ```
     ///
@@ -495,7 +484,7 @@ where
             Arc::new(move |value| {
                 let inner = weak.upgrade().ok_or(FieldError::SourceGone)?;
                 let field = Field::<TValue> { inner };
-                field.set(value)
+                field.write(value)
             }),
             Some(Arc::new(move || alive.strong_count() > 0)),
             None,
@@ -521,41 +510,72 @@ where
     ///     &store, ["stats", "hits"], 0, amethystate::uuid::Uuid::new_v4(),
     /// ).unwrap();
     ///
-    /// assert_eq!(hits.update(|n| n + 1).unwrap(), 1);
+    /// assert_eq!(hits.update(|n| n + 1), 1);
     /// assert_eq!(hits.get(), 1);
     /// ```
-    pub fn update<F>(&self, f: F) -> ReactiveFieldResult<TValue>
+    ///
+    /// # Panics
+    ///
+    /// Where [`Field::set`] does.
+    #[track_caller]
+    pub fn update<F>(&self, f: F) -> TValue
     where
         F: FnOnce(TValue) -> TValue,
     {
-        let val = self.get();
-        let new_val = f(val);
-        self.set(new_val.clone())?;
-        Ok(new_val)
+        let new_val = f(self.get());
+        self.set(new_val.clone());
+        new_val
     }
 
     /// Reads the value, lets `f` change it in place, and writes it back.
     ///
     /// The same write as [`Field::update`], reached without rebuilding the
     /// value - which matters when it is a large struct or a collection.
-    pub fn modify<F>(&self, f: F) -> ReactiveFieldResult<()>
+    ///
+    /// # Panics
+    ///
+    /// Where [`Field::set`] does.
+    #[track_caller]
+    pub fn modify<F>(&self, f: F)
     where
         F: FnOnce(&mut TValue),
     {
         let mut val = self.get();
         f(&mut val);
-        self.set(val)
+        self.set(val);
     }
 
     /// Writes the value and notifies subscribers.
     ///
     /// The write lands in the store's buffer, not on disk: it survives the
     /// process reading it back, but not a crash before the debouncer flushes.
-    /// [`Field::durable`] is the variant that waits for disk.
+    /// [`Field::durable`] is the variant that waits for disk, and the one that
+    /// answers with a `Result`.
     ///
-    /// Returns [`FieldError::Intercepted`] if an interceptor rejected the
-    /// change.
-    pub fn set(&self, value: TValue) -> ReactiveFieldResult<()> {
+    /// A store that was closed takes nothing: the write is dropped, the field
+    /// keeps its value, and a warning says so.
+    ///
+    /// # Panics
+    ///
+    /// When the engine cannot hold the value - a type it cannot encode, or one
+    /// nested deeper than it reads back. That is the field's declaration
+    /// disagreeing with the engine, and it fails the same way every time.
+    #[track_caller]
+    pub fn set(&self, value: TValue) {
+        match self.write(value) {
+            Ok(()) => {}
+            Err(FieldError::Closed { at }) => {
+                tracing::warn!(
+                    target: "amethystate",
+                    path = %at,
+                    "{at} was not written: the store is closed"
+                );
+            }
+            Err(why) => panic!("{why}\n{}", why.explain()),
+        }
+    }
+
+    pub(crate) fn write(&self, value: TValue) -> ReactiveFieldResult<()> {
         tracing::trace!(
             target: "amethystate",
             path = %self.inner.path,
@@ -563,8 +583,9 @@ where
             "field write",
         );
 
+        let change = self.inner.core.change(value, Some(self.inner.instance_id));
+
         if let Some(sub) = &self.inner.store_sub {
-            let change = self.intercepted(value)?;
             let by = Writer::judged(change.source);
 
             match self.inner.stored_as.write {
@@ -578,7 +599,6 @@ where
             .attach_key(&self.inner.path)
             .map_err(|why| FieldError::from_store(&self.inner.path, why))?;
         } else {
-            let change = self.intercepted(value)?;
             self.inner
                 .core
                 .signal
@@ -598,66 +618,14 @@ where
         Durable(self)
     }
 
-    /// Installs a callback that sees every write before it lands and may
-    /// rewrite or reject it.
-    ///
-    /// Returning `None` drops the write and gives the caller
-    /// [`FieldError::Intercepted`]; returning a changed [`Change`] stores that
-    /// instead of what was written.
-    ///
-    /// The interceptor stays installed until [`InterceptDisposer::remove`] is
-    /// called; dropping the disposer only forgets the handle. A subscription
-    /// goes the other way and ends on drop, because it belongs to whoever is
-    /// listening. An interceptor is a rule about the value itself, so it does
-    /// not end merely because nobody kept the receipt.
-    ///
-    /// ```
-    /// # use amethystate::StoreBuilder;
-    /// # use amethystate::store::field_with_path;
-    /// # use std::sync::Arc;
-    /// # let path = amethystate_core::test_utils::TempPath::new("doc");
-    /// # let store = StoreBuilder::new(&*path).build().unwrap();
-    /// let volume = field_with_path::<u8>(
-    ///     &store, ["audio", "volume"], 50, amethystate::uuid::Uuid::new_v4(),
-    /// ).unwrap();
-    ///
-    /// let guard = volume.intercept(|mut change| {
-    ///     if change.new_value > 100 {
-    ///         return None;                            // refuse it outright
-    ///     }
-    ///     change.new_value -= change.new_value % 10;  // or round it down
-    ///     Some(change)
-    /// });
-    ///
-    /// volume.set(77).unwrap();
-    /// assert_eq!(volume.get(), 70, "the interceptor rewrote the write");
-    ///
-    /// assert!(volume.set(200).is_err(), "and refused this one");
-    /// assert_eq!(volume.get(), 70, "so the old value stands");
-    ///
-    /// guard.remove();
-    /// volume.set(200).unwrap();
-    /// assert_eq!(volume.get(), 200, "with it removed, nothing filters");
-    /// ```
-    ///
-    /// Interceptors run before the value reaches the buffer at all - see
-    /// [the module docs](crate::reactive) for where that sits relative to disk.
-    pub fn intercept<F>(&self, callback: F) -> InterceptDisposer
-    where
-        F: Fn(Change<TValue>) -> Option<Change<TValue>> + Send + Sync + 'static,
-    {
-        self.inner.core.intercept(self.inner.path.clone(), callback)
-    }
-
     /// A field with no store behind it: reactive, but never read from or
     /// written to disk.
     ///
-    /// This is what `#[amestate(volatile)]` produces. Subscriptions and
-    /// interceptors work as usual; the value simply starts at `default` on
-    /// every run.
+    /// This is what `#[amestate(volatile)]` produces. Subscriptions and rules
+    /// work as usual; the value simply starts at `default` on every run.
     ///
-    /// The path is still carried, for tracing and for interceptors - but
-    /// nothing is ever stored under it:
+    /// The path is still carried, for tracing - but nothing is ever stored
+    /// under it:
     ///
     /// ```
     /// # use amethystate::{Field, StoreBuilder};
@@ -667,7 +635,7 @@ where
     /// let session: Field<String> =
     ///     Field::new_volatile(["app", "session"], "anonymous".to_string());
     ///
-    /// session.set("alice".to_string()).unwrap();
+    /// session.set("alice".to_string());
     /// assert_eq!(session.get(), "alice");
     ///
     /// // The store never heard about any of it.
@@ -729,8 +697,8 @@ where
 {
     /// [`Field::set`], returning only once the value is on disk.
     ///
-    /// The write itself is identical - same subscribers, same interceptors,
-    /// same value. What differs is when the call returns: the plain one comes
+    /// The write itself is identical - same subscribers, same rules, same
+    /// value. What differs is when the call returns: the plain one comes
     /// back with the change still in the buffer, this one waits for the
     /// commit.
     ///
@@ -793,7 +761,7 @@ where
     /// assert_eq!(port.get(), 9090);
     /// ```
     pub fn set(&self, value: TValue) -> ReactiveFieldResult<()> {
-        self.0.set(value)?;
+        self.0.write(value)?;
         self.commit()
     }
 
@@ -827,7 +795,7 @@ where
     /// assert_eq!(port.get(), 9090);
     /// ```
     pub async fn set_async(&self, value: TValue) -> ReactiveFieldResult<()> {
-        self.0.set(value)?;
+        self.0.write(value)?;
         self.commit_async().await
     }
 
@@ -838,7 +806,8 @@ where
     where
         F: FnOnce(TValue) -> TValue,
     {
-        let value = self.0.update(f)?;
+        let value = f(self.0.get());
+        self.0.write(value.clone())?;
         self.commit()?;
         Ok(value)
     }
@@ -852,7 +821,8 @@ where
     where
         F: FnOnce(TValue) -> TValue,
     {
-        let value = self.0.update(f)?;
+        let value = f(self.0.get());
+        self.0.write(value.clone())?;
         self.commit_async().await?;
         Ok(value)
     }
@@ -864,7 +834,9 @@ where
     where
         F: FnOnce(&mut TValue),
     {
-        self.0.modify(f)?;
+        let mut value = self.0.get();
+        f(&mut value);
+        self.0.write(value)?;
         self.commit()
     }
 
@@ -877,7 +849,9 @@ where
     where
         F: FnOnce(&mut TValue),
     {
-        self.0.modify(f)?;
+        let mut value = self.0.get();
+        f(&mut value);
+        self.0.write(value)?;
         self.commit_async().await
     }
 
@@ -913,7 +887,6 @@ mod tests {
     use crate::test_utils::unique_store;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tracing_test::traced_test;
 
     struct UiScope;
     impl StateScope for UiScope {
@@ -930,7 +903,7 @@ mod tests {
         assert_eq!(field.get(), 14);
         assert_eq!(field.path(), &StorePath::from_segments(["ui", "font_size"]));
 
-        field.set(18).expect("set should succeed");
+        field.set(18);
         assert_eq!(store.get::<i32>(["ui", "font_size"]).unwrap(), Some(18));
 
         let callback_val = Arc::new(Mutex::new(0i32));
@@ -972,7 +945,7 @@ mod tests {
                 }),
             };
 
-            field.set("hello".to_string()).unwrap();
+            field.set("hello".to_string());
             assert_eq!(calls.load(Ordering::SeqCst), 1);
             store.set(["test", "field"], &"world").unwrap();
             assert_eq!(calls.load(Ordering::SeqCst), 2);
@@ -993,7 +966,7 @@ mod tests {
             .expect("field should be created");
 
         let cell = field.cell();
-        field.set(7).unwrap();
+        field.set(7);
 
         assert_eq!(cell.get(), Some(7));
     }
@@ -1017,7 +990,7 @@ mod tests {
             *l_val.lock().unwrap() = *val;
         });
 
-        field.set(true).expect("Volatile set should work");
+        field.set(true);
 
         assert!(field.get());
 
@@ -1036,80 +1009,6 @@ mod tests {
     }
 
     #[test]
-    fn test_field_additional_coverage() {
-        let field = Field::<i32>::new_volatile(StorePath::from_segments(["test"]), 42);
-
-        let disp = field.intercept(|mut change| {
-            change.new_value *= 2;
-            Some(change)
-        });
-
-        field.set(10).unwrap();
-        assert_eq!(field.get(), 20);
-
-        drop(disp);
-
-        field.set(10).unwrap();
-        assert_eq!(field.get(), 20, "Interceptor should survive manual drop");
-
-        let disp2 = field.intercept(|mut change| {
-            change.new_value += 1;
-            Some(change)
-        });
-
-        field.set(5).unwrap();
-        assert_eq!(field.get(), 11);
-
-        disp2.remove();
-
-        field.set(5).unwrap();
-        assert_eq!(field.get(), 10);
-    }
-
-    #[test]
-    fn test_field_depth_guard() {
-        let field = Field::<i32>::new_volatile(StorePath::from_segments(["test"]), 1);
-
-        let _deep = field.inner.core.intercept_depth.nested_on_this_thread(100);
-
-        let _disp = field.intercept(|mut c| {
-            c.new_value = 999;
-            Some(c)
-        });
-
-        let refused = field.set(10).expect_err(
-            "past the depth limit the interceptor cannot run, so the write is \
-             refused rather than let through unchecked",
-        );
-
-        let crate::store::WriteValue::Recursed { at } = &refused else {
-            panic!("{refused:?}")
-        };
-        assert_eq!(at, &StorePath::from_segments(["test"]));
-
-        assert_eq!(field.get(), 1, "and nothing is written");
-    }
-
-    #[test]
-    #[traced_test]
-    fn test_field_recursion_warning() {
-        let field =
-            Field::<i32>::new_volatile(StorePath::from_segments(["test", "recursive_field"]), 0);
-
-        let field_clone = field.clone();
-
-        field.intercept(move |change| {
-            let _ = field_clone.set(change.new_value + 1);
-            Some(change)
-        });
-
-        let _ = field.set(1);
-
-        assert!(logs_contain("maximum intercept depth reached"));
-        assert!(logs_contain("path=test.recursive_field"));
-    }
-
-    #[test]
     fn test_field_subscribe_external() {
         let field = Field::<i32>::new_volatile(StorePath::from_segments(["test", "ext"]), 0);
         let fork = field.fork();
@@ -1121,14 +1020,14 @@ mod tests {
             c_clone.fetch_add(1, Ordering::SeqCst);
         });
 
-        field.set(1).unwrap();
+        field.set(1);
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
             "Own updates should be ignored"
         );
 
-        fork.set(2).unwrap();
+        fork.set(2);
         assert_eq!(
             calls.load(Ordering::SeqCst),
             1,
@@ -1160,7 +1059,7 @@ mod tests {
             c_clone.fetch_add(1, Ordering::SeqCst);
         });
 
-        field.set(200).unwrap();
+        field.set(200);
 
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -1168,7 +1067,7 @@ mod tests {
             "a handle's own writes do not reach its own external subscription"
         );
 
-        fork.set(300).unwrap();
+        fork.set(300);
 
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -1181,10 +1080,10 @@ mod tests {
         let field =
             Field::<i32>::new_volatile(StorePath::from_segments(["test", "update_modify"]), 10);
 
-        let updated = field.update(|val| val + 5).unwrap();
+        let updated = field.update(|val| val + 5);
         assert_eq!(updated, 15);
 
-        field.modify(|val| *val += 10).unwrap();
+        field.modify(|val| *val += 10);
         assert_eq!(field.get(), 25);
     }
 }

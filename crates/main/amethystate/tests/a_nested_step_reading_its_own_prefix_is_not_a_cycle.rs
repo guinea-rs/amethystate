@@ -67,9 +67,9 @@ fn a_nested_step_reading_its_own_prefix_is_not_a_cycle(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let system = v1::System::new_with(&store).unwrap();
-        system.label().set(3).unwrap();
-        system.net().port().set(8080).unwrap();
+        let system = v1::System::new_with(&store);
+        system.label().set(3);
+        system.net().port().set(8080);
         store.save_now().unwrap();
     }
 
@@ -83,7 +83,7 @@ fn a_nested_step_reading_its_own_prefix_is_not_a_cycle(backend: Backend) {
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
     assert_eq!(
-        System::new_with(&store).unwrap().net().label_copy().get(),
+        System::new_with(&store).net().label_copy().get(),
         3,
         "{backend:?}"
     );

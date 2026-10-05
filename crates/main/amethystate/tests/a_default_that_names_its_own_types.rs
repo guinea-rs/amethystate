@@ -24,7 +24,7 @@ fn a_default_spelling_its_types_is_one_entry_and_not_two(backend: Backend) {
         .build()
         .unwrap();
 
-    let held = Held::new_with(&store).unwrap();
+    let held = Held::new_with(&store);
 
     assert!(held.sizes().get().is_empty());
     assert_eq!(held.seeded().get().get("cpu"), Some(&110));

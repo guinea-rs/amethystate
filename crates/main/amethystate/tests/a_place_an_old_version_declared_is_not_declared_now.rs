@@ -35,7 +35,7 @@ fn a_place_only_an_old_version_declared_is_written_as_one_name() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _shelf = Shelf::new_with(&store).unwrap();
+        let _shelf = Shelf::new_with(&store);
         store
             .set(["shelf", "legacy", "label"], &"kept".to_string())
             .unwrap();

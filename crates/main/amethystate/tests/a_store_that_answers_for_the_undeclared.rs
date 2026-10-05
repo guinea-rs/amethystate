@@ -47,7 +47,7 @@ fn row<T: AmeStateSlice>(at: &'static str, said: &'static str, wins: OnUnreadabl
     Row {
         at,
         said,
-        opens: |store| T::load_slice(store).is_ok(),
+        opens: |store| T::try_load_slice(store).is_ok(),
         wins,
     }
 }
@@ -126,11 +126,11 @@ fn where_nobody_declared_the_store_decides(backend: Backend) {
     a_word_where_a_number_goes(backend, &path, &["u_none_none"]);
 
     assert!(
-        NoneNone::load_slice(&opened_with(backend, &path, OnUnreadable::Refuse)).is_err(),
+        NoneNone::try_load_slice(&opened_with(backend, &path, OnUnreadable::Refuse)).is_err(),
         "nothing was declared, so `Refuse` on the store is what happens"
     );
     assert!(
-        NoneNone::load_slice(&opened_with(backend, &path, OnUnreadable::UseDefault)).is_ok(),
+        NoneNone::try_load_slice(&opened_with(backend, &path, OnUnreadable::UseDefault)).is_ok(),
         "and `UseDefault` on the store is what happens instead"
     );
 }
@@ -169,7 +169,7 @@ struct Gone {
 }
 
 fn watched<T: AmeStateSlice>(store: &Store, at: &str, read: impl FnOnce(&T) -> u32) -> u32 {
-    let held = T::load_slice(store).unwrap();
+    let held = T::load_slice(store);
     store.set([at, "width"], &1920u32).unwrap();
     store.save_now().unwrap();
     store
@@ -284,11 +284,11 @@ fn a_nested_struct_that_declared_nothing_takes_the_store_word(backend: Backend) 
     }
 
     assert!(
-        Deep::load_slice(&opened_with(backend, &path, OnUnreadable::Refuse)).is_err(),
+        Deep::try_load_slice(&opened_with(backend, &path, OnUnreadable::Refuse)).is_err(),
         "the child declared nothing and neither did its holder, so the store's word reaches it"
     );
     assert!(
-        Deep::load_slice(&opened_with(backend, &path, OnUnreadable::UseDefault)).is_ok(),
+        Deep::try_load_slice(&opened_with(backend, &path, OnUnreadable::UseDefault)).is_ok(),
         "and it reaches it the other way too"
     );
 }
@@ -333,15 +333,16 @@ fn a_cache_that_still_holds_one_thing_worth_refusing(backend: Backend) {
         .build()
         .unwrap();
 
-    let thumbnails = Thumbnails::new_with(&store).expect("a cache starts over rather than failing");
+    let thumbnails =
+        Thumbnails::try_new_with(&store).expect("a cache starts over rather than failing");
     assert_eq!(thumbnails.generated.get(), 0);
 
-    Licence::new_with(&store).expect("nothing is wrong with the licence yet");
+    Licence::try_new_with(&store).expect("nothing is wrong with the licence yet");
 
     store.set(["licence", "holder"], &7u32).unwrap();
     store.save_now().unwrap();
 
-    Licence::new_with(&store)
+    Licence::try_new_with(&store)
         .expect_err("and when something is, its own `Refuse` still stops the process");
 }
 
@@ -369,7 +370,7 @@ fn the_word_survives_an_open_that_migrates(backend: Backend) {
         .unwrap();
 
     assert!(
-        NoneNone::load_slice(&store).is_ok(),
+        NoneNone::try_load_slice(&store).is_ok(),
         "the other way in carries the same word"
     );
 }

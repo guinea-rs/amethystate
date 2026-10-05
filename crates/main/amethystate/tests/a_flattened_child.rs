@@ -29,7 +29,7 @@ fn a_flattened_child_gives_up_its_segment(backend: Backend) {
     let path = TempPath::new("a_flattened_child");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let editor = Editor::new_with(&store).unwrap();
+    let editor = Editor::new_with(&store);
 
     assert_eq!(store.get::<u32>(["editor", "width"]).unwrap(), Some(800));
     assert_eq!(
@@ -41,7 +41,7 @@ fn a_flattened_child_gives_up_its_segment(backend: Backend) {
         Some(14)
     );
 
-    editor.window.width().set(1024).unwrap();
+    editor.window.width().set(1024);
     store.save_now().unwrap();
 
     assert_eq!(store.get::<u32>(["editor", "width"]).unwrap(), Some(1024));
@@ -66,7 +66,7 @@ fn flattening_passes_through_more_than_one_level(backend: Backend) {
     let path = TempPath::new("a_flattened_grandchild");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let _outer = Outer::new_with(&store).unwrap();
+    let _outer = Outer::new_with(&store);
 
     assert_eq!(store.get::<u32>(["deep", "width"]).unwrap(), Some(800));
 
@@ -80,7 +80,7 @@ fn flattening_passes_through_more_than_one_level(backend: Backend) {
 fn a_raw_write_onto_a_flattened_childs_field_is_refused(backend: Backend) {
     let at = TempPath::new("flattened_kv_collision");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
-    let _editor = Editor::new_with(&store).unwrap();
+    let _editor = Editor::new_with(&store);
 
     let refused = store.kv().namespace("editor").set("width", &1u32);
 

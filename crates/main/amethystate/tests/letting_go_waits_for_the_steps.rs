@@ -23,7 +23,7 @@ fn a_key_a_step_of_another_line_reads_is_there_when_it_runs() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _source = Source::new_with(&store).unwrap();
+        let _source = Source::new_with(&store);
         store.set(["src", "moved"], &7u64).unwrap();
         store.save_now().unwrap();
     }

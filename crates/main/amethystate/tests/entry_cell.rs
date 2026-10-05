@@ -24,7 +24,7 @@ pub struct TableConfig {
 fn entry_cell_reads_existing_value(backend: Backend) {
     let path = TempPath::new("entry_existing");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = config.widths().entry_cell("name".to_string());
     assert_eq!(entry.get(), Some(280));
@@ -37,7 +37,7 @@ fn entry_cell_reads_existing_value(backend: Backend) {
 fn entry_cell_on_a_missing_key_is_empty_and_refuses_writes(backend: Backend) {
     let path = TempPath::new("entry_default");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = config.widths().entry_cell("disk".to_string());
 
@@ -53,7 +53,7 @@ fn entry_cell_on_a_missing_key_is_empty_and_refuses_writes(backend: Backend) {
 fn write_lands_in_store(backend: Backend) {
     let path = TempPath::new("entry_write");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = config.widths().entry_cell("cpu".to_string());
     entry.set(144).unwrap();
@@ -66,7 +66,7 @@ fn write_lands_in_store(backend: Backend) {
 fn external_map_write_lands_in_cell(backend: Backend) {
     let path = TempPath::new("entry_external");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = config.widths().entry_cell("cpu".to_string());
     config.widths().update("cpu", &99).unwrap();
@@ -80,7 +80,7 @@ fn external_map_write_lands_in_cell(backend: Backend) {
 fn removed_key_empties_the_cell(backend: Backend) {
     let path = TempPath::new("entry_remove");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = config.widths().entry_cell("cpu".to_string());
     assert_eq!(entry.get(), Some(80));
@@ -107,7 +107,7 @@ fn removed_key_empties_the_cell(backend: Backend) {
 fn two_cells_on_one_key_fire_once_per_write(backend: Backend) {
     let path = TempPath::new("entry_no_echo");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let a = config.widths().entry_cell("cpu".to_string());
     let b = config.widths().entry_cell("cpu".to_string());
@@ -138,37 +138,13 @@ fn two_cells_on_one_key_fire_once_per_write(backend: Backend) {
     );
 }
 
-/// A rejected write must say so and leave the cell reporting what is stored.
-/// The old entry signal swallowed the error and kept the value it had already
-/// written into its own cache, so the cell quietly disagreed with the store.
-#[backends(all)]
-fn rejected_write_reports_and_leaves_the_cell_alone(backend: Backend) {
-    let path = TempPath::new("entry_rejected");
-    let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
-
-    let entry = config.widths().entry_cell("cpu".to_string());
-    let _guard = config.widths().intercept(|_change| None);
-
-    let result = entry.set(999);
-
-    let err = result.unwrap_err();
-    insta::assert_snapshot!("write_an_interceptor_refused", err.to_string());
-    assert_eq!(
-        entry.get(),
-        Some(80),
-        "cell must not hold a value the map refused"
-    );
-    assert_eq!(config.widths().get("cpu"), Some(80));
-}
-
 /// The cell holds the map weakly, and a handle is not the map: dropping the
 /// clone it was made from changes nothing while the struct still holds one.
 #[backends(all)]
 fn a_cell_survives_the_handle_it_was_made_from(backend: Backend) {
     let path = TempPath::new("entry_keepalive");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let entry = {
         let widths = config.widths();
@@ -206,7 +182,7 @@ fn entry_cell_write_persists_across_store_rebuild(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = TableConfig::new_with(&store).unwrap();
+        let config = TableConfig::new_with(&store);
         config.widths().insert("memory".to_string(), &0).unwrap();
         let entry = config.widths().entry_cell("memory".to_string());
         entry.set(256).unwrap();
@@ -214,7 +190,7 @@ fn entry_cell_write_persists_across_store_rebuild(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = TableConfig::new_with(&store).unwrap();
+        let config = TableConfig::new_with(&store);
         assert_eq!(config.widths().get("memory"), Some(256));
 
         let entry = config.widths().entry_cell("memory".to_string());
@@ -258,7 +234,7 @@ fn an_owning_cell_survives_the_struct_it_came_from(backend: Backend) {
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
     let width = {
-        let config = TableConfig::new_with(&store).unwrap();
+        let config = TableConfig::new_with(&store);
         config.default_width().into_cell()
     };
 
@@ -290,7 +266,7 @@ fn an_owning_entry_cell_survives_the_map_it_came_from(backend: Backend) {
 fn an_update_through_a_cell_on_a_missing_key_says_the_key_is_absent(backend: Backend) {
     let path = TempPath::new("entry_absent_update");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let config = TableConfig::new_with(&store).unwrap();
+    let config = TableConfig::new_with(&store);
 
     let gpu = config.widths().entry_cell("gpu".to_string());
 
@@ -316,7 +292,7 @@ fn an_update_through_a_cell_whose_map_is_gone_says_the_source_is_gone(backend: B
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
     let cpu = {
-        let config = TableConfig::new_with(&store).unwrap();
+        let config = TableConfig::new_with(&store);
         config.widths().entry_cell("cpu".to_string())
     };
 

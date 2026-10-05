@@ -34,7 +34,7 @@ let store = StoreBuilder::new(settings).build()?;
 ```rust
 let _ame = "./app.redb".init_global();
 
-let state = NetworkState::new()?;
+let state = NetworkState::new();
 ```
 <!-- /shown -->
 

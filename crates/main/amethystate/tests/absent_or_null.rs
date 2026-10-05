@@ -55,7 +55,7 @@ fn what_a_document_holds_for_nothing() -> anyhow::Result<()> {
         let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
         //@act
-        let held = Held::new_with(&store)?;
+        let held = Held::new_with(&store);
 
         //@show a value
         held.note().durable().set(Some("here".to_string()))?;
@@ -103,8 +103,8 @@ fn nothing_and_gone_are_different() -> anyhow::Result<()> {
     let path = TempPath::new("absent_or_gone");
     let store = StoreBuilder::new(path.path()).build()?;
 
-    let held = Held::new_with(&store)?;
-    held.note().set(None)?;
+    let held = Held::new_with(&store);
+    held.note().set(None);
 
     assert_eq!(
         store.get::<Option<String>>(note_path())?,

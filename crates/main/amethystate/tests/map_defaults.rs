@@ -34,7 +34,7 @@ fn a_map_added_later_still_gets_its_defaults(backend: Backend) {
     }
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     assert_eq!(
         cfg.second().keys().collect::<Vec<_>>(),
@@ -54,14 +54,14 @@ fn reopening_does_not_restore_a_removed_entry(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
         cfg.second().remove("x").unwrap();
         assert_eq!(cfg.second().keys().collect::<Vec<_>>(), ["y"]);
         store.save_now().unwrap();
     }
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     assert_eq!(
         cfg.second().keys().collect::<Vec<_>>(),
@@ -74,7 +74,7 @@ fn reopening_does_not_restore_a_removed_entry(backend: Backend) {
 fn a_fresh_store_seeds_every_map(backend: Backend) {
     let path = TempPath::new("map_defaults_fresh");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     assert_eq!(cfg.first().keys().collect::<Vec<_>>(), ["a"]);
     assert_eq!(cfg.second().keys().collect::<Vec<_>>(), ["x", "y"]);

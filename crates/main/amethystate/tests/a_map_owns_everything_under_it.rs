@@ -58,9 +58,9 @@ fn a_declared_leaf_inside_a_maps_space_is_refused(backend: Backend) {
     let at = TempPath::new("map_owns_leaf");
     let store = opened(backend, &at);
 
-    Panels::new_with(&store).unwrap();
+    Panels::new_with(&store);
 
-    let refused = Intruder::new_with(&store)
+    let refused = Intruder::try_new_with(&store)
         .expect_err("`ui.open.left` is a name the map may use, so it is not free");
 
     let rendered = format!("{refused:?}");
@@ -75,9 +75,9 @@ fn it_is_refused_in_the_other_order_too(backend: Backend) {
     let at = TempPath::new("map_owns_order");
     let store = opened(backend, &at);
 
-    Intruder::new_with(&store).unwrap();
+    Intruder::new_with(&store);
 
-    Panels::new_with(&store)
+    Panels::try_new_with(&store)
         .expect_err("a map cannot open over a leaf already declared inside its space");
 }
 
@@ -86,9 +86,9 @@ fn a_field_beside_the_map_is_left_alone(backend: Backend) {
     let at = TempPath::new("map_owns_sibling");
     let store = opened(backend, &at);
 
-    let panels = Panels::new_with(&store).unwrap();
+    let panels = Panels::new_with(&store);
 
-    panels.theme.set("light".to_string()).unwrap();
+    panels.theme.set("light".to_string());
     panels.open.insert("left".to_string(), &240).unwrap();
 
     assert_eq!(
@@ -103,7 +103,7 @@ fn a_recursive_value_is_one_key_however_deep_it_goes(backend: Backend) {
     let at = TempPath::new("map_owns_recursive");
     let store = opened(backend, &at);
 
-    let forest = Forest::new_with(&store).unwrap();
+    let forest = Forest::new_with(&store);
 
     let deep = Branch {
         name: "a".to_string(),
@@ -150,7 +150,7 @@ fn a_hand_written_key_under_a_map_is_refused(backend: Backend) {
     let at = TempPath::new("map_owns_by_hand");
     let store = opened(backend, &at);
 
-    Panels::new_with(&store).unwrap();
+    Panels::new_with(&store);
 
     let refused = store
         .kv()
@@ -171,7 +171,7 @@ fn a_hand_written_key_beside_a_struct_is_allowed(backend: Backend) {
     let at = TempPath::new("map_owns_contrast");
     let store = opened(backend, &at);
 
-    Panels::new_with(&store).unwrap();
+    Panels::new_with(&store);
 
     store
         .kv()

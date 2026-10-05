@@ -6,8 +6,8 @@ sidebar:
 ---
 
 **Each point in the API fails with the set that is possible there.** A
-constructor answers with the six ways a struct can refuse to open; a `Kv` write
-with the six ways a raw write can be turned down. The set lists them, so a
+`try_` constructor answers with the four ways a struct can fail to open; a `Kv`
+write with the six ways a raw write can be turned down. The set lists them, so a
 `match` over it is complete and the compiler keeps it that way.
 
 Each set is an ordinary `std::error::Error`. So a refusal gets one of two
@@ -17,18 +17,16 @@ treatments, and both are cheap: take it apart, or hand it on.
 
 <!-- shown: telling one refusal from another -->
 ```rust
-let refused = match Panel::new_with(&store) {
+let refused = match Panel::try_new_with(&store) {
     Ok(_) => return Ok(()),
     Err(why) => why,
 };
 
 let said = match refused {
-    OpenStruct::Refused { at, said } => format!("{at} was turned down: {said}"),
     OpenStruct::WillNotRead { at, why } => format!("{at} holds something else: {why}"),
     OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
     OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
     OpenStruct::Store(disk) => format!("the store: {disk}"),
-    OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
 };
 ```
 <!-- /shown -->
@@ -72,21 +70,27 @@ plain `?`, and giving up costs nothing.
 
 | set | raised by |
 | --- | --- |
-| `OpenStruct` | `new`, `new_with`, `new_with_id`, `new_with_id_under`, `load`, `load_with`, `Open::new_with`, `Schema::open`, `Kv::cell` |
+| `OpenStruct` | `try_new`, `try_new_with`, `try_load`, `try_load_with`, `Open::try_new_with`, `AmeStateSlice::try_load_slice`, `new_with_id`, `new_with_id_under`, `Schema::open`, `Kv::cell` |
 | `OpenStore` | `StoreBuilder::build`, `migrate`, `located` |
 | `LoadMap` | `Kv::map`, and a map field's own constructor |
 | `ReadValue` | `Store::get` |
-| `WriteValue` | `Store::set`, `Store::delete`, `Field::set`, `ReactiveCell::set`/`update`/`modify`, `ReactiveMap::insert` |
+| `WriteValue` | `Store::set`, `Store::delete`, `Field::durable` writes, `ReactiveCell::set`/`update`/`modify`, `ReactiveMap::insert` |
 | `KvWrite` | `Kv::get`, `Kv::set`, `Kv::remove` |
 | `ScanKeys` | `Store::scan_keys`, `Store::scan_prefix`, `Kv::keys` |
 | `Flush` | `save_now`, `close`, `flush_prefix` |
 | `RunStep` | every `MigrationContext` method, and what a migration step hands back |
 
-They overlap and they are still separate types. `WriteValue` has `Intercepted`,
-`Recursed`, `Absent` and `SourceGone`, which a raw `Kv` write cannot reach; `KvWrite` has
-`Declared`, which a write through a field cannot. Four variants are shared.
-Written as one set, every caller would read past arms that cannot fire where
-they are.
+They overlap and they are still separate types. `WriteValue` has `Absent` and
+`SourceGone`, which a raw `Kv` write cannot reach; `KvWrite` has `Declared`,
+which a write through a field cannot. Five variants are shared. Written as one
+set, every caller would read past arms that cannot fire where they are.
+
+Two doors have no set at all, because what stops them is a bug rather than a
+circumstance. The plain constructors - `new`, `new_with`, `load`, `load_with`,
+`load_slice` - panic with what their `try_` twin would have answered. And
+`Field::set`, `update` and `modify` take every write: a value the engine cannot
+hold panics naming the field, and a write to a closed store is dropped with a
+warning. `Field::durable` is the write that answers with a `Result`.
 
 A map gets its own set rather than sharing `OpenStruct` because it is opened
 over what is already under it, and so meets two failures nothing else can: a
@@ -99,7 +103,7 @@ against *the disk is broken*, which it cannot - has nowhere else to live.
 not the store's failure, but what this field and the store do not agree about.
 It answers with a `Disagreement` - a path and one of four reasons - which is an
 ordinary `Error` too. What each reason means:
-[Rules](/amethystate/state/rules/#a-stored-value-it-turns-down).
+[When a value will not read](/amethystate/state/unreadable-values/).
 
 ## The report is still there
 

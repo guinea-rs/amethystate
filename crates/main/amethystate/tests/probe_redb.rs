@@ -1756,10 +1756,10 @@ fn a_prefix_that_spells_another_prefixs_init_flag() {
 
     {
         let store = open(&file);
-        let shadow = Shadow::new_with(&store).unwrap();
-        shadow.n().set(20).unwrap();
-        let plain = Plain::new_with(&store).unwrap();
-        plain.n().set(10).unwrap();
+        let shadow = Shadow::new_with(&store);
+        shadow.n().set(20);
+        let plain = Plain::new_with(&store);
+        plain.n().set(10);
         store.save_now().unwrap();
     }
 
@@ -1778,8 +1778,8 @@ fn a_prefix_that_spells_another_prefixs_init_flag() {
                 "meta collision: failures = {}, report = {report:?}",
                 report.has_failures()
             );
-            let plain = Plain::new_with(&store).unwrap();
-            let shadow = Shadow::new_with(&store).unwrap();
+            let plain = Plain::new_with(&store);
+            let shadow = Shadow::new_with(&store);
             assert_eq!(plain.n().get(), 10, "the value under `probe_meta` changed");
             assert_eq!(
                 shadow.n().get(),
@@ -1803,7 +1803,7 @@ fn a_migration_scans_past_the_level_boundary_and_then_refuses_what_it_found() {
 
     {
         let store = open(&file);
-        let cfg = v1::Routing::new_with(&store).unwrap();
+        let cfg = v1::Routing::new_with(&store);
         cfg.routes().insert("a".into(), &"one".into()).unwrap();
         cfg.routes_v2().insert("b".into(), &"two".into()).unwrap();
         store.save_now().unwrap();
@@ -1829,7 +1829,7 @@ fn a_migration_scans_past_the_level_boundary_and_then_refuses_what_it_found() {
         "a map whose name begins another map's name still breaks the migration: {report:?}"
     );
 
-    let cfg = Routing::new_with(&store).unwrap();
+    let cfg = Routing::new_with(&store);
     assert_eq!(
         cfg.generation().get(),
         1,

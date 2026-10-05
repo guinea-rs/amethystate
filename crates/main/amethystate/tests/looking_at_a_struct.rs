@@ -49,7 +49,7 @@ fn opened(backend: Backend, at: &TempPath) -> Store {
 #[backends(all)]
 fn every_declared_field_is_listed_in_order(backend: Backend) {
     let at = TempPath::new("looking_order");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     let declared: Vec<&str> = editor.fields().map(|f| f.declared).collect();
 
@@ -71,7 +71,7 @@ fn every_declared_field_is_listed_in_order(backend: Backend) {
 #[backends(all)]
 fn a_view_says_both_names_and_the_whole_path(backend: Backend) {
     let at = TempPath::new("looking_names");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     let size = editor.field("font_size").unwrap();
     assert_eq!(size.declared, "font_size", "what the code calls it");
@@ -88,9 +88,9 @@ fn a_view_says_both_names_and_the_whole_path(backend: Backend) {
 #[backends(all)]
 fn a_value_is_shown_when_it_can_be(backend: Backend) {
     let at = TempPath::new("looking_values");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
-    editor.font_size.set(18).unwrap();
+    editor.font_size.set(18);
 
     assert_eq!(editor.field("font_size").unwrap().shown, "18");
 
@@ -110,7 +110,7 @@ fn a_value_is_shown_when_it_can_be(backend: Backend) {
 #[backends(all)]
 fn a_nested_field_carries_the_struct_under_it(backend: Backend) {
     let at = TempPath::new("looking_nested");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     let window = editor.field("window").unwrap();
     let inside = window.inside.expect("a nested field has fields under it");
@@ -139,7 +139,7 @@ fn what_the_store_disagrees_with_is_on_the_field_it_is_about(backend: Backend) {
         store.close().unwrap();
     }
 
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     let size = editor.field("font_size").unwrap();
     let gone = size.disagreement.expect("a word is not a number");
@@ -155,7 +155,7 @@ fn what_the_store_disagrees_with_is_on_the_field_it_is_about(backend: Backend) {
 #[backends(all)]
 fn a_doc_comment_arrives_as_a_description(backend: Backend) {
     let at = TempPath::new("looking_described");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     assert_eq!(
         editor.field("font_size").unwrap().described,
@@ -173,7 +173,7 @@ fn a_doc_comment_arrives_as_a_description(backend: Backend) {
 #[backends(all)]
 fn the_whole_thing_renders_for_a_person(backend: Backend) {
     let at = TempPath::new("looking_rendered");
-    let editor = Editor::new_with(&opened(backend, &at)).unwrap();
+    let editor = Editor::new_with(&opened(backend, &at));
 
     let shown = editor.inspect().to_string();
 

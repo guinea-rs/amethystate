@@ -49,11 +49,7 @@ fn a_new_store_runs_no_steps_over_its_defaults(backend: Backend) {
         None,
         "{backend:?}: a store nothing had written to was given what the step made of the defaults"
     );
-    assert_eq!(
-        Tally::new_with(&store).unwrap().count().len(),
-        0,
-        "{backend:?}"
-    );
+    assert_eq!(Tally::new_with(&store).count().len(), 0, "{backend:?}");
 }
 
 #[backends(all)]

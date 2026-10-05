@@ -31,7 +31,7 @@ fn reactive_map_inside_nested_struct_seeds_defaults(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let settings = ProcessSettings::new_with(&store).unwrap();
+    let settings = ProcessSettings::new_with(&store);
 
     let widths = settings.columns().widths_px();
     assert_eq!(widths.get("name"), Some(200u64));
@@ -47,7 +47,7 @@ fn reactive_map_inside_nested_struct_seeds_defaults_only_once(backend: Backend) 
             .backend(backend)
             .build()
             .unwrap();
-        let settings = ProcessSettings::new_with(&store).unwrap();
+        let settings = ProcessSettings::new_with(&store);
         settings
             .columns()
             .widths_px()
@@ -60,7 +60,7 @@ fn reactive_map_inside_nested_struct_seeds_defaults_only_once(backend: Backend) 
             .backend(backend)
             .build()
             .unwrap();
-        let settings = ProcessSettings::new_with(&store).unwrap();
+        let settings = ProcessSettings::new_with(&store);
 
         // Reopening must not re-seed the default over the user's edit.
         assert_eq!(settings.columns().widths_px().get("name"), Some(999u64));

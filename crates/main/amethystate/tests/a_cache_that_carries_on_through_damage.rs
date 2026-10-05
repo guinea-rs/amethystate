@@ -61,7 +61,7 @@ fn a_write_outlives_a_reopen_despite_the_long_debounce() {
 
     {
         let store = open(&path);
-        let cache = Cache::new_with(&store).unwrap();
+        let cache = Cache::new_with(&store);
         cache
             .verdicts()
             .insert("k".to_string(), &verdict("kept"))
@@ -74,7 +74,7 @@ fn a_write_outlives_a_reopen_despite_the_long_debounce() {
     );
 
     let store = open(&path);
-    let cache = Cache::new_with(&store).unwrap();
+    let cache = Cache::new_with(&store);
     assert_eq!(cache.verdicts().get("k"), Some(verdict("kept")));
 }
 
@@ -89,7 +89,7 @@ fn a_file_that_is_not_a_database_is_replaced_by_an_empty_store() {
     .unwrap();
 
     let store = open(&path);
-    let cache = Cache::new_with(&store).unwrap();
+    let cache = Cache::new_with(&store);
     assert_eq!(cache.verdicts().len(), 0);
 
     cache
@@ -107,7 +107,7 @@ fn an_entry_that_will_not_decode_is_left_out() {
     {
         let store = open(&path);
         {
-            let cache = Cache::new_with(&store).unwrap();
+            let cache = Cache::new_with(&store);
             cache
                 .verdicts()
                 .insert("good".to_string(), &verdict("good"))
@@ -126,7 +126,7 @@ fn an_entry_that_will_not_decode_is_left_out() {
     }
 
     let store = open(&path);
-    let cache = Cache::new_with(&store).unwrap();
+    let cache = Cache::new_with(&store);
     assert_eq!(cache.verdicts().get("good"), Some(verdict("good")));
     assert_eq!(cache.verdicts().get("bad"), None);
 }

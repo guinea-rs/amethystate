@@ -38,7 +38,7 @@ fn a_stream_over_a_field_ends_once_every_handle_is_gone() {
 
     let woken = Arc::new(Woken::default());
     let waker = Waker::from(woken.clone());
-    port.set(9090).unwrap();
+    port.set(9090);
     assert_eq!(polled(&mut changes, &waker), Poll::Ready(Some(9090)));
     assert_eq!(polled(&mut changes, &waker), Poll::Pending);
 
@@ -52,7 +52,7 @@ fn a_stream_over_a_field_ends_once_every_handle_is_gone() {
 fn a_stream_over_a_map_ends_once_every_handle_is_gone() {
     let path = TempPath::new("stream_ends_map");
     let store = StoreBuilder::new(path.path()).build().unwrap();
-    let peers = Streams::new_with(&store).unwrap().peers();
+    let peers = Streams::new_with(&store).peers();
     let mut changes = peers.subscription_with().stream();
 
     let woken = Arc::new(Woken::default());

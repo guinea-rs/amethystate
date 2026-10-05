@@ -37,8 +37,8 @@ fn a_struct_at_the_root_is_migrated_like_any_other(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
-        config.name().set("kept".to_string()).unwrap();
+        let config = v1::AppConfig::new_with(&store);
+        config.name().set("kept".to_string());
         store.save_now().unwrap();
     }
 
@@ -52,6 +52,6 @@ fn a_struct_at_the_root_is_migrated_like_any_other(backend: Backend) {
 
     assert!(!report.has_failures(), "{report:?}");
 
-    let config = AppConfig::new_with(&store).unwrap();
+    let config = AppConfig::new_with(&store);
     assert_eq!(config.title().get(), "kept");
 }

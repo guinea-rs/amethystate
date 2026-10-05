@@ -278,29 +278,16 @@ pub(crate) fn data_impl(crate_name: &TokenStream2, schema: &Schema) -> TokenStre
 
     let store_judge_fields = p_fields.iter().map(|field| {
         let fname = &field.ident;
-        let key_path = path_literal(crate_name, &field.stored.value);
         let ty = &field.ty;
 
         match &field.shape {
-            Shape::Node { flattened } => {
-                let under = if *flattened {
-                    quote!(prefix.clone())
-                } else {
-                    quote!(prefix.join(&#key_path))
-                };
-                quote! {
-                    self.#fname.__amethystate_judge(store, &#under)?;
-                }
-            }
+            Shape::Node { .. } => quote! {
+                self.#fname.__amethystate_judge(store);
+            },
             Shape::Stored { .. } => {
                 let rule = rule_tokens(crate_name, field);
                 quote! {
-                    <#ty as #crate_name::shape::Kind>::judge_plain(
-                        &mut self.#fname,
-                        store,
-                        &prefix.join(&#key_path),
-                        #rule,
-                    )?;
+                    <#ty as #crate_name::shape::Kind>::judge_plain(&mut self.#fname, store, #rule);
                 }
             }
             Shape::Volatile { .. } => unreachable!("a volatile field is never stored"),
@@ -348,9 +335,22 @@ pub(crate) fn data_impl(crate_name: &TokenStream2, schema: &Schema) -> TokenStre
         Some(_) => quote! {},
         None => quote! {
             impl #name {
-                pub fn load() -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                /// Loads the struct from the global store.
+                ///
+                /// # Panics
+                ///
+                /// Where `try_load` answers `Err`, with what it said.
+                #[track_caller]
+                pub fn load() -> Self {
                     let store = #crate_name::global_store();
                     Self::load_with(&store)
+                }
+
+                /// Loads the struct from the global store, or says why it would
+                /// not open.
+                pub fn try_load() -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                    let store = #crate_name::global_store();
+                    Self::try_load_with(&store)
                 }
             }
         },
@@ -406,8 +406,20 @@ pub(crate) fn data_impl(crate_name: &TokenStream2, schema: &Schema) -> TokenStre
                             ))
                     }
 
-                    pub fn load_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                    /// Loads the struct from `store` through its `Open`.
+                    ///
+                    /// # Panics
+                    ///
+                    /// Where `try_load_with` answers `Err`, with what it said.
+                    #[track_caller]
+                    pub fn load_with(store: &#crate_name::Store) -> Self {
                         <Self as #crate_name::store::Open>::new_with(store)
+                    }
+
+                    /// Loads the struct from `store` through its `Open`, or says
+                    /// why it would not open.
+                    pub fn try_load_with(store: &#crate_name::Store) -> ::core::result::Result<Self, #crate_name::store::OpenStruct> {
+                        <Self as #crate_name::store::Open>::try_new_with(store)
                     }
                 }
 
@@ -436,18 +448,13 @@ pub(crate) fn data_impl(crate_name: &TokenStream2, schema: &Schema) -> TokenStre
                 store: &#crate_name::Store,
                 prefix: &#crate_name::store::StorePath,
             ) -> ::core::result::Result<(), #crate_name::store::WriteValue> {
-                self.__amethystate_judge(store, prefix)?;
+                self.__amethystate_judge(store);
                 self.__amethystate_write_to(store, prefix)
             }
 
             #[doc(hidden)]
-            pub fn __amethystate_judge(
-                &mut self,
-                store: &#crate_name::Store,
-                prefix: &#crate_name::store::StorePath,
-            ) -> ::core::result::Result<(), #crate_name::store::WriteValue> {
+            pub fn __amethystate_judge(&mut self, store: &#crate_name::Store) {
                 #(#store_judge_fields)*
-                Ok(())
             }
 
             #[doc(hidden)]

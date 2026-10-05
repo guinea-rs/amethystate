@@ -16,7 +16,7 @@ fn a_persistent_struct_takes_the_derives_written_on_it(backend: Backend) {
     let at = TempPath::new("persistent_derived");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
 
-    let loaded = Derived::load_with(&store).unwrap();
+    let loaded = Derived::load_with(&store);
     let copied = loaded.clone();
 
     assert_eq!(copied.port, 7);

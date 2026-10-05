@@ -756,12 +756,11 @@ fn handles() {
         }
         Ok(field) => {
             println!("declaring a Mode field: Ok, holding {:?}", field.get());
-            let set = field.set(Mode::Level(3));
+            field.set(Mode::Level(3));
             store.save_now().unwrap();
             println!(
-                "setting it to Level(3): {:?}, the handle now holds {:?}, \
+                "after setting it to Level(3), the handle holds {:?}, \
                  a typed read of the path says {:?}, the file says {}",
-                set.map_err(|e| why(&e)),
                 field.get(),
                 store.get::<Mode>(["probe", "mode"]).map_err(|e| why(&e)),
                 cut(

@@ -53,8 +53,8 @@ fn two_structs_on_one_prefix_migrate_each_on_its_own(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        v1::Left::new_with(&store).unwrap().left().set(7).unwrap();
-        v1::Right::new_with(&store).unwrap().right().set(9).unwrap();
+        v1::Left::new_with(&store).left().set(7);
+        v1::Right::new_with(&store).right().set(9);
         store.save_now().unwrap();
     }
 
@@ -73,11 +73,11 @@ fn two_structs_on_one_prefix_migrate_each_on_its_own(backend: Backend) {
         );
         assert!(!report.has_drift(), "{backend:?} open {open}: {report:?}");
 
-        let left = Left::new_with(&store).unwrap();
+        let left = Left::new_with(&store);
         assert_eq!(left.left().get(), 7, "{backend:?} open {open}");
         assert_eq!(left.doubled().get(), 14, "{backend:?} open {open}");
         assert_eq!(
-            Right::new_with(&store).unwrap().right().get(),
+            Right::new_with(&store).right().get(),
             "9",
             "{backend:?} open {open}"
         );
