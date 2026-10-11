@@ -39,7 +39,7 @@ fn a_member_named_with_nothing_is_an_entry_like_any_other() -> anyhow::Result<()
 
         {
             let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-            let panel = Panel::new_with(&store)?;
+            let panel = Panel::new_with(&store);
             panel.widths().insert("cpu".to_string(), &120)?;
             store.save_now()?;
         }
@@ -48,7 +48,7 @@ fn a_member_named_with_nothing_is_an_entry_like_any_other() -> anyhow::Result<()
         std::fs::write(path.path(), with_an_unnamed_member(&pristine, backend))?;
 
         let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-        let panel = Panel::new_with(&store)?;
+        let panel = Panel::new_with(&store);
 
         let held: Vec<String> = panel.widths().keys().collect();
 
@@ -71,7 +71,7 @@ fn a_member_named_with_nothing_is_an_entry_like_any_other() -> anyhow::Result<()
         drop(store);
 
         let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-        let panel = Panel::new_with(&store)?;
+        let panel = Panel::new_with(&store);
 
         assert_eq!(
             panel.widths().get(""),

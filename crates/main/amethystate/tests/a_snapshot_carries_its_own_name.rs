@@ -43,7 +43,7 @@ fn a_record_names_the_struct_whose_fields_it_holds() {
             .backend(Backend::Redb)
             .build()
             .unwrap();
-        let _early = v1::Alpha::new_with(&store).unwrap();
+        let _early = v1::Alpha::new_with(&store);
         store.save_now().unwrap();
     }
 
@@ -53,8 +53,8 @@ fn a_record_names_the_struct_whose_fields_it_holds() {
             .migrate()
             .unwrap();
         assert!(!report.has_failures());
-        let _alpha = Alpha::new_with(&store).unwrap();
-        let _beta = Beta::new_with(&store).unwrap();
+        let _alpha = Alpha::new_with(&store);
+        let _beta = Beta::new_with(&store);
         store.save_now().unwrap();
     }
 

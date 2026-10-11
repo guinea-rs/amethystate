@@ -120,11 +120,12 @@ impl Store {
     /// Attaches an observer to this store's background saving, for as long as
     /// the returned watch is kept.
     ///
-    /// It hears every failing streak that outlives the retry budget, with what
-    /// [`Disk::on_failure`](crate::store::config::Disk::on_failure) decided about
-    /// it, and the save that lands after one. It decides nothing: any number
-    /// can be attached, from anywhere that holds the store. It runs on the
-    /// flush thread, where closing the store is refused.
+    /// It hears every failing streak that outlives the retry budget, and the
+    /// save that lands after one. It decides nothing - writes keep landing in
+    /// memory whatever the disk does - and any number can be attached, from
+    /// anywhere that holds the store. It runs on the flush thread, where
+    /// closing the store is refused; one that panics is logged and the store
+    /// saves on.
     ///
     /// A backend that saves on its own terms has nothing to report, and its
     /// watch hears nothing.
@@ -139,7 +140,7 @@ impl Store {
     }
 
     /// The failure the last failing streak gave up with, until a save lands
-    /// again - whatever was decided about it.
+    /// again.
     pub fn persist_failure(&self) -> Option<Arc<Report<StorageError>>> {
         self.backend.persist_health()?.last_failure()
     }

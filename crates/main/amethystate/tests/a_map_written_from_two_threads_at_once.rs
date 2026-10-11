@@ -18,7 +18,7 @@ pub struct Load {
 fn a_write_that_landed_while_another_was_finishing_is_the_one_the_map_holds(backend: Backend) {
     let path = TempPath::new("map_two_threads");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cores = Load::new_with(&store).unwrap().cores();
+    let cores = Load::new_with(&store).cores();
 
     let once = Arc::new(AtomicBool::new(true));
     let other = cores.clone();

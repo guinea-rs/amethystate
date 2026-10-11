@@ -328,15 +328,10 @@ impl RedbStoreInner {
         Ok((txn, table))
     }
 
-    /// Whether a write may proceed.
-    ///
-    /// A background flush that has been failing past its budget is an error
-    /// the caller can act on, not a reason to take the process down - the
-    /// value is refused, what is already buffered keeps being retried, and a
-    /// flush that lands clears this. A debouncer thread that is actually dead
-    /// is a different thing and still panics: that is a bug here, not a disk.
+    /// Whether a write may proceed: anywhere but a closed store. See
+    /// [`utils::check_debouncer`].
     fn check_debouncer(&self) -> StorageResult<()> {
-        utils::check_debouncer(&self.health, &self.debouncer)
+        utils::check_debouncer(&self.debouncer)
     }
 }
 
@@ -706,7 +701,8 @@ impl StoreBackend for RedbStore {
             lock.insert(path.clone(), utils::PendingOp::Set(bytes.clone()));
         })?;
 
-        let told = utils::emit_events(
+        self.inner.debouncer.schedule();
+        utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path,
@@ -717,10 +713,7 @@ impl StoreBackend for RedbStore {
                 at: settled,
                 judged: by.judged,
             },
-        );
-
-        self.inner.debouncer.schedule();
-        told
+        )
     }
 
     fn parallel_reads(&self) -> bool {
@@ -931,7 +924,8 @@ impl StoreBackend for RedbStore {
             lock.insert(path.clone(), utils::PendingOp::Delete);
         })?;
 
-        let told = utils::emit_events(
+        self.inner.debouncer.schedule();
+        utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -942,10 +936,7 @@ impl StoreBackend for RedbStore {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.inner.debouncer.schedule();
-        told
+        )
     }
 
     fn delete_prefix_with_source(
@@ -967,7 +958,8 @@ impl StoreBackend for RedbStore {
             }
         })?;
 
-        let told = utils::emit_events(
+        self.inner.debouncer.schedule();
+        utils::emit_events(
             &self.inner.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -978,10 +970,7 @@ impl StoreBackend for RedbStore {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.inner.debouncer.schedule();
-        told
+        )
     }
 
     fn delete(&self, path: &StorePath) -> StorageResult<()> {
@@ -1170,7 +1159,6 @@ mod tests {
     use crate::migration::fields::FieldDescriptor;
     use crate::migration::{MigrationError, MigrationPlan};
     use crate::store::StoreExt;
-    use crate::store::config::AfterGivingUp;
     use amethystate_core::test_utils::TempPath;
     use serial_test::serial;
     use std::thread;
@@ -1523,34 +1511,7 @@ mod tests {
         }
     }
 
-    fn failing_store(
-        tag: &str,
-        decision: AfterGivingUp,
-    ) -> (RedbStore, Arc<Mutex<Vec<String>>>, TempPath) {
-        let at = TempPath::new(tag);
-        let mut config = StoreConfig::new(&at);
-        config.save_debounce = Duration::from_millis(10);
-        config.retry_policy = crate::store::config::RetryPolicy {
-            interval: Duration::from_millis(10),
-            budget: Duration::from_millis(50),
-        };
-
-        let heard: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let heard_write = heard.clone();
-        config.on_persist_failure = Some(Arc::new(
-            move |gave_up: &crate::store::config::GaveUp<'_>| {
-                heard_write
-                    .lock()
-                    .push(format!("{:#} {:?}", gave_up.why, gave_up.unsaved));
-                decision
-            },
-        ));
-
-        let (store, _) = RedbStore::open(config, MigrationSet::default()).unwrap();
-        (store, heard, at)
-    }
-
-    fn a_store_nobody_answered_for(tag: &str) -> (RedbStore, TempPath) {
+    fn a_store_that_gives_up_soon(tag: &str) -> (RedbStore, TempPath) {
         let at = TempPath::new(tag);
         let mut config = StoreConfig::new(&at);
         config.save_debounce = Duration::from_millis(10);
@@ -1563,81 +1524,29 @@ mod tests {
         (store, at)
     }
 
-    /// The budget is 50ms and the retry interval 10ms, so a streak that is
-    /// going to escalate has escalated many times over by the time this is up.
-    /// The test below it proves the timing: the same store with an explicit
-    /// `Fail` marks its health well inside this window.
-    const PAST_ANY_BUDGET: Duration = Duration::from_millis(500);
-
     #[test]
     #[serial]
-    fn a_flush_nobody_answered_for_goes_on_taking_writes() {
+    fn a_flush_that_keeps_failing_goes_on_taking_writes() {
         let failing_disk = SimulatedWriteFailure::armed();
-        let (store, _at) = a_store_nobody_answered_for("debouncer_default_answer");
+        let (store, _at) = a_store_that_gives_up_soon("debouncer_takes_writes");
 
         store
             .set(StorePath::from_segments(["doomed"]), &1u32)
             .unwrap();
-
-        thread::sleep(PAST_ANY_BUDGET);
-
         assert!(
-            store.inner.health.failure().is_none(),
-            "a full disk is not a failure of the write that met it: an \
-             application that configured nothing should not have every write \
-             start failing for as long as the disk stays full"
+            wait_until(|| store.inner.health.last_failure().is_some()),
+            "the streak never gave up"
         );
+        assert!(!store.inner.debouncer.is_poisoned());
 
         store
             .set(StorePath::from_segments(["another"]), &2u32)
             .expect("a write made after the budget ran out");
-
-        failing_disk.disarm();
-    }
-
-    #[test]
-    #[serial]
-    fn a_flush_that_keeps_failing_fails_the_next_write_rather_than_the_process() {
-        let failing_disk = SimulatedWriteFailure::armed();
-        let (store, heard, _at) = failing_store("debouncer_fails_writes", AfterGivingUp::Fail);
-
-        store
-            .set(StorePath::from_segments(["doomed"]), &1u32)
-            .unwrap();
-
-        assert!(
-            wait_until(|| !heard.lock().is_empty()),
-            "on_persist_failure never ran once the streak outlived the budget"
-        );
-        assert!(
-            wait_until(|| store.inner.health.failure().is_some()),
-            "the callback answered `Fail` and the store never recorded it, so \
-             there is nothing for a write to be refused by"
-        );
-        assert!(
-            !store.inner.debouncer.is_poisoned(),
-            "a disk that will not take a write is not a reason to poison the writer"
-        );
-
-        let refused = store
-            .set(StorePath::from_segments(["another"]), &2u32)
-            .expect_err("a write while the flush is not landing should say so, not queue quietly");
-        let crate::store::WriteValue::Store(why) = &refused else {
-            panic!("a flush that is not landing is the disk, not a rule: {refused:?}")
-        };
-        assert_eq!(
-            *why.current_context(),
-            StorageError::CommitFailed,
-            "a closed store refuses writes too, and the two are not the same \
-             thing to a caller: {why:?}"
-        );
-
         assert_eq!(
             store
-                .get::<u32>(StorePath::from_segments(["doomed"]))
+                .get::<u32>(StorePath::from_segments(["another"]))
                 .unwrap(),
-            Some(1),
-            "the reads the store already had are untouched by any of it"
+            Some(2)
         );
 
         failing_disk.disarm();
@@ -1647,33 +1556,25 @@ mod tests {
     #[serial]
     fn a_disk_that_comes_back_heals_the_store() {
         SIMULATE_WRITE_FAILURE.with(|it| it.store(true, Ordering::Relaxed));
-        let (store, _, _at) = failing_store("debouncer_heals", AfterGivingUp::Fail);
+        let (store, _at) = a_store_that_gives_up_soon("debouncer_heals");
 
         store
             .set(StorePath::from_segments(["waiting"]), &1u32)
             .unwrap();
         assert!(
-            wait_until(|| store.inner.health.failure().is_some()),
-            "the flush never gave up, so there is nothing for a write to be \
-             refused by"
+            wait_until(|| store.inner.health.last_failure().is_some()),
+            "the flush never gave up"
         );
-        let refused = store
-            .set(StorePath::from_segments(["nope"]), &2u32)
-            .expect_err("the store should be refusing writes before the disk comes back");
-        let crate::store::WriteValue::Store(why) = &refused else {
-            panic!("a flush that is not landing is the disk, not a rule: {refused:?}")
-        };
-        assert_eq!(*why.current_context(), StorageError::CommitFailed);
+        store
+            .set(StorePath::from_segments(["meanwhile"]), &2u32)
+            .expect("a write while the disk is away");
 
         SIMULATE_WRITE_FAILURE.with(|it| it.store(false, Ordering::Relaxed));
 
         assert!(
-            wait_until(|| store.inner.health.failure().is_none()),
+            wait_until(|| store.inner.health.last_failure().is_none()),
             "a flush that can land again never cleared the failure"
         );
-        store
-            .set(StorePath::from_segments(["fine"]), &3u32)
-            .expect("writes should work again once a flush has landed");
     }
 
     fn heard_by(
@@ -1683,8 +1584,8 @@ mod tests {
         let write = heard.clone();
         let watch = store.on_persist_failure(move |event| {
             let said = match event {
-                crate::store::config::PersistEvent::GaveUp { failure, decision } => {
-                    format!("gave up {decision:?} {:?}", failure.unsaved)
+                crate::store::config::PersistEvent::GaveUp { failure } => {
+                    format!("gave up {:?}", failure.unsaved)
                 }
                 crate::store::config::PersistEvent::Recovered => "recovered".to_string(),
             };
@@ -1697,7 +1598,7 @@ mod tests {
     #[serial]
     fn an_observer_attached_to_an_open_store_hears_the_give_up_and_the_recovery() {
         SIMULATE_WRITE_FAILURE.with(|it| it.store(true, Ordering::Relaxed));
-        let (redb, _at) = a_store_nobody_answered_for("observer_hears_both");
+        let (redb, _at) = a_store_that_gives_up_soon("observer_hears_both");
         let store = crate::Store::from_arc(Arc::new(redb));
         let (heard, _watch) = heard_by(&store);
 
@@ -1709,13 +1610,13 @@ mod tests {
             wait_until(|| heard
                 .lock()
                 .first()
-                .is_some_and(|said| said.starts_with("gave up Ignore") && said.contains("doomed"))),
+                .is_some_and(|said| said.starts_with("gave up") && said.contains("doomed"))),
             "the observer never heard the streak give up: {:?}",
             heard.lock()
         );
         assert!(
             store.persist_failure().is_some(),
-            "the store decided `Ignore` and kept no failure to read"
+            "the store kept no failure to read"
         );
 
         SIMULATE_WRITE_FAILURE.with(|it| it.store(false, Ordering::Relaxed));
@@ -1784,9 +1685,9 @@ mod tests {
 
     #[test]
     #[serial]
-    fn every_observer_hears_the_decision_and_a_dropped_one_hears_nothing() {
+    fn every_observer_hears_the_give_up_once_and_a_dropped_one_hears_nothing() {
         let failing_disk = SimulatedWriteFailure::armed();
-        let (redb, decided, _at) = failing_store("observers_many", AfterGivingUp::Fail);
+        let (redb, _at) = a_store_that_gives_up_soon("observers_many");
         let store = crate::Store::from_arc(Arc::new(redb));
         let (kept, _kept_watch) = heard_by(&store);
         let (dropped, dropped_watch) = heard_by(&store);
@@ -1800,14 +1701,16 @@ mod tests {
             wait_until(|| kept
                 .lock()
                 .first()
-                .is_some_and(|said| said.starts_with("gave up Fail"))),
-            "the observer never heard the decision the builder made: {:?}",
+                .is_some_and(|said| said.starts_with("gave up"))),
+            "the observer never heard the streak give up: {:?}",
             kept.lock()
         );
+        thread::sleep(Duration::from_millis(200));
         assert_eq!(
-            decided.lock().len(),
+            kept.lock().len(),
             1,
-            "the deciding callback runs once per streak, observers or not"
+            "a streak gives up once: {:?}",
+            kept.lock()
         );
         assert!(
             dropped.lock().is_empty(),
@@ -1816,32 +1719,6 @@ mod tests {
         );
 
         failing_disk.disarm();
-    }
-
-    #[test]
-    #[serial]
-    fn poison_is_available_for_an_application_that_asks_for_it() {
-        SIMULATE_WRITE_FAILURE.with(|it| it.store(true, Ordering::Relaxed));
-        let (store, _, _at) = failing_store("debouncer_poisons", AfterGivingUp::Poison);
-
-        store
-            .set(StorePath::from_segments(["doomed"]), &1u32)
-            .unwrap();
-
-        assert!(
-            wait_until(|| store.inner.debouncer.is_poisoned()),
-            "AfterGivingUp::Poison should have taken the writer down"
-        );
-
-        let poisoned_write = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            store.set(StorePath::from_segments(["another"]), &2u32)
-        }));
-        assert!(
-            poisoned_write.is_err(),
-            "a write after a poison should panic in the caller's own stack"
-        );
-
-        SIMULATE_WRITE_FAILURE.with(|it| it.store(false, Ordering::Relaxed));
     }
 
     #[test]

@@ -61,12 +61,8 @@ fn a_step_reading_its_neighbours_key_sees_it_migrated(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        v1::Reader::new_with(&store).unwrap().seen().set(1).unwrap();
-        v1::Source::new_with(&store)
-            .unwrap()
-            .count()
-            .set(7)
-            .unwrap();
+        v1::Reader::new_with(&store).seen().set(1);
+        v1::Source::new_with(&store).count().set(7);
         store.save_now().unwrap();
     }
 
@@ -80,7 +76,7 @@ fn a_step_reading_its_neighbours_key_sees_it_migrated(backend: Backend) {
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
     assert_eq!(
-        Reader::new_with(&store).unwrap().from_source().get(),
+        Reader::new_with(&store).from_source().get(),
         14,
         "{backend:?}"
     );

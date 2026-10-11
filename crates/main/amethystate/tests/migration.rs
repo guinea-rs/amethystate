@@ -40,15 +40,15 @@ fn test_decentralized_codegen_migration(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::Config::new_with(&store).unwrap();
-        config.host().set("10.0.0.1".to_string()).unwrap();
+        let config = v1::Config::new_with(&store);
+        config.host().set("10.0.0.1".to_string());
     }
 
     let (store, reports) = StoreBuilder::new(&path).backend(backend).migrate().unwrap();
 
     assert!(!reports.has_failures());
 
-    let config = Config::new_with(&store).expect("Failed to create Config");
+    let config = Config::new_with(&store);
 
     assert_eq!(config.address().get(), "10.0.0.1");
 

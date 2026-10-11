@@ -41,7 +41,7 @@ fn at(joined: &str) -> StorePath {
 #[backends(all)]
 fn clearing_takes_what_no_schema_declared_and_leaves_the_rest(backend: Backend) {
     let (_at, store) = store(backend);
-    let app = App::new_with(&store).unwrap();
+    let app = App::new_with(&store);
     let kv = store.kv().namespace("app");
 
     kv.namespace("myplugin").set("enabled", &true).unwrap();
@@ -90,7 +90,7 @@ fn clearing_takes_what_no_schema_declared_and_leaves_the_rest(backend: Backend) 
 #[backends(all)]
 fn clearing_descends_past_a_level_that_holds_a_declared_path(backend: Backend) {
     let (_at, store) = store(backend);
-    let app = App::new_with(&store).unwrap();
+    let app = App::new_with(&store);
     let panel = store.kv().namespace("app").namespace("panel");
 
     panel.set("colour", &"blue".to_string()).unwrap();
@@ -118,8 +118,8 @@ fn clearing_descends_past_a_level_that_holds_a_declared_path(backend: Backend) {
 #[backends(all)]
 fn clearing_does_not_restore_a_declared_default(backend: Backend) {
     let (_at, store) = store(backend);
-    let app = App::new_with(&store).unwrap();
-    app.width().set(640).unwrap();
+    let app = App::new_with(&store);
+    app.width().set(640);
 
     store.kv().namespace("app").clear().unwrap();
 
@@ -137,9 +137,9 @@ fn resetting_puts_the_declared_defaults_back_on_the_next_build(backend: Backend)
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let app = App::new_with(&store).unwrap();
-        app.width().set(640).unwrap();
-        app.panel().visible().set(false).unwrap();
+        let app = App::new_with(&store);
+        app.width().set(640);
+        app.panel().visible().set(false);
         store.kv().namespace("app").set("theme", &1u8).unwrap();
         store.save_now().unwrap();
     }
@@ -152,7 +152,7 @@ fn resetting_puts_the_declared_defaults_back_on_the_next_build(backend: Backend)
     }
 
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let app = App::new_with(&store).unwrap();
+    let app = App::new_with(&store);
 
     assert_eq!(app.width().get(), 1280, "the default did not come back");
     assert!(

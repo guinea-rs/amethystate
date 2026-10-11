@@ -29,7 +29,7 @@ fn a_line_recorded_twice_is_not_read_as_its_first_record() {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _recorded = Recorded::new_with(&store).unwrap();
+        let _recorded = Recorded::new_with(&store);
         store.save_now().unwrap();
     }
     std::thread::sleep(std::time::Duration::from_millis(120));

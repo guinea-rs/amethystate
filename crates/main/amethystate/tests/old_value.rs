@@ -18,7 +18,7 @@ pub struct Cfg {
 fn an_update_reports_the_value_that_was_there_before(backend: Backend) {
     let path = TempPath::new("old_value");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     cfg.items().insert("k".into(), &5).unwrap();
     store.save_now().unwrap();
@@ -51,7 +51,7 @@ fn an_update_reports_the_value_that_was_there_before(backend: Backend) {
 fn an_unflushed_write_is_the_old_value_for_the_next_one(backend: Backend) {
     let path = TempPath::new("old_value_buffered");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     cfg.items().insert("k".into(), &1).unwrap();
 
@@ -78,7 +78,7 @@ fn an_unflushed_write_is_the_old_value_for_the_next_one(backend: Backend) {
 fn a_removal_reports_the_flushed_value(backend: Backend) {
     let path = TempPath::new("old_value_remove");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     cfg.items().insert("k".into(), &42).unwrap();
     store.save_now().unwrap();

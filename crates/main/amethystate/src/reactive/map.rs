@@ -6,9 +6,7 @@ use crate::store::sync_backend::SyncBridge;
 use crate::store::{Durable, StoreBackend};
 use amethystate_core::path::StorePath;
 use amethystate_core::primitives::map_core::MapEntryPath;
-use amethystate_core::{
-    Entries, InterceptDisposer, MapChange, ReactiveMapCore, SignalSubscription, Walk,
-};
+use amethystate_core::{Entries, MapChange, ReactiveMapCore, SignalSubscription, Walk};
 use error_stack::Report;
 use std::borrow::Borrow;
 use std::fmt::{self, Debug};
@@ -591,7 +589,6 @@ where
         let backend = SyncBridge::new(self.inner.store.clone());
         Ok(amethystate_core::map_update(
             &backend,
-            &self.inner.core,
             self.inner.path.clone(),
             owned,
             value,
@@ -624,7 +621,6 @@ where
         let backend = SyncBridge::new(self.inner.store.clone());
         Ok(amethystate_core::map_insert(
             &backend,
-            &self.inner.core,
             self.inner.path.clone(),
             key,
             value,
@@ -681,61 +677,11 @@ where
     /// ```
     pub fn clear(&self) -> ReactiveMapResult<()> {
         let backend = SyncBridge::new(self.inner.store.clone());
-        Ok(amethystate_core::map_clear(
+        Ok(amethystate_core::map_clear::<_, K, V>(
             &backend,
-            &self.inner.core,
             self.inner.path.clone(),
             Some(self.inner.instance_id),
         )?)
-    }
-
-    /// Installs a callback that sees every change to any key before it lands
-    /// and may rewrite or reject it.
-    ///
-    /// Returning `None` drops the change; returning a different
-    /// [`MapChange`] stores that instead. The interceptor stays installed
-    /// until [`InterceptDisposer::remove`] is called - dropping the disposer
-    /// only forgets the handle, unlike a subscription, which ends on drop.
-    ///
-    /// ```
-    /// # use amethystate::StoreBuilder;
-    /// # let path = amethystate_core::test_utils::TempPath::new("doc");
-    /// # let store = StoreBuilder::new(&*path).build().unwrap();
-    /// # use amethystate::MapChange;
-    /// let widths = store.kv().map::<String, u64>("columns").unwrap();
-    ///
-    /// let guard = widths.intercept(|change| match change {
-    ///     MapChange::Insert { value, .. } if value > 500 => None,
-    ///     other => Some(other),
-    /// });
-    ///
-    /// widths.insert("cpu".into(), &120).unwrap();
-    /// assert!(widths.insert("mem".into(), &900).is_err(), "over the limit");
-    /// assert_eq!(widths.len(),1);
-    ///
-    /// guard.remove();
-    /// widths.insert("mem".into(), &900).unwrap();
-    /// assert_eq!(widths.len(),2);
-    /// ```
-    ///
-    /// Interceptors run before the value reaches the buffer at all - see
-    /// [the module docs](crate::reactive) for where that sits relative to disk.
-    pub fn intercept<F>(&self, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        self.inner.core.intercept(self.inner.path.clone(), callback)
-    }
-
-    /// [`ReactiveMap::intercept`] narrowed to one key.
-    ///
-    /// Changes to other keys pass through untouched, so this is both cheaper
-    /// and safer than matching on the key inside a map-wide interceptor.
-    pub fn intercept_key<F>(&self, key: K, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        self.inner.core.intercept_key(key, callback)
     }
 }
 
@@ -969,7 +915,6 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
-    use tracing_test::traced_test;
 
     #[test]
     fn external_subscriptions_filter_own_updates_only() {
@@ -1101,73 +1046,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_intercept_and_reject() {
-        let (_at, store) = unique_store("reject");
-        let map: ReactiveMap<String, i32> = crate::store::reactive_map_with_path::<_, _>(
-            &store,
-            ["test", "intercept"],
-            HashMap::new(),
-            Uuid::new_v4(),
-        )
-        .unwrap();
-
-        map.intercept(|change| match change {
-            MapChange::Insert { value, .. }
-            | MapChange::Update {
-                new_value: value, ..
-            } if value < 0 => None,
-            _ => Some(change),
-        });
-
-        let res = map.insert("val".into(), &-1);
-        assert!(matches!(
-            res.unwrap_err(),
-            ReactiveMapError::Intercepted { .. }
-        ));
-
-        store.save_now().unwrap();
-        assert_eq!(map.get("val"), None);
-
-        map.insert("val".into(), &10).unwrap();
-        assert_eq!(map.get("val"), Some(10));
-    }
-
-    #[test]
-    fn test_map_intercept_transform() {
-        let (_at, store) = unique_store("transform");
-        let map: ReactiveMap<String, i32> = crate::store::reactive_map_with_path::<_, _>(
-            &store,
-            ["test", "transform"],
-            HashMap::new(),
-            Uuid::new_v4(),
-        )
-        .unwrap();
-
-        map.intercept(|change| match change {
-            MapChange::Insert { key, value, source } => Some(MapChange::Insert {
-                key,
-                value: value * 2,
-                source,
-            }),
-            MapChange::Update {
-                key,
-                old_value,
-                new_value,
-                source,
-            } => Some(MapChange::Update {
-                key,
-                old_value,
-                new_value: new_value * 2,
-                source,
-            }),
-            _ => Some(change),
-        });
-
-        map.insert("x".into(), &5).unwrap();
-        assert_eq!(map.get("x"), Some(10));
-    }
-
-    #[test]
     fn test_map_subscriptions() {
         let (_at, store) = unique_store("subs");
         let map: ReactiveMap<String, i32> = crate::store::reactive_map_with_path::<_, _>(
@@ -1202,33 +1080,6 @@ mod tests {
         assert!(matches!(res[0], MapChange::Insert { .. }));
         assert!(matches!(res[1], MapChange::Update { .. }));
         assert!(matches!(res[2], MapChange::Remove { .. }));
-    }
-
-    #[test]
-    fn test_reentrancy_guard() {
-        let (_at, store) = unique_store("reentrancy");
-        let map: ReactiveMap<String, i32> = crate::store::reactive_map_with_path::<_, _>(
-            &store,
-            ["test", "reentrancy"],
-            HashMap::new(),
-            Uuid::new_v4(),
-        )
-        .unwrap();
-
-        let map_clone = map.clone();
-        map.intercept(move |change| {
-            if let MapChange::Update { key, .. } = &change
-                && key == "a"
-            {
-                let _ = map_clone.update("a", &999);
-            }
-            Some(change)
-        });
-
-        map.insert("a".into(), &1).unwrap();
-        map.update("a", &2).unwrap();
-
-        assert_eq!(map.get("a"), Some(2));
     }
 
     #[test]
@@ -1318,24 +1169,6 @@ mod tests {
         map.update("target", &11).unwrap();
         map.update("other", &21).unwrap();
         assert_eq!(target_calls.load(Ordering::SeqCst), 1);
-
-        map.intercept_key("target".into(), |change| {
-            if let MapChange::Update { new_value, .. } = change
-                && new_value > 100
-            {
-                return None;
-            }
-            Some(change)
-        });
-
-        map.update("target", &50).unwrap();
-        let res = map.update("target", &150);
-        assert!(matches!(
-            res.unwrap_err(),
-            ReactiveMapError::Intercepted { .. }
-        ));
-
-        map.update("other", &150).unwrap();
     }
 
     #[test]
@@ -1442,45 +1275,6 @@ mod tests {
         assert!(!map.contains_key("ghost"));
     }
 
-    #[test]
-    #[traced_test]
-    fn test_map_recursion_warning() {
-        let (_at, store) = unique_store("map_trace");
-        let map: ReactiveMap<String, i32> = crate::store::reactive_map_with_path::<_, _>(
-            &store,
-            ["test", "recursive_map"],
-            HashMap::new(),
-            Uuid::new_v4(),
-        )
-        .unwrap();
-
-        let map_clone = map.clone();
-        let refused = Arc::new(std::sync::Mutex::new(None::<ReactiveMapError>));
-        let seen = refused.clone();
-
-        map.intercept(move |change| {
-            if let Some(key) = change.key()
-                && let Err(why) = map_clone.insert(key.clone(), &999)
-            {
-                seen.lock().unwrap().get_or_insert(why);
-            }
-            Some(change)
-        });
-
-        let _ = map.insert("key_a".into(), &1);
-
-        assert!(logs_contain("maximum intercept depth reached"));
-        assert!(logs_contain("test.recursive_map.key_a"));
-
-        let refused = refused.lock().unwrap().take();
-        assert!(
-            matches!(
-                &refused,
-                Some(ReactiveMapError::Recursed { at }) if at.to_string() == "test.recursive_map.key_a"
-            ),
-            "{refused:?}"
-        );
-    }
     #[test]
     fn test_map_subscribe_external() {
         let (_at, store) = unique_store("map_external");

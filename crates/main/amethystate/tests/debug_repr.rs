@@ -44,7 +44,7 @@ fn assert_debug<T: std::fmt::Debug>() {}
 fn a_field_type_need_not_be_printable(backend: Backend) {
     let at = TempPath::new("dbg_opaque");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
-    let state = HasOpaque::new_with(&store).unwrap();
+    let state = HasOpaque::new_with(&store);
 
     assert_eq!(state.opaque().get().inner, 7);
     assert_eq!(state.port().get(), 1);
@@ -58,7 +58,7 @@ fn a_printable_struct_still_gets_its_impl() {
 fn settings(backend: Backend, tag: &str) -> (TempPath, Settings) {
     let at = TempPath::new(tag);
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
-    let held = Settings::new_with(&store).unwrap();
+    let held = Settings::new_with(&store);
     (at, held)
 }
 
@@ -75,7 +75,7 @@ fn a_field_shows_its_path_and_value(backend: Backend) {
 #[backends(all)]
 fn a_field_shows_the_current_value_not_the_default(backend: Backend) {
     let (_at, state) = settings(backend, "dbg_current");
-    state.port().set(9090).unwrap();
+    state.port().set(9090);
 
     let shown = format!("{:?}", state.port());
     assert!(shown.contains("9090"), "{shown}");
@@ -121,7 +121,7 @@ pub struct PersistentShown {
 fn a_persistent_struct_needs_no_debug_either(backend: Backend) {
     let at = TempPath::new("dbg_p_opaque");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
-    let state = PersistentOpaque::load_with(&store).unwrap();
+    let state = PersistentOpaque::load_with(&store);
 
     assert_eq!(state.opaque.inner, 3);
 }
@@ -130,7 +130,7 @@ fn a_persistent_struct_needs_no_debug_either(backend: Backend) {
 fn a_persistent_struct_prints_when_asked(backend: Backend) {
     let at = TempPath::new("dbg_p_shown");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
-    let state = PersistentShown::load_with(&store).unwrap();
+    let state = PersistentShown::load_with(&store);
 
     let shown = format!("{state:?}");
     assert!(shown.contains("PersistentShown"), "{shown}");

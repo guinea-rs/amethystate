@@ -17,12 +17,12 @@ let sub = state.port().subscribe(move |port| {
     seen.lock().unwrap().push(*port);
 });
 
-state.port().set(9090)?;
+state.port().set(9090);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 
 drop(sub);
 
-state.port().set(1234)?;
+state.port().set(1234);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
@@ -42,7 +42,7 @@ let _ = state.port().subscribe(move |port| {
     ignored.lock().unwrap().push(*port);
 });
 
-state.port().set(4321)?;
+state.port().set(4321);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
@@ -100,8 +100,8 @@ thread that drives the loop:
 ```rust
 let mut ports = state.port().subscription_with().stream();
 
-state.port().set(9090)?;
-state.port().set(1234)?;
+state.port().set(9090);
+state.port().set(1234);
 
 let mut heard = Vec::new();
 futures::executor::block_on(async {
@@ -137,8 +137,8 @@ let _sub = state
         seen.lock().unwrap().push(*port);
     });
 
-state.port().set(8080)?;
-watcher.set(9090)?;
+state.port().set(8080);
+watcher.set(9090);
 
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
@@ -167,8 +167,8 @@ let _sub = port
     .external()
     .register(move |value| seen.lock().unwrap().push(*value));
 
-same.set(1111)?;
-other.set(2222)?;
+same.set(1111);
+other.set(2222);
 
 assert_eq!(*heard.lock().unwrap(), [2222]);
 
@@ -197,7 +197,7 @@ let _sub = state
         seen.lock().unwrap().push((*port, who));
     });
 
-state.port().set(9090)?;
+state.port().set(9090);
 
 let (port, who) = heard.lock().unwrap()[0];
 assert_eq!(port, 9090);
@@ -214,33 +214,3 @@ per change rather than filtering wholesale.
 reach everyone including whoever caused them. The reasoning, and what that
 implies for `insert`, is on
 [ReactiveMap](/amethystate/primitives/reactive-map/#what-external-filters).
-
-## Interceptors
-
-A subscription hears a write after it has landed. An interceptor sees it
-before. `intercept` on a `Field` or a `ReactiveMap` installs a callback that is
-handed each write as a `Change` - on a map, a `MapChange` - and answers for it.
-`Some` lets the change through, as it came or rewritten, and what it returns is
-what gets stored. `None` turns the write down: the caller gets `Intercepted`,
-and the value stays as it was.
-
-Several interceptors run in the order they were installed, each handed what the
-one before let through. On a field the declared
-[rule](/amethystate/state/rules/) runs after them all. `intercept_key` narrows
-a map's interceptor to one key, and changes to other keys pass it untouched. A
-`ReactiveCell` has no interceptors of its own: a cell over a field goes through
-the field's.
-
-They see the writes made through a handle in this process. A change brought in
-from outside - the file edited by hand, another tab - reaches the value without
-passing them.
-
-An interceptor that writes back into what it guards nests one write inside
-another. Once writes nest more than ten deep, the store stops, and the write
-fails with `Recursed`.
-
-`intercept` returns an `InterceptDisposer`, and the interceptor stays until its
-`remove` is called. Dropping the disposer only forgets the handle, which is the
-other way round from a subscription. A subscription belongs to whoever listens
-and ends with them; an interceptor is a rule about the value, and it does not
-end because nobody kept the receipt.

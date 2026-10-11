@@ -17,7 +17,7 @@ fn kv_refuses_a_level_a_declared_prefix_lives_on(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let _panels = Panels::new_with(&store).unwrap();
+    let _panels = Panels::new_with(&store);
 
     let refused = store.kv().set("ui", &1u32).unwrap_err();
 

@@ -37,7 +37,7 @@ fn write_then_abort(backend: Backend, path: &Path) -> ! {
     )
     .unwrap();
 
-    plain.set(777).unwrap();
+    plain.set(777);
     durable.durable().set(888).unwrap();
 
     std::process::abort();

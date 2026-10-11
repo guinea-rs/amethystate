@@ -14,7 +14,7 @@ const SORTED: [&str; 5] = ["alpha", "bravo", "delta", "mike", "zulu"];
 
 fn seeded(backend: Backend, path: &std::path::Path) -> (Store, Cfg) {
     let store = StoreBuilder::new(path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     for k in SEEDED {
         cfg.items().insert(k.to_string(), &1).unwrap();
@@ -27,7 +27,7 @@ fn seeded(backend: Backend, path: &std::path::Path) -> (Store, Cfg) {
 /// walk that goes through `scan_prefix` and the write buffer.
 fn reloaded(store: &Store, held: Cfg) -> (Cfg, Vec<String>) {
     drop(held);
-    let again = Cfg::new_with(store).unwrap();
+    let again = Cfg::new_with(store);
     let keys = again.items().keys().collect();
     (again, keys)
 }

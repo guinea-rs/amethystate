@@ -82,8 +82,8 @@ fn a_dotted_key_and_a_dotted_prefix_reach_one_place(backend: Backend) {
         contested(
             backend,
             "overlap_key_prefix",
-            |s| Outer::new_with(s).map(|_| ()),
-            |s| Panels::new_with(s).map(|_| ()),
+            |s| Outer::try_new_with(s).map(|_| ()),
+            |s| Panels::try_new_with(s).map(|_| ()),
         )
     );
 }
@@ -95,8 +95,8 @@ fn a_dotted_key_and_a_prefix_all_the_way_down_reach_one_place(backend: Backend) 
         contested(
             backend,
             "overlap_key_deep",
-            |s| Outer::new_with(s).map(|_| ()),
-            |s| Left::new_with(s).map(|_| ()),
+            |s| Outer::try_new_with(s).map(|_| ()),
+            |s| Left::try_new_with(s).map(|_| ()),
         )
     );
 }
@@ -108,8 +108,8 @@ fn two_prefixes_of_different_depth_reach_one_place(backend: Backend) {
         contested(
             backend,
             "overlap_prefix_deep",
-            |s| Panels::new_with(s).map(|_| ()),
-            |s| Left::new_with(s).map(|_| ()),
+            |s| Panels::try_new_with(s).map(|_| ()),
+            |s| Left::try_new_with(s).map(|_| ()),
         )
     );
 }
@@ -122,11 +122,11 @@ fn one_claim_refuses_every_other_spelling_not_only_the_next(backend: Backend) {
         .build()
         .unwrap();
 
-    Outer::new_with(&store).unwrap();
+    Outer::new_with(&store);
 
     for refused in [
-        Panels::new_with(&store).map(|_| ()).unwrap_err(),
-        Left::new_with(&store).map(|_| ()).unwrap_err(),
+        Panels::try_new_with(&store).map(|_| ()).unwrap_err(),
+        Left::try_new_with(&store).map(|_| ()).unwrap_err(),
     ] {
         let OpenStruct::Taken(taken) = &refused else {
             panic!("{refused:?}")
@@ -138,7 +138,7 @@ fn one_claim_refuses_every_other_spelling_not_only_the_next(backend: Backend) {
         );
     }
 
-    Outer::new_with(&store).expect("a refusal must not disturb the claim it refused for");
+    Outer::try_new_with(&store).expect("a refusal must not disturb the claim it refused for");
 }
 
 #[backends(all)]
@@ -149,12 +149,12 @@ fn the_chain_refuses_in_either_order(backend: Backend) {
         .build()
         .unwrap();
 
-    Left::new_with(&store).unwrap();
+    Left::new_with(&store);
 
-    assert!(Panels::new_with(&store).is_err(), "the middle spelling");
-    assert!(Outer::new_with(&store).is_err(), "the shallow spelling");
+    assert!(Panels::try_new_with(&store).is_err(), "the middle spelling");
+    assert!(Outer::try_new_with(&store).is_err(), "the shallow spelling");
 
-    Left::new_with(&store).expect("a refusal must not disturb the claim it refused for");
+    Left::try_new_with(&store).expect("a refusal must not disturb the claim it refused for");
 }
 
 #[backends(all)]
@@ -165,8 +165,8 @@ fn a_prefix_is_refused_by_a_field_already_under_it(backend: Backend) {
         .build()
         .unwrap();
 
-    Branch::new_with(&store).unwrap();
-    let refused = Root::new_with(&store).unwrap_err();
+    Branch::new_with(&store);
+    let refused = Root::try_new_with(&store).unwrap_err();
 
     let OpenStruct::Taken(taken) = &refused else {
         panic!("{refused:?}")
@@ -190,10 +190,10 @@ fn a_claim_outlives_the_handle_that_made_it(backend: Backend) {
         .build()
         .unwrap();
 
-    drop(Outer::new_with(&store).unwrap());
+    drop(Outer::new_with(&store));
 
     assert!(
-        Panels::new_with(&store).is_err(),
+        Panels::try_new_with(&store).is_err(),
         "dropping the first struct must not free the place it claimed"
     );
 }
@@ -206,8 +206,8 @@ fn an_overlap_between_different_types_is_reported_as_an_overlap(backend: Backend
         .build()
         .unwrap();
 
-    let _outer = TypedOuter::new_with(&store).unwrap();
-    let refused = TypedPanels::new_with(&store).unwrap_err();
+    let _outer = TypedOuter::new_with(&store);
+    let refused = TypedPanels::try_new_with(&store).unwrap_err();
 
     let rendered = format!("{refused:?}");
     assert!(
@@ -236,8 +236,8 @@ fn a_prefix_may_not_land_on_another_structs_field(backend: Backend) {
         .build()
         .unwrap();
 
-    let _root = Root::new_with(&store).unwrap();
-    let refused = Branch::new_with(&store).unwrap_err();
+    let _root = Root::new_with(&store);
+    let refused = Branch::try_new_with(&store).unwrap_err();
 
     let OpenStruct::Taken(taken) = &refused else {
         panic!("{refused:?}")

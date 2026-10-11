@@ -49,8 +49,7 @@ fn reordering_two_fields_does_not_swap_what_they_hold() {
         size.set(SizeV1 {
             width: 1280,
             height: 720,
-        })
-        .unwrap();
+        });
         store.save_now().unwrap();
     }
 

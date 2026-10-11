@@ -33,9 +33,9 @@ fn a_key_written_under_a_withdrawn_field_outlives_it(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let board = v1::Board::new_with(&store).unwrap();
-        board.keep().set(3).unwrap();
-        board.legacy().set(9).unwrap();
+        let board = v1::Board::new_with(&store);
+        board.keep().set(3);
+        board.legacy().set(9);
         store.set(["board", "legacy", "note"], &7u32).unwrap();
         store.save_now().unwrap();
     }
@@ -59,5 +59,5 @@ fn a_key_written_under_a_withdrawn_field_outlives_it(backend: Backend) {
         Some(7),
         "{backend:?}"
     );
-    assert_eq!(Board::new_with(&store).unwrap().keep().get(), 3);
+    assert_eq!(Board::new_with(&store).keep().get(), 3);
 }

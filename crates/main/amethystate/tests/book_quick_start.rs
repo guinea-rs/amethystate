@@ -58,7 +58,7 @@ fn opening_a_store_and_reading_a_field(_backend: Backend) -> anyhow::Result<()> 
         .disk(|d| d.debounce(Duration::from_millis(500)))
         .build()?;
 
-    let state = NetworkState::new_with(&store)?;
+    let state = NetworkState::new_with(&store);
     //@show-end
 
     assert_eq!(state.host().get(), "127.0.0.1");
@@ -71,7 +71,7 @@ fn opening_a_store_and_reading_a_field(_backend: Backend) -> anyhow::Result<()> 
 fn writing_a_field_and_hearing_about_it(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_quick_start_write");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = NetworkState::new_with(&store)?;
+    let state = NetworkState::new_with(&store);
 
     let heard = Arc::new(AtomicU16::new(0));
     let seen = Arc::clone(&heard);
@@ -86,7 +86,7 @@ fn writing_a_field_and_hearing_about_it(backend: Backend) -> anyhow::Result<()> 
         println!("port changed to {port}");
     });
 
-    state.port().set(9090)?;
+    state.port().set(9090);
     //@show-end
 
     assert_eq!(state.port().get(), 9090);
@@ -101,7 +101,7 @@ fn a_persistent_struct_is_plain_fields(backend: Backend) -> anyhow::Result<()> {
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
     //@show writing a persistent struct
-    let mut state = KeptSettings::load_with(&store)?;
+    let mut state = KeptSettings::load_with(&store);
 
     state.port = 9090;
     state.save()?;
@@ -122,7 +122,7 @@ fn a_persistent_struct_is_plain_fields(backend: Backend) -> anyhow::Result<()> {
 fn a_map_takes_entries_it_was_not_declared_with(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_quick_start_map");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let state = SystemSettings::new_with(&store)?;
+    let state = SystemSettings::new_with(&store);
 
     //@show working with a map
     state.limits().insert(

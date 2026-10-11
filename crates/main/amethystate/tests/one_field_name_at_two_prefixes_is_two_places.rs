@@ -31,7 +31,7 @@ fn one_field_name_at_two_prefixes_is_two_places(backend: Backend) {
         .unwrap_or_else(|refused| panic!("{backend:?}: {refused:?}"));
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
-    assert_eq!(KitchenLamp::new_with(&store).unwrap().brightness().get(), 3);
-    assert_eq!(HallLamp::new_with(&store).unwrap().brightness().get(), 5);
-    assert_eq!(PorchLight::new_with(&store).unwrap().brightness().get(), 7);
+    assert_eq!(KitchenLamp::new_with(&store).brightness().get(), 3);
+    assert_eq!(HallLamp::new_with(&store).brightness().get(), 5);
+    assert_eq!(PorchLight::new_with(&store).brightness().get(), 7);
 }

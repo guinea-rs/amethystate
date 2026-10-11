@@ -32,8 +32,8 @@ fn a_record_no_line_at_its_prefix_declares_is_reported_once() {
             .backend(Backend::Json)
             .migrate()
             .unwrap();
-        let _badge = Badge::new_with(&store).unwrap();
-        let _ribbon = Ribbon::new_with(&store).unwrap();
+        let _badge = Badge::new_with(&store);
+        let _ribbon = Ribbon::new_with(&store);
         store.save_now().unwrap();
     }
     std::thread::sleep(std::time::Duration::from_millis(120));

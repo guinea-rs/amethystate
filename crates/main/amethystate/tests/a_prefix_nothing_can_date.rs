@@ -52,8 +52,8 @@ fn the_open_that_meets_the_missing_bookkeeping_runs_nothing() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let counted = v1::Counted::new_with(&store).unwrap();
-        counted.hits().set(0).unwrap();
+        let counted = v1::Counted::new_with(&store);
+        counted.hits().set(0);
         drop(counted);
         store.save_now().unwrap();
     }
@@ -62,7 +62,7 @@ fn the_open_that_meets_the_missing_bookkeeping_runs_nothing() {
     {
         let (store, report) = opened(&path);
         assert!(!report.has_failures());
-        assert_eq!(Counted::new_with(&store).unwrap().hits().get(), 1);
+        assert_eq!(Counted::new_with(&store).hits().get(), 1);
         store.save_now().unwrap();
     }
     settle();
@@ -80,7 +80,7 @@ fn the_open_that_meets_the_missing_bookkeeping_runs_nothing() {
         )),
         "keys with nothing to date them were migrated anyway"
     );
-    assert_eq!(Counted::new_with(&store).unwrap().hits().get(), 1);
+    assert_eq!(Counted::new_with(&store).hits().get(), 1);
 }
 
 #[test]
@@ -92,8 +92,8 @@ fn a_step_does_not_run_twice_when_the_bookkeeping_went_missing() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let counted = v1::Counted::new_with(&store).unwrap();
-        counted.hits().set(0).unwrap();
+        let counted = v1::Counted::new_with(&store);
+        counted.hits().set(0);
         drop(counted);
         store.save_now().unwrap();
     }
@@ -101,7 +101,7 @@ fn a_step_does_not_run_twice_when_the_bookkeeping_went_missing() {
 
     {
         let (store, _) = opened(&path);
-        assert_eq!(Counted::new_with(&store).unwrap().hits().get(), 1);
+        assert_eq!(Counted::new_with(&store).hits().get(), 1);
         store.save_now().unwrap();
     }
     settle();
@@ -110,14 +110,14 @@ fn a_step_does_not_run_twice_when_the_bookkeeping_went_missing() {
 
     {
         let (store, _) = opened(&path);
-        assert_eq!(Counted::new_with(&store).unwrap().hits().get(), 1);
+        assert_eq!(Counted::new_with(&store).hits().get(), 1);
         store.save_now().unwrap();
     }
     settle();
 
     let (store, _) = opened(&path);
     assert_eq!(
-        Counted::new_with(&store).unwrap().hits().get(),
+        Counted::new_with(&store).hits().get(),
         1,
         "the open that met the loss dated the prefix, so the one after it had \
          nothing left to invent"
@@ -133,8 +133,8 @@ fn the_keys_are_dated_by_what_the_code_declares() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let counted = v1::Counted::new_with(&store).unwrap();
-        counted.hits().set(0).unwrap();
+        let counted = v1::Counted::new_with(&store);
+        counted.hits().set(0);
         drop(counted);
         store.save_now().unwrap();
     }
@@ -142,7 +142,7 @@ fn the_keys_are_dated_by_what_the_code_declares() {
 
     {
         let (store, _) = opened(&path);
-        let _ = Counted::new_with(&store).unwrap();
+        let _ = Counted::new_with(&store);
         store.save_now().unwrap();
     }
     settle();
@@ -173,8 +173,8 @@ fn a_first_migration_over_data_written_before_it_still_runs() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let counted = v1::Counted::new_with(&store).unwrap();
-        counted.hits().set(7).unwrap();
+        let counted = v1::Counted::new_with(&store);
+        counted.hits().set(7);
         drop(counted);
         store.save_now().unwrap();
     }
@@ -184,7 +184,7 @@ fn a_first_migration_over_data_written_before_it_still_runs() {
 
     assert!(!report.has_failures());
     assert_eq!(
-        Counted::new_with(&store).unwrap().hits().get(),
+        Counted::new_with(&store).hits().get(),
         8,
         "a store written before the step existed has a recorded shape, which is \
          what dates it"

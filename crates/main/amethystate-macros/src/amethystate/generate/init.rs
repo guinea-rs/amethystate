@@ -217,8 +217,8 @@ fn init_field(
                     said.span,
                     &format!(
                         "`{named}` is a map, and its entries are data rather than declared paths: \
-                         one bad entry is no reason to withhold the struct, so a map wants \
-                         dropping and reporting rather than this"
+                         a rule puts one declared value right, and a map holds no one value to \
+                         put right"
                     ),
                 ));
             }

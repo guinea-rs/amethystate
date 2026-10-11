@@ -30,7 +30,7 @@ fn seeded(suffix: &str) -> TempPath {
             .migrate()
             .unwrap();
         assert!(!report.has_failures());
-        let _solo = Solo::new_with(&store).unwrap();
+        let _solo = Solo::new_with(&store);
         store.save_now().unwrap();
     }
     settle();

@@ -38,7 +38,7 @@ pub struct Mixed {
 }
 
 fn settled(field: &Field<u8>, backend: Backend, declared: &str) {
-    field.set(7).unwrap();
+    field.set(7);
     assert_eq!(field.get(), 7, "{backend:?} {declared}");
 }
 
@@ -57,10 +57,7 @@ fn survives_the_close(field: &Field<u8>, backend: Backend, declared: &str) {
         "{backend:?} {declared}: try_get said {refused:?}"
     );
 
-    assert!(
-        field.set(9).is_err(),
-        "{backend:?} {declared}: a write was taken"
-    );
+    field.set(9);
     assert_eq!(
         field.get(),
         7,
@@ -77,11 +74,11 @@ fn every_declared_policy_answers_a_close_the_same_way() {
             .build()
             .unwrap();
 
-        let strict = Strict::new_with(&store).unwrap();
-        let lenient = Lenient::new_with(&store).unwrap();
-        let kept = Kept::new_with(&store).unwrap();
-        let reseeded = Reseeded::new_with(&store).unwrap();
-        let mixed = Mixed::new_with(&store).unwrap();
+        let strict = Strict::new_with(&store);
+        let lenient = Lenient::new_with(&store);
+        let kept = Kept::new_with(&store);
+        let reseeded = Reseeded::new_with(&store);
+        let mixed = Mixed::new_with(&store);
 
         let declared: [(&str, Field<u8>); 5] = [
             ("refuse/keep", strict.level()),

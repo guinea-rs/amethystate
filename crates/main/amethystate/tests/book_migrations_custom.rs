@@ -74,7 +74,7 @@ fn a_root_struct_opens_the_file_serde_wrote(_backend: Backend) -> anyhow::Result
 
     //@show opening the file that was there
     let store = StoreBuilder::new(file).backend(Backend::Toml).build()?;
-    let settings = Settings::load_with(&store)?;
+    let settings = Settings::load_with(&store);
     //@show-end
 
     assert_eq!(settings.theme, "dark");
@@ -96,7 +96,7 @@ fn a_file_taken_over_stays_the_file_serde_reads(backend: Backend) -> anyhow::Res
     std::fs::write(file, in_the_format_of(backend, &written())?)?;
 
     let store = StoreBuilder::new(file).backend(backend).build()?;
-    let mut settings = Settings::load_with(&store)?;
+    let mut settings = Settings::load_with(&store);
 
     assert_eq!(settings.theme, "dark");
 
@@ -125,7 +125,7 @@ fn a_ron_file_taken_over_is_written_back_as_the_store_writes_it(
     std::fs::write(file, in_the_format_of(backend, &written())?)?;
 
     let store = StoreBuilder::new(file).backend(backend).build()?;
-    let mut settings = Settings::load_with(&store)?;
+    let mut settings = Settings::load_with(&store);
 
     assert_eq!(settings.theme, "dark");
 
@@ -179,7 +179,7 @@ fn values_moved_in_once_are_there_on_the_next_open(backend: Backend) -> anyhow::
         let store = StoreBuilder::new(file).backend(backend).build()?;
 
         //@show moving the values in once
-        let mut settings = Settings::load_with(&store)?;
+        let mut settings = Settings::load_with(&store);
 
         if let Some(old) = read_old_settings(&old_file)? {
             settings.mutate(|now| {
@@ -194,7 +194,7 @@ fn values_moved_in_once_are_there_on_the_next_open(backend: Backend) -> anyhow::
     assert!(!old_file.exists(), "the old file outlived the move");
 
     let store = StoreBuilder::new(file).backend(backend).build()?;
-    let settings = Settings::load_with(&store)?;
+    let settings = Settings::load_with(&store);
 
     assert_eq!(settings.theme, "dark");
     assert_eq!(

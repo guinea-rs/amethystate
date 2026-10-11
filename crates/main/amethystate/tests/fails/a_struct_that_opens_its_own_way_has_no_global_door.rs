@@ -8,7 +8,7 @@ pub struct Agent {
 }
 
 impl Open for Agent {
-    fn new_with(store: &Store) -> Result<Self, OpenStruct> {
+    fn try_new_with(store: &Store) -> Result<Self, OpenStruct> {
         <Self as Schema>::open(store)
     }
 }
@@ -20,7 +20,7 @@ pub struct KeptAgent {
 }
 
 impl Open for KeptAgent {
-    fn new_with(store: &Store) -> Result<Self, OpenStruct> {
+    fn try_new_with(store: &Store) -> Result<Self, OpenStruct> {
         <Self as Schema>::open(store)
     }
 }

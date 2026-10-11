@@ -220,12 +220,7 @@ where
     K: ReactiveMapKey,
     V: ReactiveMapValue,
 {
-    let subject = change.key().map(|key| path.entry(key.as_ref()));
-    let context_path = subject.clone().unwrap_or_else(|| path.clone());
-
-    let processed = core
-        .run_interceptors(context_path.clone(), change)
-        .map_err(|refusal| ReactiveMapError::refused(&context_path, refusal))?;
+    let processed = change;
 
     let source = processed.source();
     let before = held_before(core, &processed);

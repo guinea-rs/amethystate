@@ -38,7 +38,7 @@
 //! at most one flush and one retry interval.
 
 use crate::store::StorageResult;
-use crate::store::config::{AfterGivingUp, PersistEvent, PersistFailureCallback, RetryPolicy};
+use crate::store::config::{PersistEvent, RetryPolicy};
 use crate::store::durable::{CommitSignal, PersistHealth};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -72,13 +72,11 @@ pub struct Debouncer {
 }
 
 /// Everything a retrying flush needs beyond the work itself: how often to try
-/// again, who to wake, where to record that it is not working, and who to ask
-/// what that should mean.
+/// again, who to wake, and where to record that it is not working.
 pub struct FlushPolicy {
     pub retry: RetryPolicy,
     pub commits: Arc<CommitSignal>,
     pub health: Arc<PersistHealth>,
-    pub on_giveup: Option<PersistFailureCallback>,
 
     /// What the store is still holding, asked at the moment it gives up.
     pub unsaved: Unsaved,
@@ -144,8 +142,7 @@ impl Debouncer {
     /// full disk is usually temporary, and a store that stopped trying could
     /// not heal when it was fixed. What `policy.retry.budget` bounds is the
     /// silence: a streak outliving it escalates once, waking anyone awaiting
-    /// that flush with a failure and asking `policy.on_giveup` what writers
-    /// should be told from here.
+    /// that flush with a failure and telling the store's observers.
     pub fn new_with_retry<F>(interval: Duration, policy: FlushPolicy, mut op: F) -> Self
     where
         F: FnMut() -> StorageResult<()> + Send + 'static,
@@ -273,14 +270,15 @@ impl Drop for Saving {
     }
 }
 
-/// Records the decision before logging it, so a writer arriving between the
-/// two is told what the store has already settled.
+/// Records the failure before anyone hears of it, so an observer asking the
+/// store finds what it was just told.
 fn give_up(
     reason: &Arc<error_stack::Report<crate::store::StorageError>>,
     elapsed: Duration,
     policy: &FlushPolicy,
 ) {
     policy.commits.gave_up(reason.clone());
+    policy.health.failed(reason.clone());
 
     let unsaved = (policy.unsaved)();
     let gave_up = crate::store::config::GaveUp {
@@ -288,46 +286,21 @@ fn give_up(
         unsaved: &unsaved,
     };
 
-    let decision = policy
-        .on_giveup
-        .as_ref()
-        .map_or(AfterGivingUp::Ignore, |callback| {
-            let _saving = Saving::entered();
-            callback(&gave_up)
-        });
-
-    policy.health.failed(reason.clone());
-    if decision == AfterGivingUp::Fail {
-        policy.health.give_up(reason.clone());
-    }
-
-    tell_observers(
-        policy,
-        &PersistEvent::GaveUp {
-            failure: &gave_up,
-            decision,
-        },
-    );
-
     error!(
         target: "amethystate",
         reason = %format!("{reason:#}"),
         kind = ?reason.current_context(),
         elapsed_ms = elapsed.as_millis() as u64,
         budget_ms = policy.retry.budget.as_millis() as u64,
-        decision = ?decision,
         unsaved = ?unsaved,
         "background flush has been failing longer than its retry budget",
     );
 
-    if decision == AfterGivingUp::Poison {
-        panic!(
-            "background flush failed for {elapsed:?} (budget {:?}): {reason:#}",
-            policy.retry.budget
-        );
-    }
+    tell_observers(policy, &PersistEvent::GaveUp { failure: &gave_up });
 }
 
+/// Every observer hears the event, and one that panics is reported rather
+/// than allowed to take the thread that saves down with it.
 fn tell_observers(policy: &FlushPolicy, event: &PersistEvent<'_>) {
     let observers = policy.health.observers();
     if observers.is_empty() {
@@ -336,7 +309,19 @@ fn tell_observers(policy: &FlushPolicy, event: &PersistEvent<'_>) {
 
     let _saving = Saving::entered();
     for observer in observers {
-        observer(event);
+        let heard = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| observer(event)));
+        if let Err(panic) = heard {
+            let said = panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|said| said.to_string()))
+                .unwrap_or_default();
+            error!(
+                target: "amethystate",
+                said,
+                "an observer of the store's saving panicked; the store saves on",
+            );
+        }
     }
 }
 
@@ -353,14 +338,10 @@ fn landed(policy: &FlushPolicy) {
 /// about to delete something, and a store that gave up could not heal when
 /// they did. The budget bounds the *silence* instead. A streak outliving it
 /// escalates once - waking anyone awaiting this flush with a failure, then
-/// asking `policy.on_giveup` what writers should be told - and the loop
-/// carries on regardless, so a flush that lands afterwards clears the failure
-/// and the store is whole again with nothing restarted. Whoever starts waiting
-/// once the streak has escalated hears the next attempt that fails.
-///
-/// Only [`AfterGivingUp::Poison`] ends the thread, by panicking: `Drop`'s own
-/// guard poisons on the way down, which is the same mechanism a panic inside
-/// `op` itself already relies on.
+/// telling the observers - and the loop carries on regardless, so a flush
+/// that lands afterwards clears the failure and the store is whole again with
+/// nothing restarted. Whoever starts waiting once the streak has escalated
+/// hears the next attempt that fails.
 ///
 /// A `Schedule` or a `Now` arriving mid-streak just retries sooner, and which
 /// of the two it was is discarded. The two ways out of a streak that never
@@ -573,7 +554,6 @@ mod tests {
             },
             commits: commits.clone(),
             health: Arc::new(PersistHealth::default()),
-            on_giveup: None,
             unsaved: nothing_named(),
         };
 

@@ -31,10 +31,10 @@ fn on_disk(path: &TempPath) -> String {
 #[test]
 fn a_write_is_readable_before_it_is_stored() -> anyhow::Result<()> {
     let (path, store) = open("book_dur_buffered")?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
     //@show a write you can read and the disk cannot
-    state.port().set(9090)?;
+    state.port().set(9090);
 
     let reads_back = state.port().get();
     //@show-end
@@ -48,10 +48,10 @@ fn a_write_is_readable_before_it_is_stored() -> anyhow::Result<()> {
 #[test]
 fn save_now_puts_everything_on_disk() -> anyhow::Result<()> {
     let (path, store) = open("book_dur_save_now")?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
     //@show forcing everything out
-    state.port().set(9090)?;
+    state.port().set(9090);
     store.save_now()?;
     //@show-end
 
@@ -63,7 +63,7 @@ fn save_now_puts_everything_on_disk() -> anyhow::Result<()> {
 #[test]
 fn a_durable_write_returns_after_the_disk() -> anyhow::Result<()> {
     let (path, store) = open("book_dur_durable")?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
     //@show a write that waits for the disk
     state.port().durable().set(9090)?;
@@ -77,10 +77,10 @@ fn a_durable_write_returns_after_the_disk() -> anyhow::Result<()> {
 #[test]
 fn a_durable_write_takes_its_neighbours_with_it() -> anyhow::Result<()> {
     let (path, store) = open("book_dur_neighbours")?;
-    let state = ConnectionState::new_with(&store)?;
+    let state = ConnectionState::new_with(&store);
 
     //@show what else a durable write commits
-    state.host().set("10.0.0.1".to_string())?;
+    state.host().set("10.0.0.1".to_string());
 
     state.port().durable().set(9090)?;
     //@show-end
@@ -119,8 +119,8 @@ fn dropping_the_store_flushes_it() -> anyhow::Result<()> {
         let store = StoreBuilder::new(path.path())
             .backend(common::text_backend())
             .build()?;
-        let state = ConnectionState::new_with(&store)?;
-        state.port().set(9090)?;
+        let state = ConnectionState::new_with(&store);
+        state.port().set(9090);
     }
 
     assert!(on_disk(&path).contains("9090"));

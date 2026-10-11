@@ -1541,9 +1541,9 @@ fn serde_names_on_a_declared_struct() {
                     }
                 };
 
-                let state = SerdeNamed::new_with(&store).unwrap();
-                state.port().set(9999).unwrap();
-                state.host().set("written".to_string()).unwrap();
+                let state = SerdeNamed::new_with(&store);
+                state.port().set(9999);
+                state.host().set("written".to_string());
                 store.save_now().unwrap();
             }
 
@@ -1622,8 +1622,8 @@ fn the_schema_snapshot_beside_the_data() {
 
             {
                 let store = open(&file, backend).unwrap();
-                let state = SerdeNamed::new_with(&store).unwrap();
-                state.port().set(9999).unwrap();
+                let state = SerdeNamed::new_with(&store);
+                state.port().set(9999);
                 store.save_now().unwrap();
             }
 
@@ -1744,8 +1744,8 @@ fn the_shape_a_text_store_recorded() {
 
             {
                 let store = open(&file, backend).unwrap();
-                let state = SerdeNamed::new_with(&store).unwrap();
-                state.port().set(9999).unwrap();
+                let state = SerdeNamed::new_with(&store);
+                state.port().set(9999);
                 store.save_now().unwrap();
             }
 

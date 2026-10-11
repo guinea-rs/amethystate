@@ -25,8 +25,8 @@ fn a_deleted_field_leaves_no_empty_level_where_no_map_is_declared() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let look = Look::new_with(&store).unwrap();
-        look.font_size().set(16).unwrap();
+        let look = Look::new_with(&store);
+        look.font_size().set(16);
         store.save_now().unwrap();
         store.delete(["look", "font", "size"]).unwrap();
         store.save_now().unwrap();

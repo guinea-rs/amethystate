@@ -51,7 +51,7 @@ let store = StoreBuilder::new(settings)
     .disk(|d| d.debounce(Duration::from_millis(500)))
     .build()?;
 
-let state = NetworkState::new_with(&store)?;
+let state = NetworkState::new_with(&store);
 ```
 <!-- /shown -->
 
@@ -74,7 +74,7 @@ let _sub = state.port().subscribe(|port| {
     println!("port changed to {port}");
 });
 
-state.port().set(9090)?;
+state.port().set(9090);
 ```
 <!-- /shown -->
 
@@ -171,7 +171,7 @@ pub struct KeptSettings {
 
 <!-- shown: writing a persistent struct -->
 ```rust
-let mut state = KeptSettings::load_with(&store)?;
+let mut state = KeptSettings::load_with(&store);
 
 state.port = 9090;
 state.save()?;
@@ -188,9 +188,8 @@ state.mutate(|d| {
 
 ## Что ещё есть
 
-- **Перехватчики** — колбэки, которые видят запись до того, как она ляжет, и
-  могут переписать её или отказать:
-  [Перехватчики](/amethystate/ru/concepts/subscriptions/#перехватчики).
+- **Правила** — функция на поле, которая поправляет каждое значение, которое
+  поле берёт: [Правила](/amethystate/ru/state/rules/).
 - **Трассировка** — структурированные события: каждая запись помечена
   структурой, которая её сделала:
   [Наблюдаемость](/amethystate/ru/concepts/observability/).

@@ -10,7 +10,6 @@
 //! Adding a frame, dropping an attachment or reordering the chain all change
 //! the snapshot, which is the point.
 
-use amethystate::Field;
 use amethystate::store::StoreBackend;
 use amethystate::store::builder::{StoreBuilder, default_backend};
 use amethystate::store::{
@@ -141,66 +140,11 @@ fn a_read_modify_write_on_an_absent_key() {
     }
 }
 
-/// An interceptor turning a write down. The interceptor said nothing beyond
-/// no, so the map is all the report can add - and it has to.
-#[test]
-fn a_write_an_interceptor_turned_down() {
-    let (_dir, store) = store("report_map_intercepted");
-    let widths = store.kv().map::<String, u64>("cols").unwrap();
-    let _guard = widths.intercept(|_| None);
-
-    let err = widths.insert("cpu".to_string(), &1).unwrap_err();
-
-    insta::assert_snapshot!("map_insert_an_interceptor_refused", err.to_string());
-}
-
-/// The same refusal aimed at the whole map rather than one key, which is the
-/// change that carries no key at all.
-#[test]
-fn a_clear_an_interceptor_turned_down() {
-    let (_dir, store) = store("report_map_clear_intercepted");
-    let widths = store.kv().map::<String, u64>("cols").unwrap();
-    widths.insert("cpu".to_string(), &1).unwrap();
-
-    let _guard = widths.intercept(|_| None);
-    let err = widths.clear().unwrap_err();
-
-    insta::assert_snapshot!("map_clear_an_interceptor_refused", err.to_string());
-}
-
-/// A field write an interceptor turned down.
-#[test]
-fn a_field_write_an_interceptor_turned_down() {
-    let (_dir, store) = store("report_field_intercepted");
-    let panel = Panel::new_with(&store).unwrap();
-    let width = panel.width();
-    let _guard = width.intercept(|_| None);
-
-    let err = width.set(9).unwrap_err();
-
-    insta::assert_snapshot!("field_an_interceptor_refused", err.to_string());
-}
-
-/// The same on a volatile field, which has no store behind it. The refusal is
-/// the whole of what happens, so the report is the only thing the caller gets.
-#[test]
-fn a_volatile_field_write_an_interceptor_turned_down() {
-    let session: Field<String> = Field::new_volatile(
-        StorePath::from_segments(["app", "session"]),
-        "anonymous".to_string(),
-    );
-    let _guard = session.intercept(|_| None);
-
-    let err = session.set("alice".to_string()).unwrap_err();
-
-    insta::assert_snapshot!("volatile_field_an_interceptor_refused", err.to_string());
-}
-
 /// A `Kv` write into a namespace, so the report carries both halves.
 #[test]
 fn a_kv_name_under_a_namespace() {
     let (_dir, store) = store("report_kv_namespace");
-    let _panel = Panel::new_with(&store).unwrap();
+    let _panel = Panel::new_with(&store);
 
     let err = store
         .kv()
@@ -214,7 +158,7 @@ fn a_kv_name_under_a_namespace() {
 #[test]
 fn a_kv_write_over_a_declared_field_names_its_owner() {
     let (_dir, store) = store("report_kv_owner");
-    let _panel = Panel::new_with(&store).unwrap();
+    let _panel = Panel::new_with(&store);
 
     let err: KvWrite = store
         .kv()
@@ -243,9 +187,9 @@ pub struct LeftRow {
 #[test]
 fn a_place_taken_twice_names_both_owners() {
     let (_dir, store) = store("report_taken");
-    let _rows = Rows::new_with(&store).unwrap();
+    let _rows = Rows::new_with(&store);
 
-    let err: OpenStruct = LeftRow::new_with(&store).map(|_| ()).unwrap_err();
+    let err: OpenStruct = LeftRow::try_new_with(&store).map(|_| ()).unwrap_err();
 
     insta::assert_snapshot!(
         "a_place_taken_twice_names_both_owners",

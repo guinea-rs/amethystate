@@ -52,9 +52,9 @@ fn migration_builder_mixes_codegen_and_manual_steps(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let profile = v1::Profile::new_with(&store).unwrap();
-        profile.full_name().set("Grace Hopper".to_string()).unwrap();
-        profile.legacy_flag().set(true).unwrap();
+        let profile = v1::Profile::new_with(&store);
+        profile.full_name().set("Grace Hopper".to_string());
+        profile.legacy_flag().set(true);
     }
 
     let (store, _report) = StoreBuilder::new(&path)
@@ -77,7 +77,7 @@ fn migration_builder_mixes_codegen_and_manual_steps(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let profile = Profile::new_with(&store).unwrap();
+    let profile = Profile::new_with(&store);
     assert_eq!(profile.display_name().get(), "Grace Hopper");
     assert_eq!(profile.initials().get(), "GH");
 

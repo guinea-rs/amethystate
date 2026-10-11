@@ -93,7 +93,7 @@ fn a_step_scans_a_map_somebody_emptied(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let held = emptied_v1::Held::new_with(&store).unwrap();
+        let held = emptied_v1::Held::new_with(&store);
         held.cache().insert("a".into(), &1u32).unwrap();
         held.cache().remove("a").unwrap();
         store.save_now().unwrap();
@@ -108,7 +108,7 @@ fn a_step_scans_a_map_somebody_emptied(backend: Backend) {
         report.components
     );
 
-    let held = Held::new_with(&store).unwrap();
+    let held = Held::new_with(&store);
     assert_eq!(
         held.counted().get(),
         0,
@@ -122,8 +122,8 @@ fn test_embedded_map_migration(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::ProxyConfig::new_with(&store).unwrap();
-        config.name().set("legacy-proxy".into()).unwrap();
+        let config = v1::ProxyConfig::new_with(&store);
+        config.name().set("legacy-proxy".into());
 
         config
             .routes()
@@ -138,7 +138,7 @@ fn test_embedded_map_migration(backend: Backend) {
 
     let (store, _) = StoreBuilder::new(&path).backend(backend).migrate().unwrap();
 
-    let config = ProxyConfig::new_with(&store).unwrap();
+    let config = ProxyConfig::new_with(&store);
 
     assert_eq!(config.name().get(), "legacy-proxy");
 

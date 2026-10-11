@@ -2,9 +2,9 @@
 //!
 //! Its own set rather than a variant on
 //! [`WriteValue`](crate::errors::WriteValue): a raw write is the one that can
-//! land on a place a declared struct owns, and a field write is the one that
-//! can be turned down by an interceptor or aimed at a cell whose source is
-//! gone. Neither should have to read past the other's failures.
+//! land on a place a declared struct owns, and a write through a field, a cell
+//! or a map is the one that can find its key absent or its source gone.
+//! Neither should have to read past the other's failures.
 
 use crate::store::StorageError;
 use amethystate_core::failure::{Because, spelled};

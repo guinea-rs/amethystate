@@ -26,7 +26,7 @@ fn a_tree_only_the_record_declares_is_read_as_a_tree() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let _look = Look::new_with(&store).unwrap();
+        let _look = Look::new_with(&store);
         store.save_now().unwrap();
     }
     std::thread::sleep(std::time::Duration::from_millis(120));

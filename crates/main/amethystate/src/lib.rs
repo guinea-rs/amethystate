@@ -37,8 +37,8 @@ pub use serde;
 pub use uuid;
 
 pub use reactive::{
-    AmeState, AmeStateNode, Change, Field, Id, InterceptDisposer, MapChange, ReactiveCell,
-    ReactiveMap, ReactiveMapKey, ReactiveMapValue, ReactiveScope, SignalSubscription,
+    AmeState, AmeStateNode, Change, Field, Id, MapChange, ReactiveCell, ReactiveMap,
+    ReactiveMapKey, ReactiveMapValue, ReactiveScope, SignalSubscription,
 };
 pub use store::StoreSubscription;
 
@@ -49,7 +49,6 @@ pub mod errors {
         WriteValue,
     };
     pub use crate::store::StorageError;
-    pub use amethystate_core::Refusal;
     pub use amethystate_core::facts;
     pub use amethystate_core::failure::{Because, Caused};
     pub use error_stack::Report;

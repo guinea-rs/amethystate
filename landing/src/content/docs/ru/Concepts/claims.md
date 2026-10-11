@@ -33,10 +33,10 @@ Store держит таблицу занятого, и вторая структ
 
 <!-- shown: what the refusal looks like -->
 ```rust
-let _ui = Ui::new_with(&store)?;
+let _ui = Ui::new_with(&store);
 
-let refused =
-    Panels::new_with(&store).expect_err("`ui.panels.left.visible` is spelled by both of them");
+let refused = Panels::try_new_with(&store)
+    .expect_err("`ui.panels.left.visible` is spelled by both of them");
 
 let OpenStruct::Taken(taken) = &refused else {
     panic!("{refused}")

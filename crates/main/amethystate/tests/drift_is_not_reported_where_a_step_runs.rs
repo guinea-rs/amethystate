@@ -28,8 +28,8 @@ fn a_prefix_whose_step_failed_is_reported_once_and_not_as_drift() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let panel = Panel::new_with(&store).unwrap();
-        panel.height().set(480).unwrap();
+        let panel = Panel::new_with(&store);
+        panel.height().set(480);
         store.close().unwrap();
     }
 

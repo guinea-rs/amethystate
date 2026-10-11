@@ -36,7 +36,7 @@ fn a_durable_write_after_a_close_is_refused_rather_than_awaited(backend: Backend
         .disk(|d| d.debounce(Duration::from_secs(600)))
         .build()
         .unwrap();
-    let state = Settings::new_with(&store).unwrap();
+    let state = Settings::new_with(&store);
 
     store.close().unwrap();
 
@@ -75,7 +75,7 @@ fn an_awaited_durable_write_after_a_close_is_refused_too(backend: Backend) {
         .disk(|d| d.debounce(Duration::from_secs(600)))
         .build()
         .unwrap();
-    let state = Settings::new_with(&store).unwrap();
+    let state = Settings::new_with(&store);
 
     store.close().unwrap();
 

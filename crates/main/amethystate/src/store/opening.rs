@@ -11,25 +11,13 @@
 use crate::store::ReadValue;
 use crate::store::StorageError;
 use crate::store::places::Taken;
-use crate::store::rule::Invalid;
 use amethystate_core::failure::{Because, spelled};
 use amethystate_core::path::{StorePath, StorePathError};
 use error_stack::Report;
 use std::fmt;
-use std::sync::Arc;
 
 /// What stopped a struct from being built.
 pub enum OpenStruct {
-    /// A declared rule read the stored value and turned it down, in the
-    /// rule's own words.
-    ///
-    /// The value decoded perfectly well: what it failed is the application's
-    /// own rule. Reached only where the field or its struct said
-    /// [`OnUnreadable::Refuse`](crate::store::OnUnreadable::Refuse) - the other
-    /// policies keep the default and record a
-    /// [`Disagreement`](crate::observability::Disagreement) instead.
-    Refused { at: StorePath, said: Arc<str> },
-
     /// What is stored will not read back as the field's declared type.
     ///
     /// `why` is kept whole because what the codec choked on - the type asked
@@ -56,13 +44,6 @@ pub enum OpenStruct {
     /// key, the table, how many bytes - are still there for whoever wants
     /// them.
     Store(Because),
-
-    /// A hand-written [`Open`] turned the struct down, in its own words.
-    ///
-    /// What `?` makes of an [`Invalid`] there - a value
-    /// [`RuleContext::require`](crate::store::RuleContext::require) found
-    /// missing, or a verdict of the constructor's own.
-    Declined(Invalid),
 }
 
 /// A struct opened exactly as its declaration says: its fields read, its rules
@@ -81,8 +62,8 @@ pub trait Schema: Sized {
 /// structs it does not name asks for `S: Open`. A struct declared with
 /// `open = manual` is given no impl and takes one written by hand, which reads
 /// what it needs from [`Store::context`](crate::Store::context). Its inherent
-/// `new_with` - a persistent struct's `load_with` - and
-/// [`AmeStateSlice::load_slice`](crate::AmeStateSlice::load_slice) go through
+/// `new_with` and `try_new_with` - a persistent struct's `load_with` and
+/// `try_load_with` - and [`AmeStateSlice`](crate::AmeStateSlice) go through
 /// that impl, and it has no `new()` or `load()` over the global store.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is opened by hand, and nothing implements `Open` for it",
@@ -90,7 +71,33 @@ pub trait Schema: Sized {
     note = "write `impl Open for {Self}`, starting from `<Self as Schema>::open(store)`"
 )]
 pub trait Open: Sized {
-    fn new_with(store: &crate::Store) -> Result<Self, OpenStruct>;
+    /// Opens the struct, or says why it would not open.
+    fn try_new_with(store: &crate::Store) -> Result<Self, OpenStruct>;
+
+    /// Opens the struct.
+    ///
+    /// # Panics
+    ///
+    /// Where [`Open::try_new_with`] answers `Err`, with what it said.
+    #[track_caller]
+    fn new_with(store: &crate::Store) -> Self {
+        opened(Self::try_new_with(store))
+    }
+}
+
+/// The struct, or a panic naming it and saying why it would not open.
+#[track_caller]
+pub(crate) fn opened<S>(result: Result<S, OpenStruct>) -> S {
+    result.unwrap_or_else(|why| {
+        let said = why.to_string();
+        let explained = why.explain();
+        let name = std::any::type_name::<S>();
+        if explained == said {
+            panic!("{name} would not open: {said}")
+        } else {
+            panic!("{name} would not open: {said}\n{explained}")
+        }
+    })
 }
 
 impl OpenStruct {
@@ -106,21 +113,12 @@ impl OpenStruct {
 impl fmt::Display for OpenStruct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Refused { at, said } => {
-                write!(f, "a declared rule refused what is stored at {at}: {said}")
-            }
             Self::WillNotRead { at, .. } => {
                 write!(f, "what is stored at {at} will not read back")
             }
             Self::Taken(taken) => write!(f, "{taken}"),
             Self::NotAPath(why) => write!(f, "the field was given no path to sit at: {why}"),
             Self::Store(why) => write!(f, "{}", why.current_context()),
-            Self::Declined(said) => {
-                write!(
-                    f,
-                    "the struct's own constructor declined to open it: {said}"
-                )
-            }
         }
     }
 }
@@ -138,14 +136,8 @@ impl std::error::Error for OpenStruct {
             Self::Store(why) | Self::WillNotRead { why, .. } => {
                 why.caused().map(|under| under as &dyn std::error::Error)
             }
-            Self::Refused { .. } | Self::Taken(_) | Self::Declined(_) => None,
+            Self::Taken(_) => None,
         }
-    }
-}
-
-impl From<Invalid> for OpenStruct {
-    fn from(said: Invalid) -> Self {
-        Self::Declined(said)
     }
 }
 
@@ -200,12 +192,7 @@ impl From<OpenStruct> for Report<StorageError> {
                 report.into_report()
             }
             OpenStruct::NotAPath(why) => Report::new(why).change_context(StorageError::Path),
-            OpenStruct::Refused { at, said } => Report::new(StorageError::Read)
-                .attach(amethystate_core::facts::Key(at))
-                .attach(amethystate_core::facts::Refused(said.to_string())),
             OpenStruct::Taken(taken) => crate::store::places::refused(&taken),
-            OpenStruct::Declined(said) => Report::new(StorageError::Read)
-                .attach(amethystate_core::facts::Refused(said.reason().to_string())),
         }
     }
 }

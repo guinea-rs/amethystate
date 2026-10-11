@@ -92,18 +92,16 @@ fn a_constructor_fails_with_the_set_that_is_possible_there(backend: Backend) -> 
     let (_path, store) = open(backend, "book_err_set")?;
 
     //@show telling one refusal from another
-    let refused = match Panel::new_with(&store) {
+    let refused = match Panel::try_new_with(&store) {
         Ok(_) => return Ok(()),
         Err(why) => why,
     };
 
     let said = match refused {
-        OpenStruct::Refused { at, said } => format!("{at} was turned down: {said}"),
         OpenStruct::WillNotRead { at, why } => format!("{at} holds something else: {why}"),
         OpenStruct::Taken(taken) => format!("{} already holds it", taken.held_by),
         OpenStruct::NotAPath(why) => format!("that is not a path: {why}"),
         OpenStruct::Store(disk) => format!("the store: {disk}"),
-        OpenStruct::Declined(said) => format!("its own constructor said no: {said}"),
     };
     //@show-end
 

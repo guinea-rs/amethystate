@@ -35,7 +35,7 @@ fn an_entry_a_step_drops_from_a_map_is_gone_after_it_runs(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let old = v1::Trimmed::new_with(&store).unwrap();
+        let old = v1::Trimmed::new_with(&store);
         old.limits().insert("gone".to_string(), &1).unwrap();
         old.limits().insert("kept".to_string(), &2).unwrap();
         store.save_now().unwrap();

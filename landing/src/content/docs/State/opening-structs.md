@@ -13,7 +13,7 @@ for `Open`:
 
 <!-- shown: opening any struct that has a place of its own -->
 ```rust
-fn opened<S: Open>(store: &Store) -> Result<S, OpenStruct> {
+fn opened<S: Open>(store: &Store) -> S {
     S::new_with(store)
 }
 ```
@@ -35,12 +35,12 @@ pub struct AgentSettings {
 }
 
 impl Open for AgentSettings {
-    fn new_with(store: &Store) -> Result<Self, OpenStruct> {
-        let machine = store.context().require::<Machine>()?;
+    fn try_new_with(store: &Store) -> Result<Self, OpenStruct> {
+        let machine = store.context().require::<Machine>();
         let settings = <Self as Schema>::open(store)?;
 
         if settings.workers().get() == 0 {
-            settings.workers().set(machine.cores)?;
+            settings.workers().set(machine.cores);
         }
 
         Ok(settings)
@@ -49,17 +49,20 @@ impl Open for AgentSettings {
 ```
 <!-- /shown -->
 
-What it needs comes from `store.context()`, the same values a declared
-[rule](/amethystate/state/rules/) is handed, and `?` turns a missing one - or
-any `Invalid` of its own - into `OpenStruct::Declined`, which carries the
-reason as it was written.
+The author writes `try_new_with`, the door that answers with a `Result`;
+`new_with`, which panics with what it answered, comes with the trait. What the
+struct needs comes from `store.context()`, the same values a declared
+[rule](/amethystate/state/rules/) is handed, and `require` panics naming a
+value nobody gave - a store built without it is built wrong the same way on
+every run.
 
 ## An invariant between fields
 
 A field's rule sees one value and none of its siblings, and the struct is the
 place its fields are kept rather than a value with a rule of its own. So an
 invariant between fields goes here. The hand-written `Open` sees every field at
-once, after each has passed its own rule:
+once, after each has been through its own rule, and puts them right the way a
+rule would:
 
 <!-- shown: an invariant between fields, checked where the struct is opened -->
 ```rust
@@ -73,11 +76,11 @@ pub struct Window {
 }
 
 impl Open for Window {
-    fn new_with(store: &Store) -> Result<Self, OpenStruct> {
+    fn try_new_with(store: &Store) -> Result<Self, OpenStruct> {
         let window = <Self as Schema>::open(store)?;
 
         if window.min().get() > window.max().get() {
-            return Err(Invalid::new("the smallest window is wider than the largest").into());
+            window.max().set(window.min().get());
         }
 
         Ok(window)
@@ -86,18 +89,19 @@ impl Open for Window {
 ```
 <!-- /shown -->
 
-It runs once, where the struct is opened. A write to `min` afterwards is judged
-by `min`'s own rule and by nothing that knows about `max`; two fields written
+It runs once, where the struct is opened. A write to `min` afterwards goes
+through `min`'s own rule and through nothing that knows about `max`; two fields written
 from two threads are a limit the
 [Durability](/amethystate/concepts/durability/#concurrent-access) page sets out.
 
 ## The only way in
 
-The hand-written `Open` is the only way in. `new_with` on the struct, `load_with`
-on a persistent one and `AmeStateSlice::load_slice` all go through it, so no
-caller opens the struct past it by accident. That is also why the impl
-itself starts from `<Self as Schema>::open` and never from `Self::new_with`:
-the second is this very `Open`, and would call itself. And a struct that says
+The hand-written `Open` is the only way in. `new_with` and `try_new_with` on
+the struct, `load_with` and `try_load_with` on a persistent one and
+`AmeStateSlice` all go through it, so no caller opens the struct past it by
+accident. That is also why the impl itself starts from `<Self as Schema>::open`
+and never from `Self::try_new_with`: the second is this very `Open`, and would
+call itself. And a struct that says
 `open = manual` has no `new()` or `load()` over the global store: reaching for
 the global store is a compile error rather than something a review has to
 catch.

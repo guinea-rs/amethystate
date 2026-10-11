@@ -39,7 +39,7 @@ pub struct Settings {
 Включите движок того формата, в котором записан файл:
 
 ```toml
-amethystate = { version = "0.24", features = ["toml"] }
+amethystate = { version = "0.25", features = ["toml"] }
 ```
 
 и откройте тот файл, что у приложения уже есть:
@@ -47,7 +47,7 @@ amethystate = { version = "0.24", features = ["toml"] }
 <!-- shown: opening the file that was there -->
 ```rust
 let store = StoreBuilder::new(file).backend(Backend::Toml).build()?;
-let settings = Settings::load_with(&store)?;
+let settings = Settings::load_with(&store);
 ```
 <!-- /shown -->
 
@@ -72,7 +72,7 @@ serde, поэтому `load_with` читает то, что лежит в фай
 
 <!-- shown: moving the values in once -->
 ```rust
-let mut settings = Settings::load_with(&store)?;
+let mut settings = Settings::load_with(&store);
 
 if let Some(old) = read_old_settings(&old_file)? {
     settings.mutate(|now| {

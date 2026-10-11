@@ -144,12 +144,12 @@ impl<W: Watchable> Watch<W> {
     ///     sink.lock().unwrap().push(*v);
     /// });
     ///
-    /// port.set(9090).unwrap();
-    /// port.set(9091).unwrap();
+    /// port.set(9090);
+    /// port.set(9091);
     /// assert_eq!(*seen.lock().unwrap(), [9090, 9091]);
     ///
     /// drop(sub);
-    /// port.set(9092).unwrap();
+    /// port.set(9092);
     /// assert_eq!(seen.lock().unwrap().len(), 2, "the guard is what kept it alive");
     /// ```
     #[track_caller]
@@ -193,8 +193,8 @@ impl<W: Watchable> Watch<W> {
     ///     sink.lock().unwrap().push((*v, src));
     /// });
     ///
-    /// port.set(9090).unwrap();
-    /// port_fork.set(9091).unwrap();
+    /// port.set(9090);
+    /// port_fork.set(9091);
     ///
     /// let seen = seen.lock().unwrap();
     /// assert_eq!(seen.len(), 2, "both arrived");
@@ -240,8 +240,8 @@ impl<W: Watchable> Watch<W> {
     ///
     /// let mut changes = port.subscription_with().stream();
     ///
-    /// port.set(9090).unwrap();
-    /// port.set(9091).unwrap();
+    /// port.set(9090);
+    /// port.set(9091);
     ///
     /// futures::executor::block_on(async {
     ///     assert_eq!(changes.next().await, Some(9090));
@@ -249,7 +249,7 @@ impl<W: Watchable> Watch<W> {
     /// });
     ///
     /// drop(changes);
-    /// port.set(9092).unwrap();
+    /// port.set(9092);
     /// ```
     #[track_caller]
     pub fn stream(self) -> ChangeStream<W::Item> {

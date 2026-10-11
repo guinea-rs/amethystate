@@ -17,7 +17,7 @@ fn a_root_struct_lays_its_fields_at_the_top(backend: Backend) {
     let path = TempPath::new("as_root_test");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
 
-    let config = AppConfig::new_with(&store).unwrap();
+    let config = AppConfig::new_with(&store);
 
     assert_eq!(
         store.get::<String>(["name"]).unwrap(),
@@ -25,8 +25,8 @@ fn a_root_struct_lays_its_fields_at_the_top(backend: Backend) {
     );
     assert_eq!(store.get::<bool>(["comfy"]).unwrap(), Some(false));
 
-    config.name().set("updated_name".to_string()).unwrap();
-    config.comfy().set(true).unwrap();
+    config.name().set("updated_name".to_string());
+    config.comfy().set(true);
 
     assert_eq!(
         store.get::<String>(["name"]).unwrap(),

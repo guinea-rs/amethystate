@@ -40,11 +40,10 @@ fn the_pair_decides_what_the_path_holds(backend: Backend) {
         .build()
         .unwrap();
 
-    let state = Session::new_with(&store).unwrap();
+    let state = Session::new_with(&store);
     state
         .opened
-        .set(UNIX_EPOCH + Duration::from_secs(1700000000))
-        .unwrap();
+        .set(UNIX_EPOCH + Duration::from_secs(1700000000));
     store.save_now().unwrap();
 
     let held: u64 = store.get(["session", "opened"]).unwrap().unwrap();
@@ -64,8 +63,8 @@ fn what_the_pair_wrote_the_pair_reads(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let state = Session::new_with(&store).unwrap();
-        state.opened.set(at).unwrap();
+        let state = Session::new_with(&store);
+        state.opened.set(at);
         store.save_now().unwrap();
         store.close().unwrap();
     }
@@ -75,7 +74,7 @@ fn what_the_pair_wrote_the_pair_reads(backend: Backend) {
         .build()
         .unwrap();
 
-    assert_eq!(Session::new_with(&store).unwrap().opened.get(), at);
+    assert_eq!(Session::new_with(&store).opened.get(), at);
 }
 
 #[backends(all)]
@@ -89,7 +88,7 @@ fn a_path_the_pair_cannot_read_names_itself(backend: Backend) {
     store.set(["session", "opened"], &"noon").unwrap();
     store.save_now().unwrap();
 
-    let refused = Session::new_with(&store).expect_err("a word is not a count of seconds");
+    let refused = Session::try_new_with(&store).expect_err("a word is not a count of seconds");
     let rendered = format!("{refused:?}");
 
     assert!(

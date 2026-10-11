@@ -16,8 +16,9 @@
 //! So which engines have it follows the codec rather than the file extension,
 //! and the two are not the pair anyone guesses. A store whose codec cannot
 //! read the value back refuses the write instead of taking it: left alone it
-//! lands as `null`, `set` answers `Ok`, and the field goes on reporting the
-//! number it held before while the file holds nothing of the sort.
+//! would land as `null`, and the field would go on reporting the number it held
+//! before while the file holds nothing of the sort. A durable write answers the
+//! refusal as an `Err`; a plain `set` panics naming the field.
 //!
 //! `limits(|l| l.portable_across(..))` extends the refusal to engines that are
 //! not running. A store on redb that promises to stay readable on json refuses
@@ -74,8 +75,8 @@ fn a_format_that_can_hold_it_keeps_it() {
         .build()
         .unwrap();
 
-    let state = Readings::new_with(&store).unwrap();
-    state.ratio().set(f64::NAN).unwrap();
+    let state = Readings::new_with(&store);
+    state.ratio().set(f64::NAN);
 
     assert!(
         state.ratio().get().is_nan(),
@@ -101,11 +102,12 @@ fn refuses_what_it_cannot_read_back(backend: Backend, label: &str) {
         .build()
         .unwrap();
 
-    let state = Readings::new_with(&store).unwrap();
-    state.ratio().set(5.0).unwrap();
+    let state = Readings::new_with(&store);
+    state.ratio().set(5.0);
 
     let refused = state
         .ratio()
+        .durable()
         .set(f64::NAN)
         .expect_err(&format!("{label} took a value it cannot read back"));
     assert!(
@@ -144,10 +146,11 @@ fn a_promise_to_stay_readable_on_json_refuses_it_where_it_would_fit() {
         .build()
         .unwrap();
 
-    let state = Readings::new_with(&store).unwrap();
+    let state = Readings::new_with(&store);
 
     let refused = state
         .ratio()
+        .durable()
         .set(f64::INFINITY)
         .expect_err("msgpack holds it, but the store promised json too");
 
@@ -167,8 +170,8 @@ fn a_store_promising_only_engines_that_hold_it_takes_it() {
         .build()
         .unwrap();
 
-    let state = Readings::new_with(&store).unwrap();
-    state.ratio().set(f64::NEG_INFINITY).unwrap();
+    let state = Readings::new_with(&store);
+    state.ratio().set(f64::NEG_INFINITY);
 
     assert!(state.ratio().get().is_infinite());
 }
@@ -183,11 +186,11 @@ fn what_each_engine_does_with_a_nan() {
             .unwrap();
 
         //@act
-        let readings = Readings::new_with(&store).unwrap();
-        readings.ratio().set(1.5).unwrap();
+        let readings = Readings::new_with(&store);
+        readings.ratio().set(1.5);
 
         //@show the write
-        let written = readings.ratio().set(f64::NAN);
+        let written = readings.ratio().durable().set(f64::NAN);
         //@show-end
 
         let after = readings.ratio().get();

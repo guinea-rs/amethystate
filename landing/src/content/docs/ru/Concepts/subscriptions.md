@@ -18,12 +18,12 @@ let sub = state.port().subscribe(move |port| {
     seen.lock().unwrap().push(*port);
 });
 
-state.port().set(9090)?;
+state.port().set(9090);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 
 drop(sub);
 
-state.port().set(1234)?;
+state.port().set(1234);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
@@ -43,7 +43,7 @@ let _ = state.port().subscribe(move |port| {
     ignored.lock().unwrap().push(*port);
 });
 
-state.port().set(4321)?;
+state.port().set(4321);
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
@@ -101,8 +101,8 @@ scope.clear();
 ```rust
 let mut ports = state.port().subscription_with().stream();
 
-state.port().set(9090)?;
-state.port().set(1234)?;
+state.port().set(9090);
+state.port().set(1234);
 
 let mut heard = Vec::new();
 futures::executor::block_on(async {
@@ -139,8 +139,8 @@ let _sub = state
         seen.lock().unwrap().push(*port);
     });
 
-state.port().set(8080)?;
-watcher.set(9090)?;
+state.port().set(8080);
+watcher.set(9090);
 
 assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
@@ -170,8 +170,8 @@ let _sub = port
     .external()
     .register(move |value| seen.lock().unwrap().push(*value));
 
-same.set(1111)?;
-other.set(2222)?;
+same.set(1111);
+other.set(2222);
 
 assert_eq!(*heard.lock().unwrap(), [2222]);
 
@@ -200,7 +200,7 @@ let _sub = state
         seen.lock().unwrap().push((*port, who));
     });
 
-state.port().set(9090)?;
+state.port().set(9090);
 
 let (port, who) = heard.lock().unwrap()[0];
 assert_eq!(port, 9090);
@@ -217,33 +217,3 @@ assert_eq!(who, Some(state.port().instance_id()));
 всех, включая того, кто их и вызвал. Почему так и что из этого следует для
 `insert` — на странице
 [ReactiveMap](/amethystate/ru/primitives/reactive-map/#что-фильтрует-external).
-
-## Перехватчики
-
-Подписка слышит запись, когда та уже легла. Перехватчик видит её раньше.
-`intercept` на `Field` или `ReactiveMap` ставит колбэк: каждая запись приходит
-к нему как `Change` (на карте — как `MapChange`), и он за неё отвечает. `Some`
-пропускает изменение — каким пришло или переписанным, — и сохраняется то, что
-он вернул. `None` запись отклоняет: вызывающий получает `Intercepted`, а
-значение остаётся прежним.
-
-Перехватчиков может быть несколько. Они работают в том порядке, в каком их
-поставили, и каждый получает то, что пропустил предыдущий. На поле после них
-всех срабатывает объявленное [правило](/amethystate/ru/state/rules/).
-`intercept_key` сужает перехватчик карты до одного ключа, а изменения других
-ключей проходят мимо него. Своих перехватчиков у `ReactiveCell` нет: ячейка
-поверх поля проходит через перехватчики поля.
-
-Перехватчики видят записи, сделанные через хендл в этом процессе. Правка
-снаружи — файл правили руками, писала другая вкладка — доходит до значения в
-обход них.
-
-Перехватчик, который пишет обратно в то, что сторожит, вкладывает одну запись в
-другую. Если записи вложены глубже десяти, store останавливается, и запись
-падает с `Recursed`.
-
-`intercept` отдаёт `InterceptDisposer`, и перехватчик стоит, пока не вызовут
-его `remove`. Дроп `InterceptDisposer` лишь забывает хендл — у подписки всё
-наоборот. Подписка принадлежит тому, кто слушает, и уходит вместе с ним.
-Перехватчик — правило о самом значении, и он не кончается оттого, что квитанцию
-никто не сохранил.

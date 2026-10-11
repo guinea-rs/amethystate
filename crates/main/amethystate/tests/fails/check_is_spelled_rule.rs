@@ -1,11 +1,9 @@
 use amethystate::amethystate;
-use amethystate::store::{Invalid, RuleContext};
+use amethystate::store::RuleContext;
 
-fn a_port_that_is_not_zero(port: &mut u16, _cx: &RuleContext) -> Result<(), Invalid> {
+fn a_port_that_is_not_zero(port: &mut u16, _cx: &RuleContext) {
     if *port == 0 {
-        Err(Invalid::new("port 0 asks the machine to pick one"))
-    } else {
-        Ok(())
+        *port = 8080;
     }
 }
 

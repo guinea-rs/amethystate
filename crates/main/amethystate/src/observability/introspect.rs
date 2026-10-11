@@ -61,10 +61,11 @@ pub struct FieldView<'a> {
 
 /// What a field and the store do not agree about.
 ///
-/// The value is not what the field reports: either the store holds something
-/// the field cannot read, or a declared rule refused it. Either way the field
-/// is reporting its default or the last thing it held, and the stored bytes are
-/// where they were - so it can be looked at, and fixed.
+/// The value is not what the field reports: the store holds something the
+/// field cannot read, holds something else at its path, or would not take what
+/// a rule put right. The field is reporting its default or the last thing it
+/// held, and the stored bytes are where they were - so it can be looked at, and
+/// fixed.
 #[derive(Debug, Clone)]
 pub struct Disagreement {
     pub at: StorePath,
@@ -81,9 +82,6 @@ pub struct Disagreement {
 pub enum Reason {
     /// What is stored will not read back as the declared type.
     WillNotRead(std::sync::Arc<str>),
-
-    /// It read, and a declared rule refused it.
-    Refused(std::sync::Arc<str>),
 
     /// The field never wrote its default, because the store already held
     /// something at its path that seeding would have destroyed - so the two
@@ -104,7 +102,6 @@ impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Reason::WillNotRead(why) => write!(f, "will not read: {why}"),
-            Reason::Refused(why) => write!(f, "refused: {why}"),
             Reason::Occupied(why) => write!(f, "already held something else: {why}"),
             Reason::Closed => f.write_str("the store was closed, so this is the last it heard"),
             Reason::NotWrittenBack(why) => {

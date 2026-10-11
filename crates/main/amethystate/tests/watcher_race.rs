@@ -38,10 +38,10 @@ fn a_write_is_never_rolled_back_by_the_watcher() {
         })
         .build()
         .unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     for n in 1..=400u64 {
-        cfg.counter().set(n).unwrap();
+        cfg.counter().set(n);
 
         let seen = cfg.counter().get();
         assert!(
@@ -78,10 +78,10 @@ fn a_write_during_a_persist_still_reaches_the_file() {
         })
         .build()
         .unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     for n in 1..=200u64 {
-        cfg.counter().set(n).unwrap();
+        cfg.counter().set(n);
         std::thread::sleep(Duration::from_millis(1));
     }
 

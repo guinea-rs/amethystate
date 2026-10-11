@@ -21,7 +21,7 @@ fn a_line_with_no_steps_refuses_a_store_a_newer_release_recorded() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        Clock::new_with(&store).unwrap().timeout().set(30).unwrap();
+        Clock::new_with(&store).timeout().set(30);
         store.save_now().unwrap();
     }
 

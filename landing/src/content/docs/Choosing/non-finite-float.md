@@ -23,8 +23,9 @@ and nothing in its name says which format that is.
 So which engines have it follows the codec rather than the file extension,
 and the two are not the pair anyone guesses. A store whose codec cannot
 read the value back refuses the write instead of taking it: left alone it
-lands as `null`, `set` answers `Ok`, and the field goes on reporting the
-number it held before while the file holds nothing of the sort.
+would land as `null`, and the field would go on reporting the number it held
+before while the file holds nothing of the sort. A durable write answers the
+refusal as an `Err`; a plain `set` panics naming the field.
 
 `limits(|l| l.portable_across(..))` extends the refusal to engines that are
 not running. A store on redb that promises to stay readable on json refuses
@@ -33,10 +34,10 @@ what msgpack alone would have held.
 ## What was done
 
 ```rust
-let readings = Readings::new_with(&store).unwrap();
-readings.ratio().set(1.5).unwrap();
+let readings = Readings::new_with(&store);
+readings.ratio().set(1.5);
 
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 
 let after = readings.ratio().get();
 ```
@@ -46,7 +47,7 @@ let after = readings.ratio().get();
 #### redb - the write
 
 ```rust
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 ```
 
 ```
@@ -58,7 +59,7 @@ taken, and the field holds NaN
 #### sqlite - the write
 
 ```rust
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 ```
 
 ```
@@ -70,7 +71,7 @@ what was written to nonfinite.ratio will not encode
 #### json - the write
 
 ```rust
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 ```
 
 ```
@@ -82,7 +83,7 @@ what was written to nonfinite.ratio will not encode
 #### toml - the write
 
 ```rust
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 ```
 
 ```
@@ -94,7 +95,7 @@ taken, and the field holds NaN
 #### ron - the write
 
 ```rust
-let written = readings.ratio().set(f64::NAN);
+let written = readings.ratio().durable().set(f64::NAN);
 ```
 
 ```

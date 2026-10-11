@@ -31,7 +31,7 @@ fn a_persistent_struct_loads_what_is_there_and_defaults_the_rest(backend: Backen
     store.set(["held", "width"], &1920u32).unwrap();
     store.save_now().unwrap();
 
-    let held = Held::load_with(&store).unwrap();
+    let held = Held::load_with(&store);
 
     assert_eq!(held.width, 1920, "what was stored");
     assert_eq!(
@@ -49,7 +49,7 @@ fn a_persistent_struct_writes_through_mutate(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let mut held = Held::load_with(&store).unwrap();
+        let mut held = Held::load_with(&store);
 
         held.mutate(|it| it.width = 1280).unwrap();
 
@@ -66,7 +66,7 @@ fn a_persistent_struct_writes_through_mutate(backend: Backend) {
         .build()
         .unwrap();
 
-    assert_eq!(Held::load_with(&store).unwrap().width, 1280);
+    assert_eq!(Held::load_with(&store).width, 1280);
 }
 
 #[backends(all)]
@@ -77,7 +77,7 @@ fn a_persistent_struct_reads_and_writes_through_deref(backend: Backend) {
         .build()
         .unwrap();
 
-    let mut held = Held::load_with(&store).unwrap();
+    let mut held = Held::load_with(&store);
 
     held.theme = "light".to_string();
     held.save().unwrap();
@@ -97,8 +97,8 @@ fn the_watching_shape_is_still_what_it_was(backend: Backend) {
         .build()
         .unwrap();
 
-    let watched = Watched::new_with(&store).unwrap();
-    watched.width.set(1024).unwrap();
+    let watched = Watched::new_with(&store);
+    watched.width.set(1024);
     store.save_now().unwrap();
 
     assert_eq!(store.get::<u32>(["watched", "width"]).unwrap(), Some(1024));

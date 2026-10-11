@@ -27,8 +27,8 @@ fn an_edit_down_a_declared_tree_reaches_its_field() {
         .build()
         .unwrap();
 
-    let look = Look::new_with(&store).unwrap();
-    look.font_size().set(16).unwrap();
+    let look = Look::new_with(&store);
+    look.font_size().set(16);
     store.save_now().unwrap();
     settle();
 

@@ -34,10 +34,10 @@ fn the_second_claim_on_one_place_is_refused(backend: Backend) -> anyhow::Result<
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
     //@show what the refusal looks like
-    let _ui = Ui::new_with(&store)?;
+    let _ui = Ui::new_with(&store);
 
-    let refused =
-        Panels::new_with(&store).expect_err("`ui.panels.left.visible` is spelled by both of them");
+    let refused = Panels::try_new_with(&store)
+        .expect_err("`ui.panels.left.visible` is spelled by both of them");
 
     let OpenStruct::Taken(taken) = &refused else {
         panic!("{refused}")
@@ -66,8 +66,8 @@ fn places_that_do_not_meet_are_left_alone(backend: Backend) -> anyhow::Result<()
     let path = TempPath::new("book_claims_apart");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
-    let _ui = Ui::new_with(&store)?;
-    let _right = RightPanel::new_with(&store)?;
+    let _ui = Ui::new_with(&store);
+    let _right = RightPanel::new_with(&store);
 
     Ok(())
 }
@@ -77,10 +77,10 @@ fn a_claim_outlives_the_handle_that_made_it(backend: Backend) -> anyhow::Result<
     let path = TempPath::new("book_claims_dropped");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
-    drop(Ui::new_with(&store)?);
+    drop(Ui::new_with(&store));
 
     assert!(
-        Panels::new_with(&store).is_err(),
+        Panels::try_new_with(&store).is_err(),
         "dropping the struct must not free the place it claimed"
     );
 
@@ -92,7 +92,7 @@ fn the_store_says_who_claimed_a_place(backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_claims_who");
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
 
-    let _ui = Ui::new_with(&store)?;
+    let _ui = Ui::new_with(&store);
 
     //@show asking who claimed a place
     let field = StorePath::parse_joined("ui.panels.left.visible")?;

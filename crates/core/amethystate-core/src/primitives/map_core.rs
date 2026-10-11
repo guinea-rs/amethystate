@@ -1,7 +1,6 @@
 use crate::SignalSubscription;
 use crate::change::MapChange;
 use crate::path::{PathRef, StorePath, Under};
-use crate::primitives::intercept::{InterceptDepth, InterceptDisposer, InterceptGuard};
 use crate::primitives::signal::{SubscriptionMeta, forget, held, label};
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
@@ -30,10 +29,6 @@ impl MapEntryPath for StorePath {
     }
 }
 
-pub type InterceptorAny<K, V> =
-    Arc<dyn Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static>;
-pub type InterceptorKey<K, V> =
-    Arc<dyn Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static>;
 pub type SubscriberAny<K, V> = Arc<dyn Fn(&MapChange<K, V>) + Send + Sync + 'static>;
 pub type SubscriberKey<K, V> = Arc<dyn Fn(&MapChange<K, V>) + Send + Sync + 'static>;
 
@@ -621,24 +616,18 @@ impl<K: AsRef<str> + Debug, V: Debug> Debug for MapCache<K, V> {
 }
 
 pub struct ReactiveMapCore<K, V> {
-    pub interceptors_any: Arc<Mutex<Vec<(u64, InterceptorAny<K, V>)>>>,
-    pub interceptors_key: Arc<DashMap<K, Vec<(u64, InterceptorKey<K, V>)>>>,
     pub subscribers_any: Arc<Mutex<Vec<(u64, SubscriberAny<K, V>, SubscriptionMeta)>>>,
     pub subscribers_key: Arc<DashMap<K, Vec<(u64, SubscriberKey<K, V>, SubscriptionMeta)>>>,
     pub next_id: Arc<AtomicU64>,
-    pub intercept_depth: InterceptDepth,
     pub cache: Arc<MapCache<K, V>>,
 }
 
 impl<K, V> Clone for ReactiveMapCore<K, V> {
     fn clone(&self) -> Self {
         Self {
-            interceptors_any: self.interceptors_any.clone(),
-            interceptors_key: self.interceptors_key.clone(),
             subscribers_any: self.subscribers_any.clone(),
             subscribers_key: self.subscribers_key.clone(),
             next_id: self.next_id.clone(),
-            intercept_depth: self.intercept_depth.clone(),
             cache: self.cache.clone(),
         }
     }
@@ -659,7 +648,6 @@ impl<K: AsRef<str> + Debug + Hash + Eq, V: Debug> Debug for ReactiveMapCore<K, V
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ReactiveMapCore")
             .field("cache", &self.cache)
-            .field("interceptors_any", &Counted(&self.interceptors_any))
             .field("subscribers_any", &Counted(&self.subscribers_any))
             .finish()
     }
@@ -681,12 +669,9 @@ impl<K: ReactiveMapKey, V: ReactiveMapValue> ReactiveMapCore<K, V> {
     /// should not have to know that.
     pub fn with_capacity(_entries: usize) -> Self {
         Self {
-            interceptors_any: Arc::new(Mutex::new(Vec::new())),
-            interceptors_key: Arc::new(DashMap::new()),
             subscribers_any: Arc::new(Mutex::new(Vec::new())),
             subscribers_key: Arc::new(DashMap::new()),
             next_id: Arc::new(AtomicU64::new(0)),
-            intercept_depth: InterceptDepth::default(),
             cache: Arc::new(MapCache::new()),
         }
     }
@@ -756,86 +741,6 @@ impl<K: ReactiveMapKey, V: ReactiveMapValue> ReactiveMapCore<K, V> {
                 subs_for_cleanup.remove_if(&key, |_, list| list.is_empty());
             }),
         )
-    }
-
-    pub fn intercept<F>(&self, path: StorePath, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        held(&self.interceptors_any).push((id, Arc::new(callback)));
-        let subs = self.interceptors_any.clone();
-        InterceptDisposer {
-            id,
-            path,
-            cleanup: Arc::new(move |id| {
-                held(&subs).retain(|(i, _)| *i != id);
-            }),
-        }
-    }
-
-    pub fn intercept_key<F>(&self, key: K, callback: F) -> InterceptDisposer
-    where
-        F: Fn(MapChange<K, V>) -> Option<MapChange<K, V>> + Send + Sync + 'static,
-    {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        self.interceptors_key
-            .entry(key.clone())
-            .or_default()
-            .push((id, Arc::new(callback)));
-        let subs = self.interceptors_key.clone();
-        InterceptDisposer {
-            id,
-            path: StorePath::root(),
-            cleanup: Arc::new(move |id| {
-                if let Some(mut list) = subs.get_mut(&key) {
-                    list.retain(|(i, _)| *i != id);
-                }
-                subs.remove_if(&key, |_, list| list.is_empty());
-            }),
-        }
-    }
-
-    pub fn run_interceptors(
-        &self,
-        path: StorePath,
-        mut change: MapChange<K, V>,
-    ) -> Result<MapChange<K, V>, crate::primitives::intercept::Refusal> {
-        use crate::primitives::intercept::Refusal;
-
-        let Some(_guard) = InterceptGuard::enter(&self.intercept_depth, path) else {
-            return Err(Refusal::Recursed);
-        };
-
-        if let Some(key) = change.key().cloned() {
-            let interceptors = self
-                .interceptors_key
-                .get(&key)
-                .map(|entry| entry.clone())
-                .unwrap_or_default();
-            for (_, interceptor) in interceptors {
-                if let Some(new_change) = interceptor(change.clone()) {
-                    change = new_change;
-                } else {
-                    return Err(Refusal::Said(
-                        "refused by an interceptor on that key".to_string(),
-                    ));
-                }
-            }
-        }
-
-        let interceptors_any = held(&self.interceptors_any).clone();
-        for (_, interceptor) in interceptors_any {
-            if let Some(new_change) = interceptor(change.clone()) {
-                change = new_change;
-            } else {
-                return Err(Refusal::Said(
-                    "refused by an interceptor on the map".to_string(),
-                ));
-            }
-        }
-
-        Ok(change)
     }
 
     /// Fires every subscriber interested in `change`.
@@ -974,14 +879,11 @@ mod tests {
 
         for i in 0..64u64 {
             let key = format!("col{i}");
-            let sub = core.subscribe_key(key.clone(), |_| {});
-            let held = core.intercept_key(key, Some);
+            let sub = core.subscribe_key(key, |_| {});
             drop(sub);
-            held.remove();
         }
 
         assert_eq!(core.subscribers_key.len(), 0);
-        assert_eq!(core.interceptors_key.len(), 0);
     }
 
     #[test]

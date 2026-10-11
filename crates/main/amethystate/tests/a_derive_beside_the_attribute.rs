@@ -18,8 +18,8 @@ fn a_struct_that_derives_what_the_macro_derives_still_builds(backend: Backend) {
         .build()
         .unwrap();
 
-    let ui = Ui::new_with(&store).unwrap();
-    ui.width().set(1280).unwrap();
+    let ui = Ui::new_with(&store);
+    ui.width().set(1280);
 
     let held = ui.clone();
     assert_eq!(held.width().get(), 1280);

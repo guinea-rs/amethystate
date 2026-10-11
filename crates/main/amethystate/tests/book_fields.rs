@@ -15,7 +15,7 @@ pub struct ConnectionState {
 fn open(backend: Backend, tag: &str) -> anyhow::Result<(TempPath, ConnectionState)> {
     let path = TempPath::new(tag);
     let store = StoreBuilder::new(path.path()).backend(backend).build()?;
-    let held = ConnectionState::new_with(&store)?;
+    let held = ConnectionState::new_with(&store);
     Ok((path, held))
 }
 
@@ -26,11 +26,11 @@ fn the_four_ways_to_touch_a_field(backend: Backend) -> anyhow::Result<()> {
     //@show reading and writing a field
     let port = state.port().get();
 
-    state.port().set(9090)?;
+    state.port().set(9090);
 
-    let raised = state.port().update(|port| port + 1)?;
+    let raised = state.port().update(|port| port + 1);
 
-    state.port().modify(|port| *port += 1)?;
+    state.port().modify(|port| *port += 1);
     //@show-end
 
     assert_eq!(port, 8080);
@@ -44,7 +44,7 @@ fn the_four_ways_to_touch_a_field(backend: Backend) -> anyhow::Result<()> {
 fn update_hands_back_what_it_stored(backend: Backend) -> anyhow::Result<()> {
     let (_path, state) = open(backend, "book_fields_update")?;
 
-    assert_eq!(state.port().update(|port| port * 2)?, 16160);
+    assert_eq!(state.port().update(|port| port * 2), 16160);
     assert_eq!(state.port().get(), 16160);
 
     Ok(())
@@ -54,7 +54,7 @@ fn update_hands_back_what_it_stored(backend: Backend) -> anyhow::Result<()> {
 fn a_write_is_visible_to_the_next_read(backend: Backend) -> anyhow::Result<()> {
     let (_path, state) = open(backend, "book_fields_read")?;
 
-    state.host().set("0.0.0.0".to_string())?;
+    state.host().set("0.0.0.0".to_string());
     assert_eq!(state.host().get(), "0.0.0.0");
 
     Ok(())

@@ -70,7 +70,7 @@ fn a_declared_map_emptied_by_hand_stays_empty_when_the_metadata_is_lost() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let shipped = Shipped::new_with(&store).unwrap();
+        let shipped = Shipped::new_with(&store);
         assert_eq!(shipped.items().get("one"), Some(1));
         shipped.items().remove("one").unwrap();
         drop(shipped);
@@ -84,7 +84,7 @@ fn a_declared_map_emptied_by_hand_stays_empty_when_the_metadata_is_lost() {
         .backend(text_backend())
         .build()
         .unwrap();
-    let shipped = Shipped::new_with(&store).unwrap();
+    let shipped = Shipped::new_with(&store);
     assert_eq!(
         shipped.items().get("one"),
         None,
@@ -101,7 +101,7 @@ fn a_store_whose_data_file_was_deleted_opens_as_a_new_one() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let shipped = Shipped::new_with(&store).unwrap();
+        let shipped = Shipped::new_with(&store);
         shipped.items().insert("two".to_string(), &2).unwrap();
         drop(shipped);
         store.set(["cfg", "width"], &1280u32).unwrap();
@@ -115,7 +115,7 @@ fn a_store_whose_data_file_was_deleted_opens_as_a_new_one() {
         .backend(text_backend())
         .build()
         .unwrap();
-    let shipped = Shipped::new_with(&store).unwrap();
+    let shipped = Shipped::new_with(&store);
 
     assert_eq!(store.get::<u32>(["cfg", "width"]).unwrap(), None);
     assert_eq!(shipped.items().get("one"), Some(1));
@@ -177,8 +177,8 @@ fn losing_the_metadata_file_does_not_replay_a_migration() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let doc = v1::Doc::new_with(&store).unwrap();
-        doc.hits().set(21).unwrap();
+        let doc = v1::Doc::new_with(&store);
+        doc.hits().set(21);
         drop(doc);
         store.save_now().unwrap();
     }

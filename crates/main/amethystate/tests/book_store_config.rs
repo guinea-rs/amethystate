@@ -1,7 +1,7 @@
 use amethystate::store::StorageError;
 use amethystate::store::builder::{Backend, StoreBuilder, default_backend};
+use amethystate::store::config::PersistEvent;
 use amethystate::store::config::WriteAttempts;
-use amethystate::store::config::{AfterGivingUp, PersistEvent};
 use amethystate_core::test_utils::TempPath;
 use amethystate_test_macros::backends;
 use std::time::Duration;
@@ -35,11 +35,6 @@ fn a_store_given_a_retry_policy_opens_and_writes(_backend: Backend) -> anyhow::R
         .disk(|d| {
             d.retry_every(Duration::from_secs(2))
                 .give_up_after(Duration::from_secs(30))
-                .on_failure(|gave_up| match gave_up.why.current_context() {
-                    StorageError::Flush => AfterGivingUp::Ignore,
-                    StorageError::Codec => AfterGivingUp::Poison,
-                    _ => AfterGivingUp::Fail,
-                })
         })
         .build()?;
     //@show-end
@@ -57,9 +52,10 @@ fn an_open_store_takes_observers_of_its_saving(_backend: Backend) -> anyhow::Res
 
     //@show watching a store's saving from anywhere
     let watch = store.on_persist_failure(|event| match event {
-        PersistEvent::GaveUp { failure, decision } => {
-            eprintln!("not saved ({decision:?}): {:#}", failure.why);
-        }
+        PersistEvent::GaveUp { failure } => match failure.why.current_context() {
+            StorageError::Flush => eprintln!("the disk is not taking writes: {:#}", failure.why),
+            _ => eprintln!("not saved: {:#}", failure.why),
+        },
         PersistEvent::Recovered => eprintln!("saved again"),
         _ => {}
     });

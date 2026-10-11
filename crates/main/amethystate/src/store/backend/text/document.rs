@@ -14,6 +14,10 @@ pub trait TextDocument: Send + Sync + Sized + Clone + 'static {
 
     fn get(&self, at: &StorePath) -> Option<&Self::Node>;
     fn set(&mut self, at: &StorePath, node: Self::Node) -> StorageResult<()>;
+
+    /// [`TextDocument::set`] for a write through a declared field, which
+    /// replaces whatever stands in its way. See [`generic_set_over`].
+    fn set_over(&mut self, at: &StorePath, node: Self::Node) -> StorageResult<()>;
     fn delete(&mut self, at: &StorePath) -> StorageResult<Option<Self::Node>>;
     fn delete_subtree(&mut self, at: &StorePath) -> StorageResult<()>;
     fn scan(&self, prefix: &StorePath) -> StorageResult<Vec<(StorePath, Self::Node)>>;
@@ -144,6 +148,13 @@ macro_rules! walks_one_node {
             generic_set(&mut self.0, at, node)
         }
 
+        fn set_over(&mut self, at: &StorePath, node: Self::Node) -> StorageResult<()> {
+            if at.is_root() {
+                return self.set(at, node);
+            }
+            generic_set_over(&mut self.0, at, node)
+        }
+
         fn delete(&mut self, at: &StorePath) -> StorageResult<Option<Self::Node>> {
             generic_delete(&mut self.0, at)
         }
@@ -176,6 +187,17 @@ pub fn generic_get<'a, N: Navigable>(root: &'a N, at: &StorePath) -> Option<&'a 
 }
 
 pub fn generic_set<N: Navigable>(root: &mut N, at: &StorePath, node: N) -> StorageResult<()> {
+    set_in(root, at, node, false)
+}
+
+/// [`generic_set`] for a write the path's declaration owns: a value standing
+/// where the declaration needs a level, or values under the level it needs a
+/// value at, are replaced rather than refused.
+pub fn generic_set_over<N: Navigable>(root: &mut N, at: &StorePath, node: N) -> StorageResult<()> {
+    set_in(root, at, node, true)
+}
+
+fn set_in<N: Navigable>(root: &mut N, at: &StorePath, node: N, over: bool) -> StorageResult<()> {
     let Some(last) = at.name() else {
         *root = node;
         return Ok(());
@@ -186,12 +208,15 @@ pub fn generic_set<N: Navigable>(root: &mut N, at: &StorePath, node: N) -> Stora
 
     for (depth, name) in at.segments().take(heads).enumerate() {
         if !current.is_map() {
-            return Err(refused(
-                Occupied::Value {
-                    level: level(at, depth),
-                },
-                at,
-            ));
+            if !over {
+                return Err(refused(
+                    Occupied::Value {
+                        level: level(at, depth),
+                    },
+                    at,
+                ));
+            }
+            *current = N::make_empty_map();
         }
         if current.get_child(Stored::level(&name)).is_none() {
             current.insert_child(Stored::level(&name), N::make_empty_map());
@@ -202,14 +227,18 @@ pub fn generic_set<N: Navigable>(root: &mut N, at: &StorePath, node: N) -> Stora
     }
 
     if !current.is_map() {
-        return Err(refused(
-            Occupied::Value {
-                level: level(at, heads),
-            },
-            at,
-        ));
+        if !over {
+            return Err(refused(
+                Occupied::Value {
+                    level: level(at, heads),
+                },
+                at,
+            ));
+        }
+        *current = N::make_empty_map();
     }
-    if !node.is_map()
+    if !over
+        && !node.is_map()
         && let Some(existing) = current.get_child(Stored::level(&last))
         && existing.is_map()
         && existing.has_children()

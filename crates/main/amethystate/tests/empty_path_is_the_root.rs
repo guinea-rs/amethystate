@@ -45,7 +45,7 @@ fn a_path_that_filtered_down_to_nothing_does_not_replace_the_store() {
         .unwrap();
 
     let kept = field_with_path::<u32>(&store, ["ui", "width"], 1280, Uuid::new_v4()).unwrap();
-    kept.set(1920).unwrap();
+    kept.set(1920);
     store.save_now().unwrap();
 
     let wanted = ["", ""];

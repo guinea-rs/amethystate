@@ -166,9 +166,9 @@ where
         Durable(self)
     }
 
-    /// Fails if the write is refused - by an interceptor, or by the store.
-    /// The cache is left to the store subscription, so a refused write never
-    /// shows up in `get()`.
+    /// Fails if the store refuses the write, or once what the cell views is
+    /// gone. The cache is left to the store subscription, so a refused write
+    /// never shows up in `get()`.
     pub fn set(&self, value: T) -> WriteResult<()> {
         (self.writer)(value)
     }
@@ -441,7 +441,7 @@ mod tests {
         let _sub = cell.subscribe(move |v: &Option<u64>| cap.lock().unwrap().push(v.unwrap()));
 
         cell.set(2).unwrap();
-        field.set(3).unwrap();
+        field.set(3);
         store.set(["ui", "depth"], &4u64).unwrap();
 
         assert_eq!(*seen.lock().unwrap(), vec![2, 3, 4]);
@@ -462,29 +462,6 @@ mod tests {
         cell.set(1).unwrap();
 
         assert_eq!(fires.load(Ordering::SeqCst), 1, "one write, one fire");
-    }
-
-    #[test]
-    fn rejected_write_reports_and_leaves_the_cache_alone() {
-        let (_at, store) = unique_store("rejected");
-        let field = stored_field(&store, "guarded", 5);
-        let _guard = field.intercept(|_change| None);
-        let cell = field.cell();
-
-        let refused = cell
-            .set(99)
-            .expect_err("a rejected write must not report success");
-
-        let WriteValue::Intercepted { at, .. } = &refused else {
-            panic!("an interceptor turned it down, and the set says which: {refused:?}")
-        };
-        assert_eq!(at, &StorePath::from_segments(["ui", "guarded"]));
-        assert_eq!(
-            cell.get(),
-            Some(5),
-            "cache must not hold a value the store refused"
-        );
-        assert_eq!(store.get::<u64>(["ui", "guarded"]).unwrap(), Some(5));
     }
 
     #[test]

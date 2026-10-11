@@ -43,8 +43,8 @@ fn a_renamed_field_takes_its_stored_place_with_it(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = moved_v1::Moved::new_with(&store).unwrap();
-        v1.alpha().set(42).unwrap();
+        let v1 = moved_v1::Moved::new_with(&store);
+        v1.alpha().set(42);
         store.flush_prefix(StorePath::root()).unwrap();
         assert_eq!(store.get::<u32>(["moved", "slot"]).unwrap(), Some(42));
     }
@@ -63,6 +63,6 @@ fn a_renamed_field_takes_its_stored_place_with_it(backend: Backend) {
         "the place the renamed field was stored at outlived the rename"
     );
 
-    let v2 = Moved::new_with(&store).unwrap();
+    let v2 = Moved::new_with(&store);
     assert_eq!(v2.beta().get(), 42);
 }

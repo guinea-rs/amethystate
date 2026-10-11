@@ -320,7 +320,7 @@ impl Kv {
     /// A reactive map under `name`, for a key set that is not known up front.
     ///
     /// Everything a declared `ReactiveMap` field can do, without declaring a
-    /// struct - subscriptions, interceptors and durable writes included.
+    /// struct - subscriptions and durable writes included.
     ///
     /// ```
     /// # use amethystate::StoreBuilder;

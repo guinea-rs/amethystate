@@ -30,8 +30,8 @@ fn a_nested_struct_named_through_an_import_round_trips(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let ui = Ui::new_with(&store).unwrap();
-        ui.window().width().set(1280).unwrap();
+        let ui = Ui::new_with(&store);
+        ui.window().width().set(1280);
         store.save_now().unwrap();
     }
 
@@ -39,7 +39,7 @@ fn a_nested_struct_named_through_an_import_round_trips(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let ui = Ui::new_with(&store).unwrap();
+    let ui = Ui::new_with(&store);
 
     assert_eq!(ui.window().width().get(), 1280);
 }

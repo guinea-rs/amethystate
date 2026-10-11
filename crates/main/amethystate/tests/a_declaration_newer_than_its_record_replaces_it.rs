@@ -26,8 +26,8 @@ fn a_declaration_newer_than_its_record_replaces_it() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let profile = Profile::new_with(&store).unwrap();
-        profile.name().set("Ada".to_string()).unwrap();
+        let profile = Profile::new_with(&store);
+        profile.name().set("Ada".to_string());
         store.close().unwrap();
     }
 
@@ -66,8 +66,8 @@ fn a_record_that_disagrees_at_the_same_version_is_replaced() {
             .backend(Backend::Json)
             .build()
             .unwrap();
-        let profile = Profile::new_with(&store).unwrap();
-        profile.name().set("Ada".to_string()).unwrap();
+        let profile = Profile::new_with(&store);
+        profile.name().set("Ada".to_string());
         store.close().unwrap();
     }
 

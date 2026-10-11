@@ -84,8 +84,8 @@ fn a_field_key_names_a_level_under_the_prefix(backend: Backend) {
     let at = amethystate_core::test_utils::TempPath::new("prefix_path_key");
     let store = StoreBuilder::new(&at).backend(backend).build().unwrap();
 
-    let net = NetState::new_with(&store).unwrap();
-    net.port().set(9090).unwrap();
+    let net = NetState::new_with(&store);
+    net.port().set(9090);
 
     assert_eq!(
         store.get::<u16>(["net", "listen_port"]).unwrap(),

@@ -4,7 +4,7 @@ use crate::reactive::field::Unreadable;
 use crate::store::StorageError;
 use crate::store::StorageResult;
 use crate::store::Writer;
-use crate::store::facts::{Facts, Key, Prefix, Refused};
+use crate::store::facts::{Facts, Key, Prefix};
 use crate::store::opening::OpenStruct;
 use crate::store::reading::{LoadMap, LoadMapResult};
 use crate::store::rule::judged;
@@ -114,35 +114,29 @@ where
     register_field::<TValue>(&path, instance_id);
 
     let (current, refused) = match read_stored(store, &path, stored_as) {
-        Ok(Some(mut stored)) => match rule.map(|rule| judged(rule, &mut stored, store.context())) {
-            None | Some(Ok(false)) => (stored, None),
-            Some(Ok(true)) => {
+        Ok(Some(mut stored)) => {
+            if let Some(rule) = rule
+                && judged(rule, &mut stored, store.context())
+            {
                 write_stored(store, &path, &stored, stored_as, Writer::judged(None))?;
-                (stored, None)
             }
-            Some(Err(invalid)) => {
-                if policy == OnUnreadable::Refuse {
-                    return Err(OpenStruct::Refused {
-                        at: path.clone(),
-                        said: Arc::from(invalid.reason()),
-                    });
-                }
-
-                tracing::error!(
-                    path = %path,
-                    reason = %invalid,
-                    "a declared rule refused the stored value, so the field starts on its default"
-                );
-                (
-                    default.clone(),
-                    Some(Reason::Refused(Arc::from(invalid.reason()))),
-                )
+            (stored, None)
+        }
+        Ok(None) => match seed(store, &path, &default, stored_as)? {
+            None => (default.clone(), None),
+            Some(occupied) if matches!(policy, OnUnreadable::UseDefault) => (
+                default.clone(),
+                Some(Reason::Occupied(Arc::from(
+                    crate::store::one_line(&occupied).as_str(),
+                ))),
+            ),
+            Some(occupied) => {
+                return Err(OpenStruct::WillNotRead {
+                    at: path.clone(),
+                    why: occupied.into(),
+                });
             }
         },
-        Ok(None) => (
-            default.clone(),
-            seed(store, &path, &default, stored_as)?.map(Reason::Occupied),
-        ),
         Err(why) if policy.covers(&why) => {
             tracing::error!(path = %path, error = %why, "decode failed while building");
             (
@@ -179,21 +173,9 @@ where
                 None => store_clone.decode::<TValue>(raw),
             } {
                 Ok(mut parsed) => {
-                    let rule = rule.filter(|_| !event.judged);
-                    let repaired = match rule.map(|rule| judged(rule, &mut parsed, store_clone.context())) {
-                        None => false,
-                        Some(Ok(changed)) => changed,
-                        Some(Err(invalid)) => {
-                            if let Ok(mut held) = unreadable_sub.lock() {
-                                *held = Some(Reason::Refused(Arc::from(invalid.reason())));
-                            }
-
-                            return Err(Report::new(StorageError::Notify)
-                                .attach(Key(path_log.clone()))
-                                .attach(Refused(invalid.reason().to_string()))
-                                .attach("the field kept what it had"));
-                        }
-                    };
+                    let repaired = rule
+                        .filter(|_| !event.judged)
+                        .is_some_and(|rule| judged(rule, &mut parsed, store_clone.context()));
 
                     let written_back = match repaired {
                         true => write_stored(
@@ -342,14 +324,12 @@ fn seed<TValue>(
     path: &StorePath,
     default: &TValue,
     stored_as: StoredAs<TValue>,
-) -> StorageResult<Option<Arc<str>>>
+) -> StorageResult<Option<Report<StorageError>>>
 where
     TValue: Serialize + 'static,
 {
     match write_stored(store, path, default, stored_as, Writer::default()) {
-        Err(report) if report.contains::<crate::store::Occupied>() => {
-            Ok(Some(Arc::from(crate::store::one_line(&report).as_str())))
-        }
+        Err(report) if report.contains::<crate::store::Occupied>() => Ok(Some(report)),
         Err(other) => Err(other),
         Ok(()) => Ok(None),
     }

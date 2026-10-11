@@ -5,7 +5,7 @@ use crate::failure::StorageError;
 use crate::path::StorePath;
 use crate::primitives::error::ReactiveFieldResult;
 use crate::primitives::field_core::FieldValue;
-use crate::{Change, FieldCore, InterceptDisposer, Signal, SignalSubscription};
+use crate::{FieldCore, Signal, SignalSubscription};
 use std::fmt::{self, Debug};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -156,10 +156,7 @@ where
 
     pub async fn set(&self, value: T) -> ReactiveFieldResult<()> {
         let Some(backend) = &self.backend else {
-            let change = self
-                .core
-                .run_interceptors(self.path.clone(), value, Some(self.instance_id))
-                .map_err(|refusal| FieldError::refused(&self.path, refusal))?;
+            let change = self.core.change(value, Some(self.instance_id));
             self.core
                 .signal
                 .set_forwarded(change.new_value, change.source);
@@ -193,12 +190,5 @@ where
                 callback(val);
             }
         })
-    }
-
-    pub fn intercept<F>(&self, callback: F) -> InterceptDisposer
-    where
-        F: Fn(Change<T>) -> Option<Change<T>> + Send + Sync + 'static,
-    {
-        self.core.intercept(self.path.clone(), callback)
     }
 }

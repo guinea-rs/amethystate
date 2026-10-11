@@ -17,7 +17,7 @@ fn a_build_with_no_step_still_lets_go_of_what_nothing_declares(backend: Backend)
 
     {
         let (store, _) = StoreBuilder::new(&path).backend(backend).migrate().unwrap();
-        let _agents = Agents::new_with(&store).unwrap();
+        let _agents = Agents::new_with(&store);
         store.set(["agents", "scan_interval_ms"], &500u64).unwrap();
         store.save_now().unwrap();
     }

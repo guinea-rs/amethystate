@@ -48,11 +48,7 @@ fn stopped_after(written: &str, test_name: &str, backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        v1::Counted::new_with(&store)
-            .unwrap()
-            .hits()
-            .set(1)
-            .unwrap();
+        v1::Counted::new_with(&store).hits().set(1);
         store.save_now().unwrap();
     }
 
@@ -76,7 +72,7 @@ fn stopped_after(written: &str, test_name: &str, backend: Backend) {
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
     assert_eq!(
-        Counted::new_with(&store).unwrap().hits().get(),
+        Counted::new_with(&store).hits().get(),
         11,
         "{backend:?}: stopped after its {written} file, the step did not run exactly once"
     );

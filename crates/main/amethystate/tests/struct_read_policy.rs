@@ -1,4 +1,5 @@
 use amethystate::amethystate;
+use amethystate::observability::Reason;
 use amethystate::store::OpenStruct;
 use amethystate::store::builder::{Backend, StoreBuilder};
 use amethystate_core::test_utils::TempPath;
@@ -42,9 +43,9 @@ fn an_undecodable_change_leaves_the_last_value_alone(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = Strict::new_with(&store).unwrap();
+    let state = Strict::new_with(&store);
 
-    state.port().set(9090).unwrap();
+    state.port().set(9090);
 
     let woken = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&woken);
@@ -68,7 +69,7 @@ fn a_change_that_decodes_is_delivered_again(backend: Backend) {
         .backend(backend)
         .build()
         .unwrap();
-    let state = Strict::new_with(&store).unwrap();
+    let state = Strict::new_with(&store);
 
     store
         .set(["strict", "port"], &"not a number".to_string())
@@ -90,7 +91,7 @@ fn a_field_may_demand_more_than_the_struct_promised(backend: Backend) {
 
     store.set(["mixed", "licence"], &7u32).unwrap();
 
-    assert!(Mixed::new_with(&store).is_err());
+    assert!(Mixed::try_new_with(&store).is_err());
 }
 
 #[backends(all)]
@@ -105,7 +106,7 @@ fn the_struct_rule_still_covers_the_fields_that_did_not_ask(backend: Backend) {
         .set(["mixed", "port"], &"not a number".to_string())
         .unwrap();
 
-    let state = Mixed::new_with(&store).unwrap();
+    let state = Mixed::new_with(&store);
 
     assert_eq!(state.port().get(), 8080);
     assert!(state.port().try_get().is_err());
@@ -123,10 +124,63 @@ fn a_struct_refuses_to_open_over_a_value_it_cannot_read(backend: Backend) {
         .set(["strict", "port"], &"not a number".to_string())
         .unwrap();
 
-    match Strict::new_with(&store).unwrap_err() {
+    match Strict::try_new_with(&store).unwrap_err() {
         OpenStruct::WillNotRead { at, .. } => assert_eq!(at.to_string(), "strict.port"),
         other => panic!("{other}"),
     }
+}
+
+#[backends(all)]
+fn a_failed_open_hands_over_the_path_and_the_reason(backend: Backend) -> anyhow::Result<()> {
+    let path = TempPath::new("read_policy_matched");
+    let store = StoreBuilder::new(path.path()).backend(backend).build()?;
+
+    store.set(["strict", "port"], &"not a number".to_string())?;
+
+    //@show telling one failed open from another
+    match Strict::try_new_with(&store) {
+        Ok(_) => {}
+        Err(OpenStruct::WillNotRead { at, why }) => eprintln!("{at} is unreadable: {why}"),
+        Err(OpenStruct::Taken(taken)) => {
+            eprintln!("{} already holds {}", taken.held_by, taken.at)
+        }
+        Err(other) => return Err(other.into()),
+    }
+    //@show-end
+
+    Ok(())
+}
+
+#[backends(all)]
+fn try_get_hands_over_the_same_facts_the_open_would_have(backend: Backend) {
+    let path = TempPath::new("read_policy_try_get_matched");
+    let store = StoreBuilder::new(path.path())
+        .backend(backend)
+        .build()
+        .unwrap();
+
+    store
+        .set(["lenient", "port"], &"not a number".to_string())
+        .unwrap();
+
+    let state = Lenient::new_with(&store);
+
+    //@show asking a field what the store disagrees with
+    let held = match state.port().try_get() {
+        Ok(port) => port,
+        Err(no) => {
+            match no.reason {
+                Reason::WillNotRead(said) => eprintln!("{} will not decode: {said}", no.at),
+                Reason::Occupied(said) => eprintln!("{} was already taken: {said}", no.at),
+                _ => eprintln!("{} is not what the store has", no.at),
+            }
+
+            state.port().get()
+        }
+    };
+    //@show-end
+
+    assert_eq!(held, 8080);
 }
 
 #[backends(all)]
@@ -141,7 +195,7 @@ fn use_default_opens_and_the_field_says_the_store_disagrees(backend: Backend) {
         .set(["lenient", "port"], &"not a number".to_string())
         .unwrap();
 
-    let state = Lenient::new_with(&store).unwrap();
+    let state = Lenient::new_with(&store);
 
     assert_eq!(state.port().get(), 8080);
     assert!(state.port().try_get().is_err());
@@ -161,7 +215,7 @@ fn use_default_leaves_the_stored_value_where_it_is(backend: Backend) {
     store
         .set(["lenient", "port"], &"not a number".to_string())
         .unwrap();
-    let _state = Lenient::new_with(&store).unwrap();
+    let _state = Lenient::new_with(&store);
 
     assert_eq!(
         store.get::<String>(["lenient", "port"]).unwrap(),
@@ -180,11 +234,11 @@ fn a_write_that_decodes_clears_the_complaint(backend: Backend) {
     store
         .set(["lenient", "port"], &"not a number".to_string())
         .unwrap();
-    let state = Lenient::new_with(&store).unwrap();
+    let state = Lenient::new_with(&store);
 
     assert!(state.port().try_get().is_err());
 
-    state.port().set(9090).unwrap();
+    state.port().set(9090);
 
     assert_eq!(state.port().try_get().unwrap(), 9090);
 }
@@ -197,7 +251,7 @@ fn a_readable_store_is_untouched_by_the_policy(backend: Backend) {
         .build()
         .unwrap();
 
-    let state = Lenient::new_with(&store).unwrap();
+    let state = Lenient::new_with(&store);
 
     assert_eq!(state.port().try_get().unwrap(), 8080);
     assert_eq!(state.host().try_get().unwrap(), "127.0.0.1");

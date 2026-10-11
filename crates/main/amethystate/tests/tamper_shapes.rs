@@ -1,8 +1,8 @@
 #![cfg(any(feature = "json", feature = "toml", feature = "ron"))]
 
 use amethystate::amethystate;
-use amethystate::store::StoreBackend;
 use amethystate::store::builder::StoreBuilder;
+use amethystate::store::{OpenStruct, StoreBackend};
 use amethystate_core::path::StorePath;
 use amethystate_core::test_utils::TempPath;
 
@@ -43,8 +43,8 @@ fn seeded(suffix: &str, contents: &str) -> TempPath {
             .backend(text_backend())
             .build()
             .unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
-        cfg.width().set(800).unwrap();
+        let cfg = Cfg::new_with(&store);
+        cfg.width().set(800);
         drop(cfg);
         store.save_now().unwrap();
     }
@@ -71,7 +71,7 @@ fn a_field_whose_value_became_a_string_is_reported() {
         .backend(text_backend())
         .build()
         .unwrap();
-    let built = Cfg::new_with(&store);
+    let built = Cfg::try_new_with(&store);
 
     assert!(
         built.is_err(),
@@ -96,7 +96,7 @@ fn a_field_whose_value_became_a_float_is_reported() {
         .backend(text_backend())
         .build()
         .unwrap();
-    let built = Cfg::new_with(&store);
+    let built = Cfg::try_new_with(&store);
     assert!(
         built.is_err(),
         "1.5 read back as a u16 field: {:?}",
@@ -121,7 +121,7 @@ fn a_field_whose_value_overflows_is_reported() {
         .backend(text_backend())
         .build()
         .unwrap();
-    let built = Cfg::new_with(&store);
+    let built = Cfg::try_new_with(&store);
     assert!(
         built.is_err(),
         "99999999 read back as a u16 field: {:?}",
@@ -153,7 +153,7 @@ fn a_leaf_that_became_a_branch_will_not_read_as_the_field() {
         .build()
         .unwrap();
 
-    let read = Cfg::new_with(&store).map(|c| c.width().get());
+    let read = Cfg::try_new_with(&store).map(|c| c.width().get());
     assert!(read.is_err(), "a branch read back as a u16 field: {read:?}");
 }
 
@@ -203,10 +203,6 @@ fn a_branch_that_became_a_leaf_can_still_be_cleared() {
     );
 }
 
-/// A section the schema declares whose value on disk is a scalar. Building the
-/// struct writes the field's default under it, and the walker replaces whatever
-/// was in the way with an empty map first - so the value is gone with no error
-/// and nothing to migrate from.
 #[test]
 fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
     let path = seeded(
@@ -223,8 +219,12 @@ fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let _cfg = Cfg::new_with(&store).unwrap();
-        drop(_cfg);
+        let opened = Cfg::try_new_with(&store);
+        assert!(
+            matches!(opened, Err(OpenStruct::WillNotRead { .. })),
+            "{:?}",
+            opened.err()
+        );
         store.save_now().unwrap();
     }
     settle();
@@ -236,7 +236,6 @@ fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
     );
 }
 
-/// The same for a list, which is a value a hand-written config is full of.
 #[test]
 fn a_section_that_holds_a_list_is_not_thrown_away_on_startup() {
     let path = seeded(
@@ -253,8 +252,12 @@ fn a_section_that_holds_a_list_is_not_thrown_away_on_startup() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let _cfg = Cfg::new_with(&store).unwrap();
-        drop(_cfg);
+        let opened = Cfg::try_new_with(&store);
+        assert!(
+            matches!(opened, Err(OpenStruct::WillNotRead { .. })),
+            "{:?}",
+            opened.err()
+        );
         store.save_now().unwrap();
     }
     settle();
@@ -284,8 +287,8 @@ fn undeclared_keys_survive_a_round_trip() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
-        cfg.width().set(1024).unwrap();
+        let cfg = Cfg::new_with(&store);
+        cfg.width().set(1024);
         drop(cfg);
         store.save_now().unwrap();
     }

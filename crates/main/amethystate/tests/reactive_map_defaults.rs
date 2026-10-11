@@ -31,7 +31,7 @@ fn test_map_defaults_applied_only_on_first_init(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
 
         let env = config.env();
         assert_eq!(
@@ -43,7 +43,7 @@ fn test_map_defaults_applied_only_on_first_init(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
 
         let env = config.env();
         assert_eq!(
@@ -60,13 +60,13 @@ fn test_deleted_map_key_does_not_resurrect(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
         config.env().remove("NO_PROXY").unwrap();
     }
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
         assert_eq!(config.env().get("NO_PROXY"), None);
     }
 }
@@ -77,13 +77,13 @@ fn test_new_defaults_applied_on_version_upgrade(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
         config.env().remove("NO_PROXY").unwrap();
     }
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = AppConfig::new_with(&store).unwrap();
+        let config = AppConfig::new_with(&store);
         let env = config.env();
 
         assert_eq!(env.get("NO_PROXY"), None);
@@ -103,7 +103,7 @@ fn test_user_set_value_not_overwritten_by_defaults(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
         config
             .env()
             .insert("HTTP_PROXY".to_string(), &"http://custom:9999".to_string())
@@ -112,7 +112,7 @@ fn test_user_set_value_not_overwritten_by_defaults(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let config = v1::AppConfig::new_with(&store).unwrap();
+        let config = v1::AppConfig::new_with(&store);
         assert_eq!(
             config.env().get("HTTP_PROXY"),
             Some("http://custom:9999".to_string())

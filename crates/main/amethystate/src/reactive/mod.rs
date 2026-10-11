@@ -13,9 +13,6 @@
 //! effect must not outlive the data that caused it, write through the
 //! `durable()` form and act after it returns, rather than from the callback.
 //!
-//! The same holds for interceptors, which run earlier still - before the value
-//! reaches the buffer at all.
-//!
 //! The book works through the whole picture in
 //! [Durability](https://guinea-rs.github.io/amethystate/concepts/durability).
 
@@ -28,10 +25,8 @@ pub mod watch;
 
 pub use crate::migration::node::*;
 pub use amethystate_core::change::*;
-pub use amethystate_core::primitives::intercept::*;
 pub use amethystate_core::primitives::map_core::{
-    Entries, InterceptorAny, InterceptorKey, MapCache, MapEntryPath, SubscriberAny, SubscriberKey,
-    Values, Walk,
+    Entries, MapCache, MapEntryPath, SubscriberAny, SubscriberKey, Values, Walk,
 };
 pub use amethystate_core::primitives::signal::{
     ReactiveScope, Signal, SignalSubscription, Stamped, SubscriptionMeta,

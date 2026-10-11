@@ -53,7 +53,7 @@ fn a_key_under_a_declared_prefix_that_nothing_declares_goes(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let _agents = Agents::new_with(&store).unwrap();
+        let _agents = Agents::new_with(&store);
         store
             .set(["agents", "scratch"], &"written by hand")
             .unwrap();
@@ -81,8 +81,8 @@ fn a_prefix_with_a_step_due_keeps_what_the_step_reads(backend: Backend) {
 
     {
         let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-        let before = v1::Moving::new_with(&store).unwrap();
-        before.before().set(7).unwrap();
+        let before = v1::Moving::new_with(&store);
+        before.before().set(7);
         store.save_now().unwrap();
     }
 
@@ -93,9 +93,5 @@ fn a_prefix_with_a_step_due_keeps_what_the_step_reads(backend: Backend) {
         .unwrap();
 
     assert!(!report.has_failures(), "{backend:?}: {report:?}");
-    assert_eq!(
-        Moving::new_with(&store).unwrap().after().get(),
-        7,
-        "{backend:?}"
-    );
+    assert_eq!(Moving::new_with(&store).after().get(), 7, "{backend:?}");
 }

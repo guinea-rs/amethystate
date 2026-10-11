@@ -30,15 +30,15 @@ fn a_write_during_a_commit_is_not_dropped(backend: Backend) {
         .disk(|d| d.debounce(Duration::from_millis(25)))
         .build()
         .unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     for round in 1..=40u64 {
         let first = round * 10;
-        cfg.counter().set(first).unwrap();
+        cfg.counter().set(first);
         std::thread::sleep(Duration::from_millis(20));
 
         let second = first + 1;
-        cfg.counter().set(second).unwrap();
+        cfg.counter().set(second);
         std::thread::sleep(Duration::from_millis(60));
 
         assert_eq!(
@@ -59,10 +59,10 @@ fn a_burst_of_writes_settles_on_the_last_one(backend: Backend) {
             .disk(|d| d.debounce(Duration::from_millis(15)))
             .build()
             .unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
+        let cfg = Cfg::new_with(&store);
 
         for n in 1..=300u64 {
-            cfg.counter().set(n).unwrap();
+            cfg.counter().set(n);
             std::thread::sleep(Duration::from_millis(1));
         }
 
@@ -99,9 +99,9 @@ fn the_debouncer_writes_the_file_with_nobody_asking() {
         .disk(|d| d.debounce(Duration::from_millis(15)))
         .build()
         .unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
-    cfg.counter().set(4242).unwrap();
+    cfg.counter().set(4242);
 
     let holds = |value: u64| {
         let text = std::fs::read_to_string(path.path()).unwrap_or_default();
@@ -141,8 +141,8 @@ fn dropping_the_store_writes_what_is_still_buffered(backend: Backend) {
             .disk(|d| d.debounce(Duration::from_secs(30)))
             .build()
             .unwrap();
-        let cfg = Cfg::new_with(&store).unwrap();
-        cfg.counter().set(777).unwrap();
+        let cfg = Cfg::new_with(&store);
+        cfg.counter().set(777);
     }
 
     let store = StoreBuilder::new(path.path())

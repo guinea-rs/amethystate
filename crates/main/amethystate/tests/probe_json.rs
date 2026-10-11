@@ -1364,13 +1364,9 @@ fn field_over_a_branch() -> Row {
 
     let (read, verdict) = match field {
         Ok(field) => {
-            let set = field.set(5);
+            field.set(5);
             (
-                format!(
-                    "get={} set={:?}",
-                    field.get(),
-                    set.map_err(|e| brief(&format!("{e:#}")))
-                ),
+                format!("get={}", field.get()),
                 "the field was declared; see whether its writes land".to_string(),
             )
         }

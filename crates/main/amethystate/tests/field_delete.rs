@@ -14,9 +14,9 @@ pub struct Cfg {
 fn a_deleted_key_falls_back_to_the_default(backend: Backend) {
     let path = TempPath::new("field_delete");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
-    cfg.counter().set(42).unwrap();
+    cfg.counter().set(42);
     assert_eq!(cfg.counter().get(), 42);
 
     store.delete(["del", "counter"]).unwrap();
@@ -29,7 +29,7 @@ fn a_deleted_key_falls_back_to_the_default(backend: Backend) {
 fn a_delete_notifies_subscribers(backend: Backend) {
     let path = TempPath::new("field_delete_notify");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     let seen = Arc::new(Mutex::new(Vec::new()));
     let cap = seen.clone();
@@ -37,7 +37,7 @@ fn a_delete_notifies_subscribers(backend: Backend) {
         .counter()
         .subscribe(move |v: &u64| cap.lock().unwrap().push(*v));
 
-    cfg.counter().set(42).unwrap();
+    cfg.counter().set(42);
     store.delete(["del", "counter"]).unwrap();
 
     assert_eq!(*seen.lock().unwrap(), vec![42, 7]);
@@ -47,10 +47,10 @@ fn a_delete_notifies_subscribers(backend: Backend) {
 fn writing_again_after_a_delete_works(backend: Backend) {
     let path = TempPath::new("field_delete_rewrite");
     let store = StoreBuilder::new(&path).backend(backend).build().unwrap();
-    let cfg = Cfg::new_with(&store).unwrap();
+    let cfg = Cfg::new_with(&store);
 
     store.delete(["del", "counter"]).unwrap();
-    cfg.counter().set(5).unwrap();
+    cfg.counter().set(5);
 
     assert_eq!(cfg.counter().get(), 5);
     assert_eq!(store.get::<u64>(["del", "counter"]).unwrap(), Some(5));

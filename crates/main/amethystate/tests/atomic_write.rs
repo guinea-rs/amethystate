@@ -79,10 +79,10 @@ fn a_write_that_landed_leaves_no_temporary_behind() {
         .backend(common::text_backend())
         .build()
         .unwrap();
-    let held = Held::new_with(&store).unwrap();
+    let held = Held::new_with(&store);
 
     for n in 0..8 {
-        held.a().set(n).unwrap();
+        held.a().set(n);
         store.save_now().unwrap();
     }
 
@@ -122,8 +122,8 @@ fn a_half_written_file_is_recovered_from_the_backup_beside_it() {
                 .backend(backend)
                 .build()
                 .unwrap();
-            let held = Held::new_with(&store).unwrap();
-            held.a().set(99).unwrap();
+            let held = Held::new_with(&store);
+            held.a().set(99);
             store.save_now().unwrap();
 
             let (found, _, found_backup) = sidecars(&store);
@@ -150,7 +150,7 @@ fn a_half_written_file_is_recovered_from_the_backup_beside_it() {
                 });
 
             assert_eq!(
-                Held::new_with(&reopened).unwrap().a().get(),
+                Held::new_with(&reopened).a().get(),
                 99,
                 "on {}: the value from the backup did not reach the reopened store",
                 backend.extension()
@@ -179,8 +179,8 @@ fn a_half_written_file_with_no_backup_is_refused() {
                 .backend(backend)
                 .build()
                 .unwrap();
-            let held = Held::new_with(&store).unwrap();
-            held.a().set(99).unwrap();
+            let held = Held::new_with(&store);
+            held.a().set(99);
             store.save_now().unwrap();
 
             let (found, _, found_backup) = sidecars(&store);
@@ -220,8 +220,8 @@ fn recovery_leaves_the_bookkeeping_agreeing_with_the_data() {
                 .backend(backend)
                 .build()
                 .unwrap();
-            let held = Held::new_with(&store).unwrap();
-            held.a().set(99).unwrap();
+            let held = Held::new_with(&store);
+            held.a().set(99);
             store.save_now().unwrap();
 
             let (found, found_meta, found_backup) = sidecars(&store);
@@ -251,7 +251,7 @@ fn recovery_leaves_the_bookkeeping_agreeing_with_the_data() {
                 .backend(backend)
                 .build()
                 .unwrap();
-            assert_eq!(Held::new_with(&reopened).unwrap().a().get(), 99);
+            assert_eq!(Held::new_with(&reopened).a().get(), 99);
         }
 
         assert_eq!(
@@ -270,7 +270,7 @@ fn recovery_leaves_the_bookkeeping_agreeing_with_the_data() {
         });
 
         assert_eq!(
-            Held::new_with(&again).unwrap().a().get(),
+            Held::new_with(&again).a().get(),
             99,
             "on {}: the recovered value did not survive a second open",
             backend.extension()
@@ -289,8 +289,8 @@ fn a_file_held_by_someone_else_does_not_cost_the_old_contents() {
         .backend(common::text_backend())
         .build()
         .unwrap();
-    let held = Held::new_with(&store).unwrap();
-    held.a().set(5).unwrap();
+    let held = Held::new_with(&store);
+    held.a().set(5);
     store.save_now().unwrap();
 
     let before = std::fs::read(path.path()).unwrap();
@@ -302,7 +302,7 @@ fn a_file_held_by_someone_else_does_not_cost_the_old_contents() {
         .open(path.path())
         .expect("the store's own file must be openable");
 
-    held.a().set(6).unwrap();
+    held.a().set(6);
     let flushed = store.save_now();
 
     assert!(
@@ -335,8 +335,8 @@ fn a_holder_that_lets_go_mid_write_does_not_cost_the_write() {
         .file_write(|_| policy)
         .build()
         .unwrap();
-    let held = Held::new_with(&store).unwrap();
-    held.a().set(5).unwrap();
+    let held = Held::new_with(&store);
+    held.a().set(5);
     store.save_now().unwrap();
 
     const FILE_SHARE_READ: u32 = 1;
@@ -351,7 +351,7 @@ fn a_holder_that_lets_go_mid_write_does_not_cost_the_write() {
         drop(blocker);
     });
 
-    held.a().set(6).unwrap();
+    held.a().set(6);
     let flushed = store.save_now();
     letting_go.join().unwrap();
 
@@ -362,7 +362,7 @@ fn a_holder_that_lets_go_mid_write_does_not_cost_the_write() {
         .build()
         .unwrap();
     assert_eq!(
-        Held::new_with(&reopened).unwrap().a().get(),
+        Held::new_with(&reopened).a().get(),
         6,
         "the write reported success without the value reaching the file"
     );
@@ -380,8 +380,8 @@ fn a_holder_that_never_lets_go_is_given_up_on() {
         .file_write(|_| policy)
         .build()
         .unwrap();
-    let held = Held::new_with(&store).unwrap();
-    held.a().set(5).unwrap();
+    let held = Held::new_with(&store);
+    held.a().set(5);
     store.save_now().unwrap();
 
     const FILE_SHARE_READ: u32 = 1;
@@ -391,7 +391,7 @@ fn a_holder_that_never_lets_go_is_given_up_on() {
         .open(path.path())
         .expect("the store's own file must be openable");
 
-    held.a().set(6).unwrap();
+    held.a().set(6);
     let started = Instant::now();
     let report = store.save_now().unwrap_err();
     let elapsed = started.elapsed();
@@ -433,8 +433,8 @@ fn a_policy_that_says_not_to_retry_is_obeyed() {
             .file_write(|w| w.replacing(replace))
             .build()
             .unwrap();
-        let held = Held::new_with(&store).unwrap();
-        held.a().set(5).unwrap();
+        let held = Held::new_with(&store);
+        held.a().set(5);
         store.save_now().unwrap();
 
         let _blocker = OpenOptions::new()
@@ -443,7 +443,7 @@ fn a_policy_that_says_not_to_retry_is_obeyed() {
             .open(path.path())
             .expect("the store's own file must be openable");
 
-        held.a().set(6).unwrap();
+        held.a().set(6);
         let started = Instant::now();
         assert!(store.save_now().is_err());
         started.elapsed()
@@ -472,8 +472,8 @@ fn a_whole_document_with_bytes_left_after_its_end_is_refused() {
             .backend(common::text_backend())
             .build()
             .unwrap();
-        let held = Held::new_with(&store).unwrap();
-        held.a().set(5).unwrap();
+        let held = Held::new_with(&store);
+        held.a().set(5);
         store.save_now().unwrap();
     }
 

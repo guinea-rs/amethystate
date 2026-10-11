@@ -41,8 +41,8 @@ fn renaming_a_field_stored_elsewhere_moves_its_stored_value(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = keyed_v1::Keyed::new_with(&store).unwrap();
-        v1.left_panel_visible().set(false).unwrap();
+        let v1 = keyed_v1::Keyed::new_with(&store);
+        v1.left_panel_visible().set(false);
         store.flush_prefix(StorePath::root()).unwrap();
 
         assert_eq!(
@@ -62,7 +62,7 @@ fn renaming_a_field_stored_elsewhere_moves_its_stored_value(backend: Backend) {
         .migrate()
         .unwrap();
 
-    let v2 = Keyed::new_with(&store).unwrap();
+    let v2 = Keyed::new_with(&store);
     assert!(!v2.panel_visible().get(), "value carried over");
 
     assert_eq!(
@@ -110,8 +110,8 @@ fn dropping_a_field_stored_elsewhere_removes_its_stored_value(backend: Backend) 
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = dropped_v1::Dropped::new_with(&store).unwrap();
-        v1.legacy_token().set("secret".to_string()).unwrap();
+        let v1 = dropped_v1::Dropped::new_with(&store);
+        v1.legacy_token().set("secret".to_string());
         store.flush_prefix(StorePath::root()).unwrap();
     }
 
@@ -165,8 +165,8 @@ fn dropping_a_plain_field_removes_its_stored_value(backend: Backend) {
             .backend(backend)
             .build()
             .unwrap();
-        let v1 = plain_v1::Plain::new_with(&store).unwrap();
-        v1.legacy_token().set("secret".to_string()).unwrap();
+        let v1 = plain_v1::Plain::new_with(&store);
+        v1.legacy_token().set("secret".to_string());
         store.flush_prefix(StorePath::root()).unwrap();
     }
 

@@ -307,15 +307,10 @@ impl SqliteStoreInner {
         Ok(())
     }
 
-    /// Whether a write may proceed.
-    ///
-    /// A background flush that has been failing past its budget is an error
-    /// the caller can act on, not a reason to take the process down - the
-    /// value is refused, what is already buffered keeps being retried, and a
-    /// flush that lands clears this. A debouncer thread that is actually dead
-    /// is a different thing and still panics: that is a bug here, not a disk.
+    /// Whether a write may proceed: anywhere but a closed store. See
+    /// [`utils::check_debouncer`].
     fn check_debouncer(&self) -> StorageResult<()> {
-        utils::check_debouncer(&self.health, &self.debouncer)
+        utils::check_debouncer(&self.debouncer)
     }
 
     /// The value a subscriber should see as the old one.
@@ -454,7 +449,8 @@ impl SqliteStoreInner {
             lock.insert(path.clone(), utils::PendingOp::Set(vec.clone()));
         })?;
 
-        let told = utils::emit_events(
+        self.debouncer.schedule();
+        utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path,
@@ -465,10 +461,7 @@ impl SqliteStoreInner {
                 at: settled,
                 judged: by.judged,
             },
-        );
-
-        self.debouncer.schedule();
-        told
+        )
     }
 
     fn save_now(&self) -> StorageResult<()> {
@@ -588,7 +581,8 @@ impl SqliteStoreInner {
             lock.insert(path.clone(), utils::PendingOp::Delete);
         })?;
 
-        let told = utils::emit_events(
+        self.debouncer.schedule();
+        utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -599,10 +593,7 @@ impl SqliteStoreInner {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.debouncer.schedule();
-        told
+        )
     }
 
     fn delete_prefix(&self, prefix: &StorePath, source: Option<uuid::Uuid>) -> StorageResult<()> {
@@ -620,7 +611,8 @@ impl SqliteStoreInner {
             }
         })?;
 
-        let told = utils::emit_events(
+        self.debouncer.schedule();
+        utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -631,10 +623,7 @@ impl SqliteStoreInner {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.debouncer.schedule();
-        told
+        )
     }
 
     fn subscribe(&self, kind: SubscriptionKind, callback: StoreCallback) -> SubscriptionId {

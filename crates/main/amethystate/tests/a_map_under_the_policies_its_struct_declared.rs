@@ -33,10 +33,10 @@ fn a_map_told_to_carry_on_leaves_out_the_entry_it_cannot_read(backend: Backend) 
 
         match lenient {
             false => {
-                Strict::new_with(&store).unwrap();
+                Strict::new_with(&store);
             }
             true => {
-                Lenient::new_with(&store).unwrap();
+                Lenient::new_with(&store);
             }
         }
 
@@ -54,12 +54,12 @@ fn a_map_told_to_carry_on_leaves_out_the_entry_it_cannot_read(backend: Backend) 
 
         match lenient {
             false => {
-                Strict::new_with(&store).expect_err(&format!(
+                Strict::try_new_with(&store).expect_err(&format!(
                     "{backend:?}: a struct that said nothing refuses a map it cannot read whole"
                 ));
             }
             true => {
-                let held = Lenient::new_with(&store).unwrap_or_else(|why| {
+                let held = Lenient::try_new_with(&store).unwrap_or_else(|why| {
                     panic!("{backend:?}: told to carry on, the map still refused: {why}")
                 });
 
@@ -102,8 +102,8 @@ fn a_map_told_to_use_defaults_seeds_again_when_its_level_goes(backend: Backend) 
         .build()
         .unwrap();
 
-    let kept = Strict::new_with(&store).unwrap();
-    let reseeded = Lenient::new_with(&store).unwrap();
+    let kept = Strict::new_with(&store);
+    let reseeded = Lenient::new_with(&store);
 
     kept.widths().insert("gpu".into(), &120).unwrap();
     reseeded.widths().insert("gpu".into(), &120).unwrap();
