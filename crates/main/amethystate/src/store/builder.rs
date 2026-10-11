@@ -785,13 +785,11 @@ impl StoreBuilder {
             save_debounce: self.config.save_debounce,
             watch_debounce: self.config.watch_debounce,
             retry_policy: self.config.retry_policy.clone(),
-            on_persist_failure: self.config.on_persist_failure.clone(),
         });
 
         self.config.save_debounce = settled.save_debounce;
         self.config.watch_debounce = settled.watch_debounce;
         self.config.retry_policy = settled.retry_policy;
-        self.config.on_persist_failure = settled.on_persist_failure;
         self
     }
 

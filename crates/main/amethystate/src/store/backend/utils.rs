@@ -1,7 +1,6 @@
 use crate::SubscriptionKind;
 use crate::store::SubscriptionId;
 use crate::store::debouncer::Debouncer;
-use crate::store::durable::PersistHealth;
 use crate::store::error::{StorageError, StorageResult};
 use crate::store::facts::Facts;
 use crate::store::{StoreEvent, SubscriptionEntry};
@@ -38,21 +37,19 @@ pub fn in_the_file(why: Report<StorageError>, file: &Path) -> Report<StorageErro
     }
 }
 
-/// Refuses a write while the background flush is not landing, and once the
-/// store has been closed.
+/// Refuses a write once the store has been closed.
 ///
 /// A stopped debouncer is what closing leaves behind, and a write reaching a
 /// stopped one would be buffered by a store that has nothing left to write it
 /// with. Refusing here is what makes that a `Closed` rather than a value that
 /// was accepted and never appeared.
-pub fn check_debouncer(health: &PersistHealth, debouncer: &Debouncer) -> StorageResult<()> {
+///
+/// A background flush that is not landing refuses nothing: the write lands in
+/// memory, the flush keeps retrying, and only a caller waiting for the disk is
+/// told.
+pub fn check_debouncer(debouncer: &Debouncer) -> StorageResult<()> {
     if debouncer.is_stopped() {
         return Err(error_stack::Report::new(StorageError::Closed));
-    }
-    if let Some(reason) = health.failure() {
-        return Err(error_stack::Report::new(StorageError::CommitFailed)
-            .attach(format!("the background flush is not landing: {reason:#}"))
-            .attach("what is already buffered is still being retried, and reads are unaffected"));
     }
     if debouncer.is_poisoned() {
         panic!("debouncer thread is dead — store integrity cannot be guaranteed");
@@ -287,6 +284,11 @@ pub fn unsubscribe(subs_lock: &RwLock<Vec<SubscriptionEntry>>, id: SubscriptionI
 /// separate readers of the same change, and stopping at the first would leave
 /// the rest holding a value nobody replaced. What comes back is the first
 /// refusal, carrying how many there were.
+///
+/// A subscriber that panics does not stop the others either: the panic is
+/// held until everyone has been told, and then carries on up to the writer.
+/// The engines schedule the flush before telling anyone, so that a panic on
+/// its way up leaves the change on its way to disk too.
 pub fn emit_events(
     subs_lock: &RwLock<Vec<SubscriptionEntry>>,
     event: StoreEvent,
@@ -330,14 +332,24 @@ fn tell(
 
     let mut refused: Option<Report<StorageError>> = None;
     let mut also = 0usize;
+    let mut panicked = None;
 
     for cb in callbacks {
-        if let Err(why) = call(&cb, &event) {
-            match &refused {
+        let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| call(&cb, &event)));
+        match answered {
+            Ok(Ok(())) => {}
+            Ok(Err(why)) => match &refused {
                 None => refused = Some(why),
                 Some(_) => also += 1,
+            },
+            Err(panic) => {
+                panicked.get_or_insert(panic);
             }
         }
+    }
+
+    if let Some(panic) = panicked {
+        std::panic::resume_unwind(panic);
     }
 
     match refused {
@@ -484,7 +496,6 @@ mod buffered {
             retry: config.retry_policy.clone(),
             commits: commits.clone(),
             health: health.clone(),
-            on_giveup: config.on_persist_failure.clone(),
             unsaved: Arc::new(move || held.lock().unsaved()),
         }
     }

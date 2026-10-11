@@ -63,7 +63,7 @@ A smaller value narrows the window and flushes more often. A larger one widens i
 
 Everything above is about the buffer and the disk, and there the disk is allowed to lag. Between a field and the store the answer is stricter: **what a field holds is what the store holds.** This is the guarantee the library is built around, and a place where it fails is a bug worth reporting.
 
-- A write through a field lands in both or in neither. A write to a closed store leaves the field as it was and says so in the log; a value the engine cannot hold panics before it lands anywhere.
+- A write through a field lands in both or in neither. A write to a closed store leaves the field as it was and says so in the log; a value the engine cannot hold panics before it lands anywhere. A subscriber that panics does not undo it: every other subscriber is told, the flush is already scheduled, and the panic reaches the writer after that.
 - A change that arrives some other way - `Store::set` by path, a person editing the file, a second store on it - reaches the field as the store took it.
 - A declared rule that puts a value right writes the corrected value back, wherever the value came from, so the file never keeps a value the field does not show.
 - `save` on a loaded struct leaves the struct in hand holding what it wrote.

@@ -89,8 +89,9 @@ Two doors have no set at all, because what stops them is a bug rather than a
 circumstance. The plain constructors - `new`, `new_with`, `load`, `load_with`,
 `load_slice` - panic with what their `try_` twin would have answered. And
 `Field::set`, `update` and `modify` take every write: a value the engine cannot
-hold panics naming the field, and a write to a closed store is dropped with a
-warning. `Field::durable` is the write that answers with a `Result`.
+hold panics naming the field, a write to a closed store is dropped with a
+warning, and a disk that is not taking writes is the store's to report, not the
+write's. `Field::durable` is the write that answers with a `Result`.
 
 A map gets its own set rather than sharing `OpenStruct` because it is opened
 over what is already under it, and so meets two failures nothing else can: a

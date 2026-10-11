@@ -89,12 +89,18 @@ answer — the same page says which.
 A field's declared [rule](/amethystate/state/rules/) refuses nothing: it puts
 the value right, and the write lands as the rule left it.
 
-Two things stop a write, and neither is a circumstance to handle at the call
-site. A value the running engine's codec cannot encode, or a path deeper than
-the store allows, is the declaration disagreeing with the engine: it fails the
-same way on every run, so `set` panics naming the field, before the value
-reaches the buffer. A store that was closed takes nothing: the write is
-dropped, the field keeps its value, and a warning in the log says so.
+Nothing the disk does stops a write. A full disk, a file another program holds,
+a flush that keeps failing: the value lands in memory, the store keeps retrying,
+and the application hears of it once, through
+[the store's observers](/amethystate/store/configuration/#hearing-about-it).
+A subscriber that refuses the change is logged at `error`, and the write stands.
+
+Two things do stop it, and neither is a circumstance to handle at the call site.
+A value the running engine's codec cannot encode, or a path deeper than the
+store allows, is the declaration disagreeing with the engine, so `set` panics
+naming the field, before the value reaches the buffer. A store that was closed
+takes nothing: the write is dropped, the field keeps its value, and a warning
+in the log says so.
 
 Where a write has to answer - a value typed in by a person, an engine chosen at
 run time - `durable()` is the write that does, with a `Result`.

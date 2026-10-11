@@ -9,7 +9,6 @@
 
 use amethystate::store::Flush;
 use amethystate::store::builder::StoreBuilder;
-use amethystate::store::config::AfterGivingUp;
 use amethystate::store::field_with_path;
 use amethystate::{StoreBackend, SubscriptionKind};
 use amethystate_core::path::StorePath;
@@ -115,20 +114,19 @@ fn the_failure_callback_is_told_it_cannot_close() {
             d.debounce(Duration::from_millis(10))
                 .retry_every(Duration::from_millis(10))
                 .give_up_after(Duration::from_millis(30))
-                .on_failure(move |_reason| {
-                    let told = from_callback
-                        .lock()
-                        .unwrap()
-                        .clone()
-                        .map(|store| store.close())
-                        .and_then(Result::err)
-                        .map(|why| matches!(why, Flush::Reentrant));
-                    let _ = tx.send(told);
-                    AfterGivingUp::Ignore
-                })
         })
         .build()
         .unwrap();
+    let _watch = store.on_persist_failure(move |_event| {
+        let told = from_callback
+            .lock()
+            .unwrap()
+            .clone()
+            .map(|store| store.close())
+            .and_then(Result::err)
+            .map(|why| matches!(why, Flush::Reentrant));
+        let _ = tx.send(told);
+    });
 
     *held.lock().unwrap() = Some(store.clone());
 
@@ -150,5 +148,6 @@ fn the_failure_callback_is_told_it_cannot_close() {
         "closing from on_persist_failure should be turned down, not waited on"
     );
 
+    held.lock().unwrap().take();
     let _ = std::fs::remove_dir_all(&dir);
 }

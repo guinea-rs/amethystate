@@ -122,10 +122,21 @@ where
             }
             (stored, None)
         }
-        Ok(None) => (
-            default.clone(),
-            seed(store, &path, &default, stored_as)?.map(Reason::Occupied),
-        ),
+        Ok(None) => match seed(store, &path, &default, stored_as)? {
+            None => (default.clone(), None),
+            Some(occupied) if matches!(policy, OnUnreadable::UseDefault) => (
+                default.clone(),
+                Some(Reason::Occupied(Arc::from(
+                    crate::store::one_line(&occupied).as_str(),
+                ))),
+            ),
+            Some(occupied) => {
+                return Err(OpenStruct::WillNotRead {
+                    at: path.clone(),
+                    why: occupied.into(),
+                });
+            }
+        },
         Err(why) if policy.covers(&why) => {
             tracing::error!(path = %path, error = %why, "decode failed while building");
             (
@@ -313,14 +324,12 @@ fn seed<TValue>(
     path: &StorePath,
     default: &TValue,
     stored_as: StoredAs<TValue>,
-) -> StorageResult<Option<Arc<str>>>
+) -> StorageResult<Option<Report<StorageError>>>
 where
     TValue: Serialize + 'static,
 {
     match write_stored(store, path, default, stored_as, Writer::default()) {
-        Err(report) if report.contains::<crate::store::Occupied>() => {
-            Ok(Some(Arc::from(crate::store::one_line(&report).as_str())))
-        }
+        Err(report) if report.contains::<crate::store::Occupied>() => Ok(Some(report)),
         Err(other) => Err(other),
         Ok(()) => Ok(None),
     }

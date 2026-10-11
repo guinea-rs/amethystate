@@ -2,7 +2,7 @@ use crate::StorageResult;
 use crate::codec::CodecError;
 use crate::store::backend::text::document::{
     Navigable, TextDocument, generic_delete, generic_delete_subtree, generic_get, generic_scan,
-    generic_scan_keys, generic_set, walks_one_node,
+    generic_scan_keys, generic_set, generic_set_over, walks_one_node,
 };
 use crate::store::backend::text::error::TextStoreError;
 use crate::store::screening::Noticed;

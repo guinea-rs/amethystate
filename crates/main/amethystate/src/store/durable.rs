@@ -134,19 +134,15 @@ impl CommitSignal {
     }
 }
 
-/// Whether the store can still persist, and why it cannot.
+/// Whether the store is reaching its disk, and why it is not.
 ///
 /// Set by the background flush once a failing streak outlives its retry
-/// budget and the application asked to be failed rather than ignored, and
-/// cleared by the next flush that lands - so a full disk that gets emptied
-/// heals the store without a restart. Reads never consult it: what is on
-/// disk is still readable, and what is buffered is still buffered.
-///
-/// It also keeps the last failure whatever was decided about it, and the
-/// observers that hear both the failure and the save that ends it.
+/// budget, and cleared by the next flush that lands - so a full disk that gets
+/// emptied heals the store without a restart. Writes never consult it: they
+/// land in memory either way. It is the one place a failing disk is told, to
+/// the observers that hear both the failure and the save that ends it.
 #[derive(Default)]
 pub struct PersistHealth {
-    given_up: Mutex<Option<Arc<Report<StorageError>>>>,
     last: Mutex<Option<Arc<Report<StorageError>>>>,
     observers: Mutex<Vec<(u64, crate::store::config::PersistObserver)>>,
     next_observer: AtomicU64,
@@ -183,7 +179,7 @@ impl Drop for PersistWatch {
 
 impl PersistHealth {
     /// The failure the last failing streak gave up with, until a save lands
-    /// again - whatever was decided about it.
+    /// again.
     pub fn last_failure(&self) -> Option<Arc<Report<StorageError>>> {
         self.last.lock().unwrap().clone()
     }
@@ -215,22 +211,7 @@ impl PersistHealth {
         *self.last.lock().unwrap() = Some(reason);
     }
 
-    /// Why writes are failing, if they are.
-    ///
-    /// The failure itself: a caller deciding what to do about it reads
-    /// `current_context()`, and one reporting it renders with `{:#}`. Behind an
-    /// `Arc` because a `Report` is not `Clone` and this is read by every writer
-    /// while the streak lasts.
-    pub fn failure(&self) -> Option<Arc<Report<StorageError>>> {
-        self.given_up.lock().unwrap().clone()
-    }
-
-    pub(crate) fn give_up(&self, reason: Arc<Report<StorageError>>) {
-        *self.given_up.lock().unwrap() = Some(reason);
-    }
-
     pub(crate) fn landed(&self) -> bool {
-        *self.given_up.lock().unwrap() = None;
         self.last.lock().unwrap().take().is_some()
     }
 }

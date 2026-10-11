@@ -1,8 +1,8 @@
 #![cfg(any(feature = "json", feature = "toml", feature = "ron"))]
 
 use amethystate::amethystate;
-use amethystate::store::StoreBackend;
 use amethystate::store::builder::StoreBuilder;
+use amethystate::store::{OpenStruct, StoreBackend};
 use amethystate_core::path::StorePath;
 use amethystate_core::test_utils::TempPath;
 
@@ -203,10 +203,6 @@ fn a_branch_that_became_a_leaf_can_still_be_cleared() {
     );
 }
 
-/// A section the schema declares whose value on disk is a scalar. Building the
-/// struct writes the field's default under it, and the walker replaces whatever
-/// was in the way with an empty map first - so the value is gone with no error
-/// and nothing to migrate from.
 #[test]
 fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
     let path = seeded(
@@ -223,8 +219,12 @@ fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let _cfg = Cfg::new_with(&store);
-        drop(_cfg);
+        let opened = Cfg::try_new_with(&store);
+        assert!(
+            matches!(opened, Err(OpenStruct::WillNotRead { .. })),
+            "{:?}",
+            opened.err()
+        );
         store.save_now().unwrap();
     }
     settle();
@@ -236,7 +236,6 @@ fn a_section_that_holds_a_scalar_is_not_thrown_away_on_startup() {
     );
 }
 
-/// The same for a list, which is a value a hand-written config is full of.
 #[test]
 fn a_section_that_holds_a_list_is_not_thrown_away_on_startup() {
     let path = seeded(
@@ -253,8 +252,12 @@ fn a_section_that_holds_a_list_is_not_thrown_away_on_startup() {
             .backend(text_backend())
             .build()
             .unwrap();
-        let _cfg = Cfg::new_with(&store);
-        drop(_cfg);
+        let opened = Cfg::try_new_with(&store);
+        assert!(
+            matches!(opened, Err(OpenStruct::WillNotRead { .. })),
+            "{:?}",
+            opened.err()
+        );
         store.save_now().unwrap();
     }
     settle();

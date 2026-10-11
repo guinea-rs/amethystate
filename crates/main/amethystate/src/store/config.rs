@@ -21,8 +21,8 @@ pub struct RetryPolicy {
 /// When the store touches the file, and what it does when the file will not
 /// be touched.
 ///
-/// Two-way on purpose. `debounce`, `retry_every`, `give_up_after` and
-/// `on_failure` are about writing; `watch_every` is about noticing somebody
+/// Two-way on purpose. `debounce`, `retry_every` and `give_up_after` are
+/// about writing; `watch_every` is about noticing somebody
 /// else's write. Both are the same question - how this store and this file
 /// keep up with each other - so they are one group rather than two.
 ///
@@ -50,7 +50,6 @@ pub struct Disk {
     pub save_debounce: Duration,
     pub watch_debounce: Duration,
     pub retry_policy: RetryPolicy,
-    pub on_persist_failure: Option<PersistFailureCallback>,
 }
 
 impl Disk {
@@ -94,32 +93,12 @@ impl Disk {
     ///
     /// The flush keeps being retried until it lands or the store is dropped, so
     /// a disk someone frees up heals it without a restart. This bounds how long
-    /// that goes on quietly before [`Disk::on_failure`] is asked what writers
-    /// should be told.
+    /// that goes on quietly before the streak is logged at `error` and
+    /// [`Store::on_persist_failure`](crate::Store::on_persist_failure) observers
+    /// hear of it. Writes are never refused for it: they keep landing in
+    /// memory, and only a caller waiting for the disk is told it failed.
     pub fn give_up_after(mut self, within: Duration) -> Self {
         self.retry_policy.budget = within;
-        self
-    }
-
-    /// Runs once per failing streak, with the failure and what it was
-    /// carrying, when a flush has been failing for longer than
-    /// [`Disk::give_up_after`].
-    ///
-    /// What it returns decides what writers are told from then on. Without one
-    /// the store answers [`AfterGivingUp::Ignore`]: the retry loop carries on,
-    /// the buffer keeps everything, and writers are told nothing. A disk that
-    /// is full for an hour is an hour of ordinary running, and the streak is
-    /// still reported at `error` under the `amethystate` target whatever this
-    /// returns - so nothing is hidden by it, only kept out of the write path.
-    ///
-    /// Write one to say otherwise: [`AfterGivingUp::Fail`] for an application
-    /// that would rather have its writes start failing than carry on over a
-    /// disk it cannot reach.
-    pub fn on_failure<F>(mut self, callback: F) -> Self
-    where
-        F: Fn(&GaveUp<'_>) -> AfterGivingUp + Send + Sync + 'static,
-    {
-        self.on_persist_failure = Some(Arc::new(callback));
         self
     }
 }
@@ -336,55 +315,12 @@ impl WriteLimits {
     }
 }
 
-/// What the store does about a flush that has been failing for longer than
-/// the retry budget. It keeps retrying either way; this is only about who is
-/// told.
-///
-/// `non_exhaustive` because what a store can usefully do about a disk that is
-/// not taking writes is not a settled list. Three answers cover what is asked
-/// for today, and a fourth - waiting somewhere else, writing a copy aside,
-/// telling one caller rather than all of them - would otherwise be a major
-/// version.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum AfterGivingUp {
-    /// Every later write fails with [`StorageError::CommitFailed`], naming
-    /// the reason, until a flush lands again. Reads carry on and what is
-    /// buffered stays buffered, so a disk that frees up heals the store
-    /// without a restart.
-    Fail,
-
-    /// Say nothing to writers. The retry loop carries on and the buffer is
-    /// kept, so this is the choice for an application that would rather
-    /// handle it in the callback than have its writes start failing.
-    Ignore,
-
-    /// Poison the writer: every later write panics wherever it is made. For
-    /// an application that would rather stop than run on with state it
-    /// cannot persist.
-    Poison,
-}
-
-/// Runs when a flush has been failing for longer than the retry budget -
-/// once per streak, after anyone awaiting that flush has already been told it
-/// failed. What it returns decides what writers see next; without one the
-/// store answers [`AfterGivingUp::Ignore`].
-///
-/// It is handed the failure itself, because the decision turns on which failure
-/// it is. A full disk is somebody deleting something later today, and
-/// [`AfterGivingUp::Ignore`] rides it out; a value the format cannot hold will
-/// never be writable, and retrying it every interval for the life of the
-/// process is not waiting for anything. `report.current_context()` says which -
-/// [`StorageError::Flush`] for the disk, [`StorageError::Codec`] for the
-/// document - and `{report:#}` renders it when that is what is wanted.
-///
-/// [`StorageError`] is `non_exhaustive`, so a `match` here needs a `_` arm, and
-/// what that arm answers is what an unrecognised failure gets. `Fail` is the
-/// careful one to put there.
-pub type PersistFailureCallback = Arc<dyn Fn(&GaveUp<'_>) -> AfterGivingUp + Send + Sync>;
-
 /// A flush that has been failing longer than its budget, and what it was
 /// carrying.
+///
+/// `report.current_context()` says which failure it is -
+/// [`StorageError::Flush`] for the disk, [`StorageError::Codec`] for the
+/// document - and `{report:#}` renders it when that is what is wanted.
 ///
 /// `non_exhaustive` because this is handed *to* a caller's callback: what is
 /// worth telling them about a failing streak - how long it has run, how many
@@ -405,17 +341,13 @@ pub struct GaveUp<'a> {
 
 /// What an observer of a store's background saving hears.
 ///
-/// Observers decide nothing. [`Disk::on_failure`] is the one answer to a
-/// failing streak and is set when the store is built; an observer attached with
-/// [`Store::on_persist_failure`](crate::Store::on_persist_failure) hears what
-/// that answer was, alongside the failure it answered.
+/// Observers decide nothing: writes keep landing in memory whatever the disk
+/// does, and the store keeps retrying. An observer is how an application
+/// finds out, to say so to its user.
 #[non_exhaustive]
 pub enum PersistEvent<'a> {
-    /// A failing streak outlived the retry budget, and this was decided about it.
-    GaveUp {
-        failure: &'a GaveUp<'a>,
-        decision: AfterGivingUp,
-    },
+    /// A failing streak outlived the retry budget.
+    GaveUp { failure: &'a GaveUp<'a> },
 
     /// A save landed after a streak that gave up.
     Recovered,
@@ -447,8 +379,6 @@ pub struct StoreConfig {
 
     /// What this store refuses to hold, as against what its codec cannot.
     pub limits: WriteLimits,
-
-    pub on_persist_failure: Option<PersistFailureCallback>,
 
     /// Whether reading a large collection back may use more than one core.
     ///
@@ -494,7 +424,6 @@ impl StoreConfig {
             },
             file_write: FileWritePolicy::default(),
             limits: WriteLimits::default(),
-            on_persist_failure: None,
             parallel_reads: false,
             will_not_open: WillNotOpen::default(),
             will_not_read: WhenItWillNotRead::default(),

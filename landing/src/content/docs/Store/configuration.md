@@ -55,8 +55,7 @@ A failing flush is not a lost write. The same buffered changes are retried, and
 they keep being retried until they land or the store is dropped - a full disk
 that someone frees up heals the store with no restart.
 
-What is configurable is how long that goes on quietly, and who is told when it
-does not stop:
+What is configurable is how often it tries, and how long it goes on quietly:
 
 <!-- shown: how long a failing flush stays quiet -->
 ```rust
@@ -64,81 +63,35 @@ let store = StoreBuilder::new(settings)
     .disk(|d| {
         d.retry_every(Duration::from_secs(2))
             .give_up_after(Duration::from_secs(30))
-            .on_failure(|gave_up| match gave_up.why.current_context() {
-                StorageError::Flush => AfterGivingUp::Ignore,
-                StorageError::Codec => AfterGivingUp::Poison,
-                _ => AfterGivingUp::Fail,
-            })
     })
     .build()?;
 ```
 <!-- /shown -->
 
-Three cases, named rather than lumped together. `StorageError::Flush` is the
-disk: full, read-only, taken away, held by something else. `StorageError::Codec`
-is the document not rendering. Everything else is a failure this callback has no
-opinion about, and falls back to `Fail`: writers are told about a failure
-nobody has looked at yet.
-
-Nothing there stops anything. The retry loop is unconditional and runs until the
-flush lands or the store is dropped, so a full disk is answered with `Ignore`:
-writers see nothing, the buffer keeps everything, and freeing space heals the
-store minutes or hours later with no restart. `give_up_after` is how long the
-failing goes on *quietly*, never how long it goes on.
-
-A store nobody configured answers `Ignore` for the same reason: a full disk is
-an ordinary Tuesday on plenty of machines, and a state library is not the right
-thing to bring an application down over it. The streak is still reported at
-`error` under the `amethystate` target whatever the answer, so nothing is
-hidden - it is only kept out of the write path. Write the callback when you want
-otherwise.
-
 `Disk::retry_every` is the gap between attempts. `Disk::give_up_after` is how
-long a failing streak may run before `Disk::on_failure` is asked what writers
-should be told from then on:
+long a failing streak may run before the store says so: once, at `error` under
+the `amethystate` target, and to every observer of its saving. It is how long
+the failing goes on *quietly*, never how long it goes on.
 
-| answer | what a writer sees |
-| --- | --- |
-| `AfterGivingUp::Ignore` | nothing. Writes carry on landing in the buffer. The default when no callback is set |
-| `AfterGivingUp::Fail` | an error each, naming the reason, until a flush lands |
-| `AfterGivingUp::Poison` | a panic |
+Writers are never told. A write lands in memory whatever the disk is doing, the
+buffer keeps it, and freeing space heals the store minutes or hours later with
+no restart. A full disk is an ordinary Tuesday on plenty of machines, and a
+field write has nothing to do about it - the application does, once, in one
+place. Only a caller that asked whether its write reached the disk hears the
+failure: `durable()`, `save_now`, a flush awaited.
 
-The enum is `non_exhaustive`: what a store can usefully do about a disk that is
-not taking writes is not a settled list, and a `match` on it needs a `_` arm.
+### Hearing about it
 
-The callback is handed the failure, so the answer can depend on it. It is also handed
-`gave_up.unsaved` - every path written since the last flush that landed, which
-is what the store was carrying when it gave up. Candidates rather than
-culprits: a document is rendered whole, and a render that fails names no path.
-
-`Poison` is for the other kind - a failure that will not heal on its own. A
-document the codec cannot render is in the same state on the hundredth attempt
-as on the first, and nothing outside the program is going to change that.
-
-It arrives as a `Report<StorageError>` rather than as one of the
-[error sets](/amethystate/concepts/errors/), and deliberately: this runs on the debouncer's
-thread with nobody's call to answer, so it is the engine's report rather than a
-boundary's. Nothing here is being handed back to a caller.
-
-Reads carry on in every case, and what is buffered stays buffered - which is
-also the catch. `on_failure` answers who is told and never removes the cause.
-
-Most codec failures never get this far. A value is encoded where it is written,
-so one the format cannot hold is refused by `set` itself and never enters the
-buffer.
-
-### Watching without deciding
-
-`on_failure` is one answer, given when the store is built. Hearing about a
-failure is a different job, and any number of places can do it on a store that
-is already open - a status bar, a telemetry sink, a test:
+Any number of places can listen on a store that is already open - a status bar,
+a telemetry sink, a test:
 
 <!-- shown: watching a store's saving from anywhere -->
 ```rust
 let watch = store.on_persist_failure(|event| match event {
-    PersistEvent::GaveUp { failure, decision } => {
-        eprintln!("not saved ({decision:?}): {:#}", failure.why);
-    }
+    PersistEvent::GaveUp { failure } => match failure.why.current_context() {
+        StorageError::Flush => eprintln!("the disk is not taking writes: {:#}", failure.why),
+        _ => eprintln!("not saved: {:#}", failure.why),
+    },
     PersistEvent::Recovered => eprintln!("saved again"),
     _ => {}
 });
@@ -149,15 +102,32 @@ if let Some(why) = store.persist_failure() {
 ```
 <!-- /shown -->
 
-An observer hears every streak that outlived `give_up_after`, together with what
-`on_failure` decided about it, and then the save that lands after it. It decides
-nothing. It stays attached while its watch is kept, and dropping the watch
-detaches it. Like the callback, it runs on the debouncer's thread, where closing
-the store is refused.
+An observer hears every streak that outlived `give_up_after`, and then the save
+that lands after it. It decides nothing. It stays attached while its watch is
+kept, and dropping the watch detaches it. It runs on the debouncer's thread,
+where closing the store is refused; one that panics is logged, and the store
+saves on.
+
+`failure.why.current_context()` says which failure it is. `StorageError::Flush`
+is the disk: full, read-only, taken away, held by something else.
+`StorageError::Codec` is the document not rendering - a failure that will not
+heal on its own, the same on the hundredth attempt as on the first.
+`failure.unsaved` is every path written since the last flush that landed:
+candidates rather than culprits, since a document is rendered whole and a render
+that fails names no path.
+
+It arrives as a `Report<StorageError>` rather than as one of the
+[error sets](/amethystate/concepts/errors/), and deliberately: this runs on the debouncer's
+thread with nobody's call to answer, so it is the engine's report rather than a
+boundary's.
 
 `Store::persist_failure` is the same news for a caller that would rather ask
-than listen: the failure the last streak gave up with, whatever was decided,
-until a save lands again. Writers are told only under `Fail`.
+than listen: the failure the last streak gave up with, until a save lands
+again.
+
+Most codec failures never get this far. A value is encoded where it is written,
+so one the format cannot hold is refused by `set` itself and never enters the
+buffer.
 
 ## One write to one file
 

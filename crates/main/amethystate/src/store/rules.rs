@@ -4,7 +4,7 @@ use crate::store::traits::StoredAs;
 use error_stack::Report;
 
 /// What building a struct does about a stored value that does not decode into
-/// the field's type.
+/// the field's type, or that stands where the field's path needs a level.
 ///
 /// The value got there somehow - a file edited by hand, a migration that left
 /// something behind, a codec that took what it cannot read back - and the two
@@ -22,6 +22,10 @@ pub enum OnUnreadable {
     /// by hand, and the field says the store does not agree with what it is
     /// reporting: [`Field::try_get`](crate::Field::try_get) answers `Err` from
     /// the moment it is built until a change decodes.
+    ///
+    /// The same holds for a value standing where the declaration needs a
+    /// level - `net = 5` in a file whose field is `net.port`. The first write
+    /// through the field replaces it with the level it declares.
     UseDefault,
 }
 
