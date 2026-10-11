@@ -177,15 +177,10 @@ pub(crate) struct TextStoreInner<D: TextDocument> {
 }
 
 impl<D: TextDocument> TextStoreInner<D> {
-    /// Whether a write may proceed.
-    ///
-    /// A background flush that has been failing past its budget is an error
-    /// the caller can act on, not a reason to take the process down - the
-    /// value is refused, what is already buffered keeps being retried, and a
-    /// flush that lands clears this. A debouncer thread that is actually dead
-    /// is a different thing and still panics: that is a bug here, not a disk.
+    /// Whether a write may proceed: anywhere but a closed store. See
+    /// [`utils::check_debouncer`].
     pub(crate) fn check_debouncer(&self) -> StorageResult<()> {
-        utils::check_debouncer(&self.health, &self.debouncer)
+        utils::check_debouncer(&self.debouncer)
     }
 }
 
@@ -314,7 +309,6 @@ impl<D: TextDocument + Send + 'static> TextStore<D> {
                 retry: config.retry_policy.clone(),
                 commits: commits.clone(),
                 health: health.clone(),
-                on_giveup: config.on_persist_failure.clone(),
                 unsaved: {
                     let held = standoff.clone();
                     Arc::new(move || held.unsaved())
@@ -680,7 +674,8 @@ impl<D: TextDocument> TextStoreInner<D> {
             return Ok(());
         };
 
-        let told = utils::emit_events(
+        self.debouncer.schedule();
+        utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: path.clone(),
@@ -691,10 +686,7 @@ impl<D: TextDocument> TextStoreInner<D> {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.debouncer.schedule();
-        told
+        )
     }
 
     fn delete_prefix(&self, prefix: &StorePath, source: Option<uuid::Uuid>) -> StorageResult<()> {
@@ -740,7 +732,8 @@ impl<D: TextDocument> TextStoreInner<D> {
             self.settled.fetch_add(1, Ordering::AcqRel) + 1
         };
 
-        let told = utils::emit_events(
+        self.debouncer.schedule();
+        utils::emit_events(
             &self.subscriptions,
             StoreEvent {
                 path: prefix.clone(),
@@ -751,10 +744,7 @@ impl<D: TextDocument> TextStoreInner<D> {
                 at: settled,
                 judged: false,
             },
-        );
-
-        self.debouncer.schedule();
-        told
+        )
     }
 
     fn subscribe(&self, kind: SubscriptionKind, callback: StoreCallback) -> SubscriptionId {
@@ -944,10 +934,12 @@ impl<D: TextDocument> TextStoreInner<D> {
                 return Ok(());
             }
 
-            guard
-                .set(&at, node)
-                .doing(StorageError::Write, &self.files.data.path)
-                .attach_key(&path_str)?;
+            match by.judged {
+                true => guard.set_over(&at, node),
+                false => guard.set(&at, node),
+            }
+            .doing(StorageError::Write, &self.files.data.path)
+            .attach_key(&path_str)?;
             let new = guard
                 .get(&at)
                 .map(|n| D::node_to_bytes(n))
@@ -987,10 +979,8 @@ impl<D: TextDocument> TextStoreInner<D> {
             }
         };
 
-        let told = utils::emit_events(&self.subscriptions, event);
-
         self.debouncer.schedule();
-        told
+        utils::emit_events(&self.subscriptions, event)
     }
 }
 

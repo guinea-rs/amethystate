@@ -1,7 +1,6 @@
 #![cfg(feature = "redb")]
 
 use amethystate::store::builder::{Backend, StoreBuilder};
-use amethystate::store::config::AfterGivingUp;
 use amethystate::store::{OnUnreadable, UnreadableEntries, WillNotOpen};
 use amethystate::{ReactiveMap, Store, amethystate};
 use amethystate_core::test_utils::TempPath;
@@ -32,10 +31,7 @@ fn open(path: &Path) -> Store {
             r.on_unreadable(OnUnreadable::UseDefault)
                 .unreadable_entries(UnreadableEntries::Skip)
         })
-        .disk(|d| {
-            d.debounce(Duration::from_secs(5))
-                .on_failure(|_| AfterGivingUp::Ignore)
-        })
+        .disk(|d| d.debounce(Duration::from_secs(5)))
         .build()
         .unwrap()
 }

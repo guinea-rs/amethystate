@@ -2,7 +2,7 @@ use crate::StorageResult;
 use crate::codec::CodecError;
 use crate::store::backend::text::document::{
     Navigable, TextDocument, generic_delete, generic_delete_subtree, generic_get, generic_scan,
-    generic_scan_keys, generic_set,
+    generic_scan_keys, generic_set, generic_set_over,
 };
 use crate::store::backend::text::error::TextStoreError;
 use crate::store::screening::Noticed;
@@ -98,6 +98,13 @@ impl TextDocument for TomlDocument {
             return Ok(());
         }
         generic_set(self.0.as_item_mut(), at, node)
+    }
+
+    fn set_over(&mut self, at: &StorePath, node: Self::Node) -> StorageResult<()> {
+        if at.is_root() {
+            return self.set(at, node);
+        }
+        generic_set_over(self.0.as_item_mut(), at, node)
     }
 
     fn delete(&mut self, at: &StorePath) -> StorageResult<Option<Self::Node>> {

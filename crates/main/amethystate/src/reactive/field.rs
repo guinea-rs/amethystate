@@ -552,18 +552,27 @@ where
     /// [`Field::durable`] is the variant that waits for disk, and the one that
     /// answers with a `Result`.
     ///
+    /// A disk that is not taking writes is not this write's business: the
+    /// value lands in memory, the store keeps retrying, and
+    /// [`Store::on_persist_failure`](crate::Store::on_persist_failure) is where
+    /// an application hears of it. A subscriber that refuses the change is
+    /// logged at `error`; the write stands.
+    ///
     /// A store that was closed takes nothing: the write is dropped, the field
     /// keeps its value, and a warning says so.
     ///
     /// # Panics
     ///
-    /// When the engine cannot hold the value - a type it cannot encode, or one
-    /// nested deeper than it reads back. That is the field's declaration
-    /// disagreeing with the engine, and it fails the same way every time.
+    /// When the engine cannot hold the value - a type it cannot encode, or a
+    /// path nested deeper than it reads back. That is the field's declaration
+    /// disagreeing with the engine.
     #[track_caller]
     pub fn set(&self, value: TValue) {
         match self.write(value) {
             Ok(()) => {}
+            Err(why @ (FieldError::WillNotEncode { .. } | FieldError::TooDeep { .. })) => {
+                panic!("{why}\n{}", why.explain())
+            }
             Err(FieldError::Closed { at }) => {
                 tracing::warn!(
                     target: "amethystate",
@@ -571,7 +580,14 @@ where
                     "{at} was not written: the store is closed"
                 );
             }
-            Err(why) => panic!("{why}\n{}", why.explain()),
+            Err(why) => {
+                tracing::error!(
+                    target: "amethystate",
+                    path = %self.inner.path,
+                    "{why}\n{}",
+                    why.explain()
+                );
+            }
         }
     }
 
