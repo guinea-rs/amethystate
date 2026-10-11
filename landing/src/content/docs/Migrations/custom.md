@@ -39,7 +39,7 @@ pub struct Settings {
 Turn on the engine for the file's format:
 
 ```toml
-amethystate = { version = "0.24", features = ["toml"] }
+amethystate = { version = "0.25", features = ["toml"] }
 ```
 
 and open the file the application already has:
