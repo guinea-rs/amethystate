@@ -134,6 +134,7 @@ amethystate = { path = ".", features = ["redb", "sqlite", "json", "toml", "ron",
 criterion = { workspace = true }
 trybuild = { workspace = true }
 dhat.workspace = true
+redb = { workspace = true, features = ["cache_metrics"] }
 
 [[bench]]
 name = "store_bench"
@@ -172,6 +173,10 @@ harness = false
 name = "text_document_bench"
 harness = false
 required-features = ["bench-internals", "json"]
+
+[[example]]
+name = "profile_scan"
+required-features = ["redb"]
 
 [package.metadata.docs.rs]
 features = ["redb", "sqlite", "json", "toml", "ron", "memory", "async", "diagnostics"]

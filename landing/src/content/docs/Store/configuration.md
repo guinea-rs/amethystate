@@ -4,9 +4,11 @@ sidebar:
   order: 13
 ---
 
-Everything here is set on the `StoreBuilder` before `build`, and applies to the
-whole store. Every one has a default that is meant to be left alone; this page
-is for the cases where it is not.
+Everything here is set before `build`, and applies to the whole store. What
+every engine reads is set on the `StoreBuilder`; what only one engine reads is
+set on that engine - `Redb`, `Text` - and handed to `StoreBuilder::backend`, so
+a setting cannot reach an engine that would ignore it. Every one has a default
+that is meant to be left alone; this page is for the cases where it is not.
 
 ## Timing
 
@@ -138,15 +140,15 @@ at all.
 <!-- shown: how hard one write to one file fights -->
 ```rust
 let store = StoreBuilder::new(settings)
-    .file_write(|w| {
+    .backend(Text::json().file_write(|w| {
         w.writing(WriteAttempts::times(3).apart(Duration::from_millis(50)))
             .replacing(WriteAttempts::times(20).apart(Duration::from_millis(250)))
-    })
+    }))
     .build()?;
 ```
 <!-- /shown -->
 
-It applies to the text engines, which write a whole document to a file of its
+A setting of the text engines, which write a whole document to a file of its
 own and then replace the target with it. Those two steps fail for unrelated
 reasons and take separate budgets: `writing` is ordinary I/O, where a full disk
 stays full and a few quick attempts are all it is worth, while `replacing` is
@@ -155,7 +157,7 @@ its budget is the longer one, and raising it costs nothing until something
 really is stuck.
 
 redb and SQLite hold their own handle and write through it, so there is no
-replacement to block.
+replacement to block and no such setting.
 
 ## What the store refuses to hold
 
@@ -166,7 +168,9 @@ Set through `limits`, and described on its own page:
 
 <!-- shown: letting a large read use more than one core -->
 ```rust
-let store = StoreBuilder::new(settings).parallel_reads(true).build()?;
+let store = StoreBuilder::new(settings)
+    .backend(Redb::new().parallel_reads(true))
+    .build()?;
 ```
 <!-- /shown -->
 
@@ -179,9 +183,30 @@ While it is off nothing is spawned - the pool is built on first use.
 Below roughly a thousand entries the handing out costs more than the work, and
 the split does not happen.
 
-The redb engine is the one that reads this setting. SQLite and the text engines
-keep their reads on the calling thread, so asking them for it is accepted and
-changes nothing.
+A setting of redb, and of the engine in memory. SQLite and the text engines
+keep their reads on the calling thread and have no such setting.
+
+## redb's cache
+
+<!-- shown: giving redb a cache of its own -->
+```rust
+let store = StoreBuilder::new(settings)
+    .backend(Redb::new().cache_size(64 << 20))
+    .build()?;
+```
+<!-- /shown -->
+
+redb keeps no cache by default. What the store's fields, cells and maps hold is
+in memory already, and a cache of redb's own would be a second copy of the same
+data, growing to the size of the file. Without it, the reads that go to the
+file - a `get`, a `Kv` read, a scan - are served by the system's file cache
+instead.
+
+That costs those reads, and nothing else. On a store of a hundred thousand
+entries a `get` takes about 20 µs without a cache and 2 µs with one, and a scan
+of a thousand entries about 300 µs against 100; a commit is the same either
+way, because it waits on the disk. A store read mostly through `Kv` is the one
+worth giving a cache, in bytes.
 
 ## What is not a setting
 

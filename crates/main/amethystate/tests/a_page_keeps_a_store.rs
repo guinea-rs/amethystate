@@ -3,6 +3,7 @@
 use amethystate::amethystate;
 use amethystate::migration::MigrationError;
 use amethystate::store::builder::{Backend, StoreBuilder};
+use amethystate::store::engine::Memory;
 use amethystate::store::{OpenStore, RuleContext, StorageError, StoreLayout, WillNotOpen};
 use amethystate::{Store, StoreBackend, StoreOp, SubscriptionKind};
 use amethystate_core::Source;
@@ -294,28 +295,19 @@ fn starting_fresh_leaves_a_store_whose_name_extends_it_alone() {
 
 #[wasm_bindgen_test]
 fn a_store_asked_for_parallel_reads_reads_a_large_map_on_the_page_thread() {
-    let asked = [
-        StoreBuilder::in_memory()
-            .parallel_reads(true)
-            .build()
-            .unwrap(),
-        StoreBuilder::new("page_parallel")
-            .backend(Backend::LocalStorage)
-            .parallel_reads(true)
-            .build()
-            .unwrap(),
-    ];
+    let store = StoreBuilder::new("page_parallel")
+        .backend(Memory::new().parallel_reads(true))
+        .build()
+        .unwrap();
 
-    for store in asked {
-        for n in 0..1100u64 {
-            store.set(at(&["cols", &format!("c{n:04}")]), &n).unwrap();
-        }
-
-        let widths = store.kv().map::<String, u64>("cols").unwrap();
-
-        assert_eq!(widths.len(), 1100);
-        assert_eq!(widths.get("c1099"), Some(1099));
+    for n in 0..1100u64 {
+        store.set(at(&["cols", &format!("c{n:04}")]), &n).unwrap();
     }
+
+    let widths = store.kv().map::<String, u64>("cols").unwrap();
+
+    assert_eq!(widths.len(), 1100);
+    assert_eq!(widths.get("c1099"), Some(1099));
 }
 
 fn keys_of(prefix: &str) -> Vec<(String, String)> {

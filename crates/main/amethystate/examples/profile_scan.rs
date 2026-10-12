@@ -19,6 +19,7 @@
 //! frames sit under `insert` rather than under `scan_keys`.
 
 use amethystate::store::StoreBackend;
+use amethystate::store::engine::Redb;
 use amethystate::{Store, StoreBuilder};
 use amethystate_core::path::StorePath;
 use amethystate_core::test_utils::TempPath;
@@ -75,8 +76,8 @@ fn main() {
 
     let path = TempPath::new("profile-scan");
     let store: Store = StoreBuilder::new(path.path())
+        .backend(Redb::new().parallel_reads(parallel))
         .disk(|d| d.debounce(Duration::from_secs(600)))
-        .parallel_reads(parallel)
         .build()
         .unwrap();
 

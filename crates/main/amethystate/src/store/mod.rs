@@ -8,6 +8,7 @@ pub mod debouncer;
 pub mod declared;
 pub mod default;
 pub mod durable;
+pub mod engine;
 mod error;
 pub mod facts;
 pub mod format;

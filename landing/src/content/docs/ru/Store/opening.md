@@ -377,14 +377,16 @@ Store в памяти можно попросить и прямо — через
 сохранение может застать его недопечатанным. А положить свои пути поверх
 документа, который не разбирается, оно не может.
 
+<!-- shown: what a save does with a file that will not read -->
 ```rust
-use amethystate::store::WhenItWillNotRead;
-use std::time::Duration;
-
 let store = StoreBuilder::new(path)
-    .when_it_will_not_read(WhenItWillNotRead::TryAgainFor(Duration::from_secs(30)))
+    .backend(
+        Text::json()
+            .when_it_will_not_read(WhenItWillNotRead::TryAgainFor(Duration::from_secs(30))),
+    )
     .build()?;
 ```
+<!-- /shown -->
 
 | ответ | что делает сохранение |
 | --- | --- |

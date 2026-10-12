@@ -331,8 +331,7 @@ fn a_holder_that_lets_go_mid_write_does_not_cost_the_write() {
     let path = TempPath::new("atomic_midwrite");
     let policy = FileWritePolicy::default();
     let store = StoreBuilder::new(path.path())
-        .backend(common::text_backend())
-        .file_write(|_| policy)
+        .backend(common::text_engine().file_write(|_| policy))
         .build()
         .unwrap();
     let held = Held::new_with(&store);
@@ -376,8 +375,7 @@ fn a_holder_that_never_lets_go_is_given_up_on() {
     let path = TempPath::new("atomic_forever");
     let policy = FileWritePolicy::default();
     let store = StoreBuilder::new(path.path())
-        .backend(common::text_backend())
-        .file_write(|_| policy)
+        .backend(common::text_engine().file_write(|_| policy))
         .build()
         .unwrap();
     let held = Held::new_with(&store);
@@ -429,8 +427,7 @@ fn a_policy_that_says_not_to_retry_is_obeyed() {
     fn blocked_save(name: &str, replace: WriteAttempts) -> std::time::Duration {
         let path = TempPath::new(name);
         let store = StoreBuilder::new(path.path())
-            .backend(common::text_backend())
-            .file_write(|w| w.replacing(replace))
+            .backend(common::text_engine().file_write(|w| w.replacing(replace)))
             .build()
             .unwrap();
         let held = Held::new_with(&store);

@@ -140,7 +140,10 @@ pub(super) fn will_not_read(why: &redb::DatabaseError) -> bool {
 }
 
 /// Opens the database, through a failing disk when a test has armed this path.
-pub(super) fn create_database(path: &Path) -> Result<Database, redb::DatabaseError> {
+pub(super) fn create_database(
+    path: &Path,
+    cache_size: usize,
+) -> Result<Database, redb::DatabaseError> {
     #[cfg(test)]
     if FAILING_DISK.lock().as_deref() == Some(path) {
         let file = std::fs::OpenOptions::new()
@@ -151,12 +154,14 @@ pub(super) fn create_database(path: &Path) -> Result<Database, redb::DatabaseErr
             .open(path)
             .map_err(|e| redb::DatabaseError::Storage(redb::StorageError::Io(e)))?;
 
-        return Database::builder().create_with_backend(FailingBackend {
-            inner: redb::backends::FileBackend::new(file)?,
-        });
+        return Database::builder()
+            .set_cache_size(cache_size)
+            .create_with_backend(FailingBackend {
+                inner: redb::backends::FileBackend::new(file)?,
+            });
     }
 
-    Database::create(path)
+    Database::builder().set_cache_size(cache_size).create(path)
 }
 
 /// Whether this failure is redb refusing to touch the disk at all.
@@ -210,10 +215,10 @@ pub(super) fn is_previous_io(report: &error_stack::Report<StorageError>) -> bool
 ///
 /// The buffer is untouched, so whatever was written and not yet committed goes
 /// to the new handle.
-pub(super) fn reopen(db: &OpenDatabase, path: &Path) -> StorageResult<()> {
+pub(super) fn reopen(db: &OpenDatabase, path: &Path, cache_size: usize) -> StorageResult<()> {
     db.store(None);
 
-    let fresh = create_database(path)
+    let fresh = create_database(path, cache_size)
         .doing(StorageError::Open, path)
         .attach("reopening the database after an I/O failure")?;
 
@@ -236,6 +241,7 @@ pub(super) fn reopen(db: &OpenDatabase, path: &Path) -> StorageResult<()> {
 pub(super) fn for_writing(
     db: &OpenDatabase,
     path: &Path,
+    cache_size: usize,
     released: &std::sync::atomic::AtomicBool,
 ) -> StorageResult<Option<Arc<Database>>> {
     if let Some(open) = db.load_full() {
@@ -245,7 +251,7 @@ pub(super) fn for_writing(
         return Ok(None);
     }
 
-    reopen(db, path)?;
+    reopen(db, path, cache_size)?;
     Ok(db.load_full())
 }
 
@@ -274,7 +280,7 @@ mod tests {
         store.save_now().unwrap();
 
         let _guard = store.inner.write_lock.lock();
-        reopen(&store.inner.db, &store.inner.path)
+        reopen(&store.inner.db, &store.inner.path, store.inner.cache_size)
             .expect("the old handle should have released the file lock");
         drop(_guard);
 
@@ -392,7 +398,7 @@ mod tests {
 
         {
             let _guard = store.inner.write_lock.lock();
-            reopen(&store.inner.db, &store.inner.path).unwrap();
+            reopen(&store.inner.db, &store.inner.path, store.inner.cache_size).unwrap();
         }
 
         store.save_now().unwrap();

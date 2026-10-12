@@ -178,6 +178,11 @@ pub fn text_backend() -> amethystate::store::builder::Backend {
     }
 }
 
+#[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+pub fn text_engine() -> amethystate::store::engine::Text {
+    amethystate::store::engine::Text::try_from(text_backend()).unwrap()
+}
+
 /// Where a text store at `data` keeps its bookkeeping, as the store names it.
 #[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
 pub fn bookkeeping_of(data: &std::path::Path) -> std::path::PathBuf {

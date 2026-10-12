@@ -1,10 +1,10 @@
 use crate::migration::builder::MigrationBuilder;
-use crate::store::config::{Disk, FileWritePolicy, StoreConfig, WriteLimits};
+use crate::store::config::{Disk, StoreConfig, WriteLimits};
+use crate::store::engine::Engine;
 use crate::store::facts::Facts;
 use crate::store::traits::StoreLayout;
 use crate::store::{
-    CodecFormat, Fallbacks, OpenStore, RuleContext, StorageError, StorageResult, WhenItWillNotRead,
-    WillNotOpen,
+    CodecFormat, Fallbacks, OpenStore, RuleContext, StorageError, StorageResult, WillNotOpen,
 };
 use crate::{MigrationReport, Store};
 use amethystate_core::path::StorePathError;
@@ -377,11 +377,7 @@ impl Holds {
 }
 
 impl Backend {
-    /// Opens a store on this engine directly, skipping the builder.
-    ///
-    /// [`StoreBuilder`] is the ordinary route - it also collects migrations
-    /// and settings this does not.
-    pub fn open_public(
+    pub(crate) fn open(
         self,
         config: StoreConfig,
         mset: crate::migration::set::MigrationSet,
@@ -503,7 +499,6 @@ pub const fn default_backend() -> Backend {
 ///
 /// ```no_run
 /// use amethystate::store::builder::{Layout, StoreBuilder, default_backend};
-/// use amethystate::store::config::WriteAttempts;
 /// use std::time::Duration;
 ///
 /// // `Backend::Json` and the rest exist only where their feature is on, so an
@@ -511,7 +506,6 @@ pub const fn default_backend() -> Backend {
 /// let store = StoreBuilder::located(|at| at.app_under(Layout::Native, "my-app", "settings"))?
 ///     .backend(default_backend())
 ///     .disk(|d| d.debounce(Duration::from_millis(500)))
-///     .file_write(|w| w.replacing(WriteAttempts::times(20).apart(Duration::from_millis(250))))
 ///     .build()?;
 /// # Ok::<(), error_stack::Report<amethystate::store::StorageError>>(())
 /// ```
@@ -522,7 +516,7 @@ pub const fn default_backend() -> Backend {
 /// and `build_global` and `migrate_global` put what they open in place as the
 /// process-wide store.
 pub struct StoreBuilder {
-    backend: Option<Backend>,
+    engine: Option<Engine>,
     config: StoreConfig,
     migration_builder: MigrationBuilder,
     rule_context: RuleContext,
@@ -718,7 +712,7 @@ impl StoreBuilder {
             path.set_extension(backend.extension());
         }
         Self {
-            backend,
+            engine: backend.map(Engine::from),
             config: StoreConfig::new(path),
             migration_builder: MigrationBuilder::default(),
             rule_context: RuleContext::default(),
@@ -790,33 +784,6 @@ impl StoreBuilder {
         self.config.save_debounce = settled.save_debounce;
         self.config.watch_debounce = settled.watch_debounce;
         self.config.retry_policy = settled.retry_policy;
-        self
-    }
-
-    /// How hard one write to one file fights before it reports a failure.
-    ///
-    /// This sits inside a single flush attempt, below [`Disk::retry_every`]:
-    /// only
-    /// once it has run out does a flush count as having failed at all. It
-    /// applies to the text engines, which replace a file to write it; `redb`
-    /// and `sqlite` hold their own handle.
-    ///
-    /// ```no_run
-    /// # use amethystate::store::builder::StoreBuilder;
-    /// # use amethystate::store::config::WriteAttempts;
-    /// # use std::time::Duration;
-    /// let store = StoreBuilder::new("settings.json")
-    ///     .file_write(|w| {
-    ///         w.replacing(WriteAttempts::times(20).apart(Duration::from_millis(250)))
-    ///     })
-    ///     .build()?;
-    /// # Ok::<(), error_stack::Report<amethystate::store::StorageError>>(())
-    /// ```
-    pub fn file_write(
-        mut self,
-        configure: impl FnOnce(FileWritePolicy) -> FileWritePolicy,
-    ) -> Self {
-        self.config.file_write = configure(self.config.file_write);
         self
     }
 
@@ -924,14 +891,6 @@ impl StoreBuilder {
         self
     }
 
-    /// Lets reading a large collection back use more than one core. Off by
-    /// default, read by the `redb` engine, and what that trades is on
-    /// [`StoreConfig::parallel_reads`](crate::store::config::StoreConfig::parallel_reads).
-    pub fn parallel_reads(mut self, yes: bool) -> Self {
-        self.config.parallel_reads = yes;
-        self
-    }
-
     /// What this store answers for the declarations that did not say.
     ///
     /// A field's own rule wins over its struct's, and a struct's over this. So
@@ -985,49 +944,23 @@ impl StoreBuilder {
         self
     }
 
-    /// What a save does when the file it is about to replace will not read.
+    /// Picks the engine, and what it is set to. Without this the store uses
+    /// [`default_backend`] with its defaults.
     ///
-    /// A text store's file is meant to be edited, which means it can be found
-    /// half-typed - and a save that meets one cannot lay its own paths over a
-    /// document it cannot parse. Without this the file is moved aside under
-    /// `<name>.unreadable` and the save goes ahead: nothing is lost and the
-    /// application keeps running.
-    ///
-    /// ```
-    /// use amethystate::StoreBuilder;
-    /// use amethystate::store::WhenItWillNotRead;
-    ///
-    /// # let path = amethystate_core::test_utils::TempPath::new("doc");
-    /// // A file somebody keeps open in their editor: do not touch it at all
-    /// // until it parses again.
-    /// let store = StoreBuilder::new(&*path)
-    ///     .when_it_will_not_read(WhenItWillNotRead::Refuse)
-    ///     .build()?;
-    /// # Ok::<(), amethystate::store::OpenStore>(())
-    /// ```
-    ///
-    /// This is about a file that broke while the store was open. A file that
-    /// will not read at the moment of opening is
-    /// [`StoreBuilder::when_it_will_not_open`], and the flat engines answer
-    /// neither, because nobody else writes their file.
-    pub fn when_it_will_not_read(mut self, rule: WhenItWillNotRead) -> Self {
-        self.config.will_not_read = rule;
-        self
-    }
-
-    /// Picks the engine explicitly. Without this the store uses
-    /// [`default_backend`].
+    /// A [`Backend`] names the engine and leaves its settings alone; an
+    /// engine's own type carries them - see [`Engine`].
     ///
     /// An extension this crate chose moves with the engine: a path left
     /// without one by [`StoreBuilder::new`] or [`StoreBuilder::located`] is
     /// named for whichever engine actually runs, so a store asked for as
     /// `json` is not opened on a file called `.redb`. An extension the caller
     /// spelled stays as it is.
-    pub fn backend(mut self, backend: Backend) -> Self {
-        self.backend = Some(backend);
+    pub fn backend(mut self, engine: impl Into<Engine>) -> Self {
+        let engine = engine.into();
         if !self.caller_named_extension {
-            self.config.path.set_extension(backend.extension());
+            self.config.path.set_extension(engine.backend().extension());
         }
+        self.engine = Some(engine);
         self
     }
 
@@ -1106,8 +1039,8 @@ impl StoreBuilder {
     }
 
     fn on_disk(mut self, steps: Steps) -> Result<(Store, MigrationReport), OpenStore> {
-        let backend = self
-            .backend
+        let engine = self
+            .engine
             .ok_or_else(no_engine_built_in)
             .map_err(OpenStore::from_store)?;
 
@@ -1122,8 +1055,8 @@ impl StoreBuilder {
         .map_err(refused_prefix)?;
         migration_set.take_on_undeclared(self.fallbacks.on_undeclared);
 
-        let (store, report) = backend
-            .open_public(self.config, migration_set)
+        let (store, report) = engine
+            .open(self.config, migration_set)
             .map_err(OpenStore::from_store)?;
 
         report.log_to_tracing();
@@ -1226,7 +1159,6 @@ fn falling_back(mut builder: StoreBuilder, steps: Steps) -> (Store, MigrationRep
     let fallbacks = builder.fallbacks;
     let mut memory = StoreConfig::new(PathBuf::new());
     memory.limits = builder.config.limits.clone();
-    memory.parallel_reads = builder.config.parallel_reads;
 
     match builder.opening_with(steps, context.clone()) {
         Ok((store, report)) => (store, report, Persistence::OnDisk),
@@ -1344,7 +1276,7 @@ mod tests {
     #[test]
     fn a_build_with_no_engine_refuses_the_open_and_names_the_features() {
         let mut builder = StoreBuilder::new("app/settings");
-        builder.backend = None;
+        builder.engine = None;
 
         let Err(refused) = builder.build() else {
             panic!("a store opened with no engine to open it with");
@@ -1360,7 +1292,7 @@ mod tests {
         insta::assert_snapshot!(format!("{refused}\n{}", said.join("\n")));
 
         let mut migrating = StoreBuilder::new("app/settings");
-        migrating.backend = None;
+        migrating.engine = None;
 
         assert!(matches!(
             migrating.migrate(),

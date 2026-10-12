@@ -373,14 +373,16 @@ document shape a text engine gives its file.
 A text store's file is meant to be edited, so a save can meet one left
 half-typed - and it cannot lay its own paths over a document it cannot parse.
 
+<!-- shown: what a save does with a file that will not read -->
 ```rust
-use amethystate::store::WhenItWillNotRead;
-use std::time::Duration;
-
 let store = StoreBuilder::new(path)
-    .when_it_will_not_read(WhenItWillNotRead::TryAgainFor(Duration::from_secs(30)))
+    .backend(
+        Text::json()
+            .when_it_will_not_read(WhenItWillNotRead::TryAgainFor(Duration::from_secs(30))),
+    )
     .build()?;
 ```
+<!-- /shown -->
 
 | answer | what the save does |
 | --- | --- |

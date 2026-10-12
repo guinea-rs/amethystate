@@ -150,7 +150,7 @@ impl Store {
     pub fn open(config: StoreConfig, mset: MigrationSet) -> StorageResult<(Self, MigrationReport)> {
         crate::store::builder::built_in()
             .ok_or_else(crate::store::builder::no_engine_built_in)?
-            .open_public(config, mset)
+            .open(config, mset)
     }
 }
 
