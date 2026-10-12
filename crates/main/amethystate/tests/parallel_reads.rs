@@ -20,6 +20,7 @@
 
 use amethystate::store::StoreBackend;
 use amethystate::store::builder::{Backend, StoreBuilder};
+use amethystate::store::engine::Redb;
 use amethystate_core::test_utils::TempPath;
 
 const ENTRIES: usize = 5_000;
@@ -30,8 +31,7 @@ const ENTRIES: usize = 5_000;
 /// both halves sequential, agreeing perfectly.
 fn opened_with(path: &TempPath, parallel: bool) -> amethystate::Store {
     let store = StoreBuilder::new(path.path())
-        .backend(Backend::Redb)
-        .parallel_reads(parallel)
+        .backend(Redb::new().parallel_reads(parallel))
         .build()
         .unwrap();
 

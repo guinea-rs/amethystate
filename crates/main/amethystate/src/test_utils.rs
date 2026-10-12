@@ -18,7 +18,7 @@ pub fn unique_store(suffix: &str) -> (TempPath, Store) {
 
     let store = crate::store::builder::built_in()
         .ok_or_else(crate::store::builder::no_engine_built_in)
-        .and_then(|backend| backend.open_public(StoreConfig::new(at.path()), Default::default()))
+        .and_then(|backend| backend.open(StoreConfig::new(at.path()), Default::default()))
         .unwrap()
         .0;
 

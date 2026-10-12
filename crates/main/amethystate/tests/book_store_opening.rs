@@ -198,3 +198,29 @@ fn saving_now_says_whether_the_last_writes_landed() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn a_save_can_wait_for_a_broken_file_to_parse_again() -> anyhow::Result<()> {
+    use amethystate::store::WhenItWillNotRead;
+    use amethystate::store::engine::Text;
+    use std::time::Duration;
+
+    let at = TempPath::new("book_store_will_not_read");
+    let path = at.path();
+
+    //@show what a save does with a file that will not read
+    let store = StoreBuilder::new(path)
+        .backend(
+            Text::json()
+                .when_it_will_not_read(WhenItWillNotRead::TryAgainFor(Duration::from_secs(30))),
+        )
+        .build()?;
+    //@show-end
+
+    store.kv().set("port", &8080u16)?;
+    store.save_now()?;
+    assert_eq!(store.kv().get::<u16>("port")?, Some(8080));
+
+    Ok(())
+}

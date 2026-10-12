@@ -144,6 +144,7 @@ struct RedbStoreInner {
     /// What the closing flush did, for the closes that follow it.
     closed: utils::Closed,
     parallel_reads: bool,
+    cache_size: usize,
     /// What this store may spend on a path and its value together. redb needs
     /// it most: `rmp_serde` has no limit of its own, so a value deep enough
     /// commits and then kills every process that opens the file afterwards.
@@ -228,9 +229,8 @@ impl RedbStoreInner {
         let flush = prefix.is_root().then(|| self.commits.begin());
 
         let flushed = match self.flush_locked(prefix) {
-            Err(report) if is_previous_io(&report) => {
-                reopen(&self.db, &self.path).and_then(|()| self.flush_locked(prefix))
-            }
+            Err(report) if is_previous_io(&report) => reopen(&self.db, &self.path, self.cache_size)
+                .and_then(|()| self.flush_locked(prefix)),
             other => other,
         };
 
@@ -245,10 +245,12 @@ impl RedbStoreInner {
             let lock = self.pending.lock();
             utils::pending_prefix(&lock, prefix)
         };
-        let db = for_writing(&self.db, &self.path, &self.released)?.ok_or_else(|| {
-            error_stack::Report::new(StorageError::Closed)
-                .attach(StoreFile(self.path.to_path_buf()))
-        })?;
+        let db = for_writing(&self.db, &self.path, self.cache_size, &self.released)?.ok_or_else(
+            || {
+                error_stack::Report::new(StorageError::Closed)
+                    .attach(StoreFile(self.path.to_path_buf()))
+            },
+        )?;
         let txn = begin_write(&db)
             .doing(StorageError::Flush, &self.path)
             .attach_prefix(prefix)
@@ -287,7 +289,8 @@ impl RedbStoreInner {
         }
 
         if let Some(_write_guard) = self.write_lock.try_lock()
-            && let Ok(Some(open)) = for_writing(&self.db, &self.path, &self.released)
+            && let Ok(Some(open)) =
+                for_writing(&self.db, &self.path, self.cache_size, &self.released)
         {
             return Ok(open);
         }
@@ -365,8 +368,9 @@ impl RedbStore {
         migration_set: MigrationSet,
     ) -> StorageResult<(Self, MigrationReport)> {
         let path: Arc<Path> = Arc::from(config.path.as_path());
+        let cache_size = config.redb_cache_size;
 
-        let opened = Arc::new(match create_database(&config.path) {
+        let opened = Arc::new(match create_database(&config.path, cache_size) {
             Ok(db) => db,
             Err(failed) => {
                 let unreadable = will_not_read(&failed);
@@ -377,7 +381,7 @@ impl RedbStore {
                 if !unreadable || !utils::start_fresh(&config, Backend::Redb, &why) {
                     return Err(why);
                 }
-                create_database(&config.path).doing(StorageError::Open, &path)?
+                create_database(&config.path, cache_size).doing(StorageError::Open, &path)?
             }
         });
 
@@ -439,12 +443,11 @@ impl RedbStore {
                     }
 
                     let landed: StorageResult<()> = (|| {
-                        let db = for_writing(&db_save, &path_save, &released_save)?.ok_or_else(
-                            || {
+                        let db = for_writing(&db_save, &path_save, cache_size, &released_save)?
+                            .ok_or_else(|| {
                                 error_stack::Report::new(StorageError::Flush)
                                     .attach("the store has let its file go")
-                            },
-                        )?;
+                            })?;
                         let txn = begin_write(&db)
                             .doing(StorageError::Flush, &path_save)
                             .attach_buffered(changes.len())?;
@@ -461,7 +464,7 @@ impl RedbStore {
                         }
                         Err(report) => {
                             if is_previous_io(&report)
-                                && let Err(failed) = reopen(&db_save, &path_save)
+                                && let Err(failed) = reopen(&db_save, &path_save, cache_size)
                             {
                                 return Err(report
                                     .attach("reopening the database after it stopped reaching the disk failed too")
@@ -491,6 +494,7 @@ impl RedbStore {
             settled: Arc::new(AtomicU64::new(0)),
             closed: utils::Closed::default(),
             parallel_reads: config.parallel_reads,
+            cache_size,
             budget: Screening::resolve(&config.limits, Backend::Redb),
         });
 
@@ -1212,6 +1216,39 @@ mod tests {
             Some(8080),
             "the debouncer wrote something under that key, and it has to be what was buffered"
         );
+    }
+
+    fn read_back_whole(config: StoreConfig) -> usize {
+        use redb::ReadableDatabase;
+
+        let (store, _) = RedbStore::open(config, MigrationSet::default()).unwrap();
+        for at in 0..2_000u32 {
+            store.set(["cache", &at.to_string()], &at).unwrap();
+        }
+        store.save_now().unwrap();
+        let read = store.scan_prefix(&StorePath::segment("cache")).unwrap();
+        assert_eq!(read.len(), 2_000);
+        store.inner.db().unwrap().cache_stats().used_bytes()
+    }
+
+    #[test]
+    fn a_store_reads_its_file_without_keeping_a_copy_of_it() {
+        let path = TempPath::new("redb_no_cache");
+
+        let cached = read_back_whole(StoreConfig::new(&path));
+
+        assert_eq!(cached, 0);
+    }
+
+    #[test]
+    fn a_cache_asked_for_is_the_cache_redb_keeps() {
+        let path = TempPath::new("redb_cache_asked");
+        let mut config = StoreConfig::new(&path);
+        config.redb_cache_size = 1 << 20;
+
+        let cached = read_back_whole(config);
+
+        assert!(cached > 0, "{cached}");
     }
 
     #[test]

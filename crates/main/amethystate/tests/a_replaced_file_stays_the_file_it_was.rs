@@ -9,7 +9,7 @@ use amethystate_core::test_utils::TempPath;
 use std::path::Path;
 
 mod common;
-use common::text_backend;
+use common::{text_backend, text_engine};
 
 fn saved(path: &Path, width: u32) {
     let store = StoreBuilder::new(path)
@@ -65,8 +65,7 @@ fn a_file_behind_a_link_that_will_not_read_is_set_aside_beside_itself() {
     link(dotfiles.path(), at.path());
 
     let store = StoreBuilder::new(at.path())
-        .backend(text_backend())
-        .when_it_will_not_read(WhenItWillNotRead::SetAside)
+        .backend(text_engine().when_it_will_not_read(WhenItWillNotRead::SetAside))
         .build()
         .unwrap();
     std::fs::write(dotfiles.path(), "half-written {{{").unwrap();

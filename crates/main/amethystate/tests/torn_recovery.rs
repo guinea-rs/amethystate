@@ -358,6 +358,7 @@ const CRASH_CHILD: &str = "AME_TORN_CRASH_CHILD";
 #[test]
 fn a_write_killed_between_the_temporary_and_the_target_leaves_no_temporary_behind() {
     use amethystate::store::config::WriteAttempts;
+    use amethystate::store::engine::Text;
     use std::fs::OpenOptions;
     use std::os::windows::fs::OpenOptionsExt;
     use std::time::Duration;
@@ -368,8 +369,9 @@ fn a_write_killed_between_the_temporary_and_the_target_leaves_no_temporary_behin
     if let Ok(child_dir) = std::env::var(CRASH_CHILD) {
         let store_path = PathBuf::from(&child_dir).join("settings");
         let store = StoreBuilder::new(&store_path)
-            .backend(backend)
-            .file_write(|w| w.replacing(WriteAttempts::times(80).apart(Duration::from_millis(200))))
+            .backend(Text::try_from(backend).unwrap().file_write(|w| {
+                w.replacing(WriteAttempts::times(80).apart(Duration::from_millis(200)))
+            }))
             .build()
             .unwrap();
         let files = sidecars(&store);

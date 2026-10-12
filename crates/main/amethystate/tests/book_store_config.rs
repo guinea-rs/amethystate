@@ -1,7 +1,12 @@
 use amethystate::store::StorageError;
 use amethystate::store::builder::{Backend, StoreBuilder, default_backend};
 use amethystate::store::config::PersistEvent;
+#[cfg(feature = "json")]
 use amethystate::store::config::WriteAttempts;
+#[cfg(feature = "redb")]
+use amethystate::store::engine::Redb;
+#[cfg(feature = "json")]
+use amethystate::store::engine::Text;
 use amethystate_core::test_utils::TempPath;
 use amethystate_test_macros::backends;
 use std::time::Duration;
@@ -72,17 +77,18 @@ fn an_open_store_takes_observers_of_its_saving(_backend: Backend) -> anyhow::Res
     Ok(())
 }
 
-#[backends(Redb)]
+#[cfg(feature = "json")]
+#[backends(Json)]
 fn a_store_given_a_write_policy_opens_and_writes(_backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_config_write");
     let settings = path.path();
 
     //@show how hard one write to one file fights
     let store = StoreBuilder::new(settings)
-        .file_write(|w| {
+        .backend(Text::json().file_write(|w| {
             w.writing(WriteAttempts::times(3).apart(Duration::from_millis(50)))
                 .replacing(WriteAttempts::times(20).apart(Duration::from_millis(250)))
-        })
+        }))
         .build()?;
     //@show-end
 
@@ -115,19 +121,39 @@ fn a_store_can_refuse_what_another_engine_could_not_hold(_backend: Backend) -> a
     Ok(())
 }
 
+#[cfg(feature = "redb")]
 #[backends(Redb)]
 fn reading_a_large_collection_can_use_more_than_one_core(_backend: Backend) -> anyhow::Result<()> {
     let path = TempPath::new("book_config_parallel");
     let settings = path.path();
 
     //@show letting a large read use more than one core
-    let store = StoreBuilder::new(settings).parallel_reads(true).build()?;
+    let store = StoreBuilder::new(settings)
+        .backend(Redb::new().parallel_reads(true))
+        .build()?;
     //@show-end
 
     assert!(
         store.parallel_reads(),
         "the store was asked for parallel reads and does not report them"
     );
+
+    store.kv().set("port", &8080u16)?;
+    assert_eq!(store.kv().get::<u16>("port")?, Some(8080));
+    Ok(())
+}
+
+#[cfg(feature = "redb")]
+#[backends(Redb)]
+fn redb_can_be_given_a_cache_of_its_own(_backend: Backend) -> anyhow::Result<()> {
+    let path = TempPath::new("book_config_cache");
+    let settings = path.path();
+
+    //@show giving redb a cache of its own
+    let store = StoreBuilder::new(settings)
+        .backend(Redb::new().cache_size(64 << 20))
+        .build()?;
+    //@show-end
 
     store.kv().set("port", &8080u16)?;
     assert_eq!(store.kv().get::<u16>("port")?, Some(8080));

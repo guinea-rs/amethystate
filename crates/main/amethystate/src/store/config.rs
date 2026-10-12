@@ -1,5 +1,7 @@
+#[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+use crate::store::WhenItWillNotRead;
 use crate::store::builder::{Backend, Holds};
-use crate::store::{StorageError, WhenItWillNotRead, WillNotOpen};
+use crate::store::{StorageError, WillNotOpen};
 use error_stack::Report;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -371,33 +373,8 @@ pub struct StoreConfig {
     pub watch_debounce: Duration,
     pub retry_policy: RetryPolicy,
 
-    /// What one write to one file is worth, as against [`retry_policy`], which
-    /// is what a flush is worth once the write under it has already failed.
-    ///
-    /// [`retry_policy`]: StoreConfig::retry_policy
-    pub file_write: FileWritePolicy,
-
     /// What this store refuses to hold, as against what its codec cannot.
     pub limits: WriteLimits,
-
-    /// Whether reading a large collection back may use more than one core.
-    ///
-    /// Parsing every stored key and decoding every value is around four
-    /// hundred milliseconds of a million-entry open, and dividing them takes
-    /// that to about eighty. Off by default: this is a thread pool inside a
-    /// state library, and an application that already has one should say
-    /// whether it wants a second. Nothing is spawned while this is false -
-    /// rayon builds its pool on first use.
-    ///
-    /// Small collections are unaffected either way. Below roughly a thousand
-    /// entries the handing out costs more than the work, and the split does
-    /// not happen there.
-    ///
-    /// Read by the `redb` and memory engines. `sqlite`, the text engines and
-    /// `localstorage` take `StoreBackend::parallel_reads`'s default of
-    /// `false`, so asking them for it is accepted and changes nothing about how
-    /// they read. In a page there is one thread, and the work stays on it.
-    pub parallel_reads: bool,
 
     /// What an open does when the store's own files will not read.
     ///
@@ -406,10 +383,14 @@ pub struct StoreConfig {
     /// as the last run left it and nothing this one wrote.
     pub will_not_open: WillNotOpen,
 
-    /// What a save does when the file it is about to replace will not read.
-    ///
-    /// Read by the text engines only: theirs is the file somebody else edits.
-    pub will_not_read: WhenItWillNotRead,
+    #[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+    pub(crate) file_write: FileWritePolicy,
+    #[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+    pub(crate) will_not_read: WhenItWillNotRead,
+    #[cfg(any(feature = "redb", feature = "memory"))]
+    pub(crate) parallel_reads: bool,
+    #[cfg(feature = "redb")]
+    pub(crate) redb_cache_size: usize,
 }
 
 impl StoreConfig {
@@ -422,11 +403,16 @@ impl StoreConfig {
                 interval: Duration::from_secs(5),
                 budget: Duration::from_secs(60),
             },
-            file_write: FileWritePolicy::default(),
             limits: WriteLimits::default(),
-            parallel_reads: false,
             will_not_open: WillNotOpen::default(),
+            #[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
+            file_write: FileWritePolicy::default(),
+            #[cfg(any(feature = "json", feature = "toml", feature = "ron"))]
             will_not_read: WhenItWillNotRead::default(),
+            #[cfg(any(feature = "redb", feature = "memory"))]
+            parallel_reads: false,
+            #[cfg(feature = "redb")]
+            redb_cache_size: 0,
         }
     }
 }

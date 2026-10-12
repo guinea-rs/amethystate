@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 mod common;
-use common::text_backend;
+use common::{text_backend, text_engine};
 
 macro_rules! doc {
     (json = $j:expr, toml = $t:expr, ron = $r:expr $(,)?) => {{
@@ -366,8 +366,7 @@ const HALF_WRITTEN: &str = doc! {
 fn broken_under(rule: WhenItWillNotRead) -> (TempPath, amethystate::Store) {
     let path = TempPath::new("tamper_live_broken");
     let store = StoreBuilder::new(path.path())
-        .backend(text_backend())
-        .when_it_will_not_read(rule)
+        .backend(text_engine().when_it_will_not_read(rule))
         .disk(|d| {
             d.debounce(Duration::from_millis(20))
                 .watch_every(Duration::from_millis(20))

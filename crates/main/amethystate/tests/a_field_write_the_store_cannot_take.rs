@@ -116,21 +116,21 @@ fn a_level_edited_into_a_value_takes_the_next_write(backend: Backend) {
 mod a_disk_that_will_not_take_writes {
     use super::*;
     use amethystate::store::config::WriteAttempts;
+    use amethystate::store::engine::Text;
     use std::os::windows::fs::OpenOptionsExt;
     use std::time::{Duration, Instant};
 
     fn failing_soon(at: &TempPath) -> amethystate::Store {
         StoreBuilder::new(at.path())
-            .backend(Backend::Json)
+            .backend(Text::json().file_write(|write| {
+                write
+                    .writing(WriteAttempts::times(1).apart(Duration::from_millis(1)))
+                    .replacing(WriteAttempts::times(1).apart(Duration::from_millis(1)))
+            }))
             .disk(|disk| {
                 disk.debounce(Duration::from_millis(5))
                     .retry_every(Duration::from_millis(5))
                     .give_up_after(Duration::ZERO)
-            })
-            .file_write(|write| {
-                write
-                    .writing(WriteAttempts::times(1).apart(Duration::from_millis(1)))
-                    .replacing(WriteAttempts::times(1).apart(Duration::from_millis(1)))
             })
             .build()
             .unwrap()
