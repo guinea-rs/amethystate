@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "amethystate"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "amethystate-core",
  "amethystate-macros",
@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-core"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "amethystate-macros-core",
  "darling",
@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-core"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "darling",
  "proc-macro2",

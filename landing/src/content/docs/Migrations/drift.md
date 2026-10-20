@@ -103,7 +103,7 @@ Both `build` and `migrate` log drift through `tracing`. Enable `diagnostics`
 for compiler-style warnings instead of individual log lines:
 
 ```toml
-amethystate = { version = "0.27", features = ["diagnostics"] }
+amethystate = { version = "0.28", features = ["diagnostics"] }
 ```
 
 For example, the release that wrote the data declared:

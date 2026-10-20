@@ -11,12 +11,12 @@ title: guinea
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.27"
+amethystate-guinea = "0.28"
 ```
 
 Версия адаптера совпадает с amethystate; нужен Rust 1.95.
-Адаптер поддерживает guinea 0.30; у старых версий другой API таймеров,
-они не поддерживаются. Дефолтные фичи guinea отключены: бэкенд интерфейса
+Адаптер требует guinea 0.31; для приложений на guinea 0.30 нужен адаптер 0.27.
+Дефолтные фичи guinea отключены: бэкенд интерфейса
 и runtime выбирает приложение.
 
 ## Период по полю
@@ -29,7 +29,7 @@ use std::time::Duration;
 cx.every(
     Period::follows(settings.ping_interval_ms().changing(), Duration::from_millis),
     || Ping,
-    &agent,
+    agent.clone(),
 );
 ```
 
@@ -49,7 +49,7 @@ cx.every(
 ```rust
 let ping = intervals.entry_cell("ping".to_string());
 
-cx.every(Period::follows(ping.changing(), Duration::from_millis), || Ping, &agent);
+cx.every(Period::follows(ping.changing(), Duration::from_millis), || Ping, agent.clone());
 ```
 
 Если записи нет, интервал отсутствует и таймер приостанавливается.

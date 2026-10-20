@@ -11,12 +11,12 @@ a file edit.
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.27"
+amethystate-guinea = "0.28"
 ```
 
 The adapter uses amethystate's version number and requires Rust 1.95.
-It supports guinea 0.30; older versions use a different timer API and are not
-supported. The adapter does not enable guinea's default features, so your
+It requires guinea 0.31; applications on guinea 0.30 should use adapter 0.27
+instead. The adapter does not enable guinea's default features, so your
 application chooses its GUI backend and runtime.
 
 ## A period that follows a field
@@ -29,7 +29,7 @@ use std::time::Duration;
 cx.every(
     Period::follows(settings.ping_interval_ms().changing(), Duration::from_millis),
     || Ping,
-    &agent,
+    agent.clone(),
 );
 ```
 
@@ -48,7 +48,7 @@ The field may change on any thread; guinea handles re-arming on its UI thread.
 ```rust
 let ping = intervals.entry_cell("ping".to_string());
 
-cx.every(Period::follows(ping.changing(), Duration::from_millis), || Ping, &agent);
+cx.every(Period::follows(ping.changing(), Duration::from_millis), || Ping, agent.clone());
 ```
 
 An absent entry has no interval, so the timer pauses. Inserting the key starts
