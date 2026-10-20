@@ -1,5 +1,5 @@
 use crate::store::{
-    InitState, SchemaAwareStore, StoreBackend, StoreCallback, StoreEvent, StoreOp,
+    InitState, Replacing, SchemaAwareStore, StoreBackend, StoreCallback, StoreEvent, StoreOp,
     SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
 };
 use amethystate_core::path::{PathRef, StorePath};
@@ -68,6 +68,19 @@ thread_local! {
 thread_local! {
     static SERIALIZATION_BUFFER: RefCell<Vec<u8>> =
         RefCell::new(Vec::with_capacity(BUF_SIZE));
+}
+
+fn encode<T: serde::Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, CodecError> {
+    SERIALIZATION_BUFFER.with(|buf| {
+        let mut b = buf.borrow_mut();
+        b.clear();
+        let mut ser = Serializer::new(&mut *b)
+            .with_bytes(BytesMode::ForceAll)
+            .with_struct_map();
+        value.serialize(&mut ser).map_err(CodecError::from)?;
+
+        Ok(Vec::from(&b[..]))
+    })
 }
 
 /// Writes every buffered change into `txn`'s tables. Committing `txn` is the
@@ -529,6 +542,22 @@ impl RedbStore {
             .attach_key(path)?
             .map(|v| Vec::from(&v.value()[..])))
     }
+
+    /// The value a write replaces, off the disk only where the writer does not
+    /// hold it.
+    fn replaced(
+        &self,
+        path: &StorePath,
+        replacing: Replacing<'_>,
+    ) -> StorageResult<Option<Vec<u8>>> {
+        if let Replacing::Held(old) = replacing
+            && self.inner.pending.lock().get(path).is_none()
+            && let Ok(bytes) = encode(old)
+        {
+            return Ok(Some(bytes));
+        }
+        self.committed_or_buffered(path)
+    }
 }
 
 impl SchemaAwareStore for RedbStore {
@@ -639,15 +668,17 @@ impl StoreBackend for RedbStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, by)
+        self.set_owned_erased(path.clone(), value, replacing, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
         self.inner.check_debouncer()?;
@@ -657,31 +688,19 @@ impl StoreBackend for RedbStore {
             .attach_store_file(&self.inner.path)?;
 
         let depth = self.inner.budget.for_value(&path);
-        let counted = depth.count(value);
-        let bytes = SERIALIZATION_BUFFER
-            .with(|buf| {
-                let mut b = buf.borrow_mut();
-                b.clear();
-                let mut ser = Serializer::new(&mut *b)
-                    .with_bytes(BytesMode::ForceAll)
-                    .with_struct_map();
-                serde::Serialize::serialize(&counted, &mut ser).map_err(CodecError::from)?;
-
-                Ok::<Vec<u8>, CodecError>(Vec::from(&b[..]))
-            })
-            .map_err(|e| {
-                if depth.overflowed() {
-                    self.inner
-                        .budget
-                        .too_deep(&path)
-                        .attach(StoreFile(self.inner.path.to_path_buf()))
-                } else {
-                    error_stack::Report::new(e)
-                        .change_context(StorageError::Codec)
-                        .attach(StoreFile(self.inner.path.to_path_buf()))
-                        .attach(Key(path.clone()))
-                }
-            })?;
+        let bytes = encode(&depth.count(value)).map_err(|e| {
+            if depth.overflowed() {
+                self.inner
+                    .budget
+                    .too_deep(&path)
+                    .attach(StoreFile(self.inner.path.to_path_buf()))
+            } else {
+                error_stack::Report::new(e)
+                    .change_context(StorageError::Codec)
+                    .attach(StoreFile(self.inner.path.to_path_buf()))
+                    .attach(Key(path.clone()))
+            }
+        })?;
 
         self.inner
             .budget
@@ -692,7 +711,7 @@ impl StoreBackend for RedbStore {
         }
 
         let old_bytes = self
-            .committed_or_buffered(&path)
+            .replaced(&path, replacing)
             .change_context(StorageError::Write)
             .attach_key(&path)
             .attach("reading the value a subscriber should see as the old one")?;

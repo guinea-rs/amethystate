@@ -1,0 +1,76 @@
+{
+  "halloy": {
+    "font": {
+      "family": "User Mono",
+      "size": 19
+    },
+    "buffer": {
+      "timestamp": {
+        "format": "%H:%M:%S",
+        "brackets": {
+          "left": "[",
+          "right": "]"
+        }
+      }
+    },
+    "servers": {
+      "libera.net": {
+        "nickname": "ignat",
+        "server": "irc.libera.chat",
+        "channels": [
+          "#rust",
+          "#halloy"
+        ],
+        "anti_flood": {
+          "secs": 1,
+          "nanos": 800000000
+        }
+      },
+      "oftc": {
+        "nickname": "second",
+        "server": "irc.oftc.net",
+        "channels": [],
+        "anti_flood": {
+          "secs": 3,
+          "nanos": 500000000
+        }
+      }
+    },
+    "sidebar": {
+      "max_width": 173,
+      "unread_indicator": {
+        "title": true,
+        "icon": "star",
+        "icon_size": 9,
+        "highlight_icon": "speaker",
+        "highlight_icon_size": 11,
+        "show_on_open_buffers": false,
+        "query_as_highlight": true
+      },
+      "position": "right",
+      "order_by": "config",
+      "scrollbar": {
+        "width": 9,
+        "scroller_width": 3
+      },
+      "server_icon": {
+        "size": 17
+      },
+      "user_menu": {
+        "enabled": false
+      }
+    },
+    "actions": {
+      "sidebar": {
+        "buffer": "replace-pane",
+        "channel": "new-window",
+        "query": "replace-pane",
+        "focused_buffer": "close-pane"
+      }
+    },
+    "tooltips": "none",
+    "check_for_update_on_launch": false
+  },
+  "outside.note": "not ours"
+}
+

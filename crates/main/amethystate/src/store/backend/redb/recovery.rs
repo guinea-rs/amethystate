@@ -384,6 +384,58 @@ mod tests {
         assert!(store.inner.db.load_full().is_none());
     }
 
+    fn a_field_over_a_disk_that_breaks(path: &TempPath) -> (crate::Store, crate::Field<u32>) {
+        let store = crate::StoreBuilder::new(&**path)
+            .backend(crate::store::engine::Redb::new())
+            .disk(|d| {
+                d.debounce(Duration::from_secs(600))
+                    .retry_every(Duration::from_secs(600))
+            })
+            .build()
+            .unwrap();
+        let level =
+            crate::store::field_with_path::<u32>(&store, ["level"], 0, uuid::Uuid::new_v4())
+                .unwrap();
+        store.save_now().unwrap();
+
+        store.set(["noise"], &1u32).unwrap();
+        WRITES_LEFT.store(0, Ordering::SeqCst);
+        let _ = store.save_now();
+
+        (store, level)
+    }
+
+    #[test]
+    #[serial]
+    fn a_field_written_while_the_handle_is_latched_lands_once_the_disk_is_back() {
+        let path = TempPath::new("redb_field_latched");
+        let _disk = arm_failing_disk(&path);
+        let (store, level) = a_field_over_a_disk_that_breaks(&path);
+
+        WRITES_LEFT.store(usize::MAX, Ordering::SeqCst);
+        level.set(7);
+        store.save_now().unwrap();
+
+        assert_eq!(level.get(), 7);
+        assert_eq!(store.get::<u32>(["level"]).unwrap(), Some(7));
+    }
+
+    #[test]
+    #[serial]
+    fn a_field_written_while_the_reopen_fails_lands_once_the_disk_is_back() {
+        let path = TempPath::new("redb_field_reopen_failed");
+        let _disk = arm_failing_disk(&path);
+        let (store, level) = a_field_over_a_disk_that_breaks(&path);
+        let _ = store.save_now();
+
+        level.set(7);
+        WRITES_LEFT.store(usize::MAX, Ordering::SeqCst);
+        store.save_now().unwrap();
+
+        assert_eq!(level.get(), 7);
+        assert_eq!(store.get::<u32>(["level"]).unwrap(), Some(7));
+    }
+
     #[test]
     #[serial]
     fn a_buffered_write_survives_the_reopen() {

@@ -11,7 +11,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::store::meta::{PrefixMeta, SchemaSnapshot};
-use crate::store::{CodecFormat, Kv, StoreCallback, SubscriptionId, Writer};
+use crate::store::{CodecFormat, Kv, Replacing, StoreCallback, SubscriptionId, Writer};
 use crate::{MigrationReport, Store, SubscriptionKind};
 use error_stack::{Report, ResultExt};
 use serde::{Serialize, de::DeserializeOwned};
@@ -319,6 +319,7 @@ pub trait StoreBackend: Send + Sync + 'static {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()>;
 
@@ -326,6 +327,7 @@ pub trait StoreBackend: Send + Sync + 'static {
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()>;
 
@@ -661,12 +663,12 @@ pub trait StoreExt: StoreBackend {
 
     fn set<T: Serialize>(&self, path: impl IntoStorePath, value: &T) -> Result<(), WriteValue> {
         let path = to_path(path)?;
-        self.set_erased(&path, &value, Writer::default())
+        self.set_erased(&path, &value, Replacing::Unknown, Writer::default())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
     fn set_owned<T: Serialize>(&self, path: StorePath, value: &T) -> Result<(), WriteValue> {
-        self.set_owned_erased(path.clone(), &value, Writer::default())
+        self.set_owned_erased(path.clone(), &value, Replacing::Unknown, Writer::default())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
@@ -677,7 +679,7 @@ pub trait StoreExt: StoreBackend {
         source: Option<Uuid>,
     ) -> Result<(), WriteValue> {
         let path = to_path(path)?;
-        self.set_erased(&path, &value, source.into())
+        self.set_erased(&path, &value, Replacing::Unknown, source.into())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 
@@ -687,7 +689,7 @@ pub trait StoreExt: StoreBackend {
         value: &T,
         source: Option<Uuid>,
     ) -> Result<(), WriteValue> {
-        self.set_owned_erased(path.clone(), &value, source.into())
+        self.set_owned_erased(path.clone(), &value, Replacing::Unknown, source.into())
             .map_err(|why| WriteValue::from_store(&path, why))
     }
 

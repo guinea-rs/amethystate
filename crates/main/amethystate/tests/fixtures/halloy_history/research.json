@@ -1,0 +1,333 @@
+{
+  "scope": {
+    "application": "Halloy",
+    "first_release": "23.1-alpha1",
+    "last_release": "2026.9",
+    "as_of": "2026-10-19",
+    "included": [
+      "font.family and font.size (preservation probes)",
+      "buffer.timestamp (preservation probe), including the new_buffer to buffer rename",
+      "servers map: nickname, server, channels, anti_flood",
+      "dashboard/sidebar action, width/max_width, buttons, unread/highlight indicators (except include/exclude), position, user menu, order_by, scrollbar, font sizes, server/primary icon",
+      "actions.sidebar",
+      "tooltips",
+      "check_for_update_on_launch"
+    ],
+    "excluded": [
+      "A port of selected configuration lines, not the entire Halloy codebase or every configuration option.",
+      "Palette/theme rendering, IRC protocol types, inclusivity matching, and unrelated configuration are outside this fixture.",
+      "YAML/TOML syntax changes are not migrations: this hypothetical application uses amethystate JSON from its first release.",
+      "Schema numbers count changes in these selected lines; releases with the same selected schema still reopen and snapshot the same store."
+    ],
+    "workflow": "One store initialized once. Separate compiled applications expose only their own schema and earlier migrations. Every release opens, migrates, checks reactive handles, makes scripted user edits on first introduction of settings, saves, reopens, and snapshots. No version metadata or migration engine internals are written by the test."
+  },
+  "issues": [
+    "https://github.com/squidowl/halloy/issues/289",
+    "https://github.com/squidowl/halloy/issues/476",
+    "https://github.com/squidowl/halloy/issues/717"
+  ],
+  "releases": [
+    {
+      "tag": "23.1-alpha1",
+      "commit": "a3a7d79a2bf9af7de325fcc8406d239b361403b6",
+      "schema": 1,
+      "source": "https://github.com/squidowl/halloy/tree/a3a7d79a2bf9af7de325fcc8406d239b361403b6/data/src",
+      "expected": "expected/v01.json"
+    },
+    {
+      "tag": "2023.2",
+      "commit": "c0b1e112b8c9adb821a057347e479d53e204b123",
+      "schema": 2,
+      "source": "https://github.com/squidowl/halloy/tree/c0b1e112b8c9adb821a057347e479d53e204b123/data/src",
+      "expected": "expected/v02.json"
+    },
+    {
+      "tag": "2023.3",
+      "commit": "c99010f28eb2814d6f0d88fdac6823db77288e59",
+      "schema": 3,
+      "source": "https://github.com/squidowl/halloy/tree/c99010f28eb2814d6f0d88fdac6823db77288e59/data/src",
+      "expected": "expected/v03.json"
+    },
+    {
+      "tag": "2023.4",
+      "commit": "a8132682359c3c18a2b5285df89bfae0e12576aa",
+      "schema": 3,
+      "source": "https://github.com/squidowl/halloy/tree/a8132682359c3c18a2b5285df89bfae0e12576aa/data/src",
+      "expected": "expected/v03.json"
+    },
+    {
+      "tag": "2023.5",
+      "commit": "b4dfd138ecf3e577b8436237be21c2b43a76f347",
+      "schema": 4,
+      "source": "https://github.com/squidowl/halloy/tree/b4dfd138ecf3e577b8436237be21c2b43a76f347/data/src",
+      "expected": "expected/v04.json"
+    },
+    {
+      "tag": "2024.1",
+      "commit": "ace5bc2bf623b1890344ad8a391ef0387df44d10",
+      "schema": 4,
+      "source": "https://github.com/squidowl/halloy/tree/ace5bc2bf623b1890344ad8a391ef0387df44d10/data/src",
+      "expected": "expected/v04.json"
+    },
+    {
+      "tag": "2024.2",
+      "commit": "1877ee8424a74664c010d691cec16aff62ea260d",
+      "schema": 4,
+      "source": "https://github.com/squidowl/halloy/tree/1877ee8424a74664c010d691cec16aff62ea260d/data/src",
+      "expected": "expected/v04.json"
+    },
+    {
+      "tag": "2024.3",
+      "commit": "bc4416a9861e2e7134bb06e1404c4f841e7a31f9",
+      "schema": 4,
+      "source": "https://github.com/squidowl/halloy/tree/bc4416a9861e2e7134bb06e1404c4f841e7a31f9/data/src",
+      "expected": "expected/v04.json"
+    },
+    {
+      "tag": "2024.4",
+      "commit": "8378f04c3e3e7141d7592c1e3ea64a3b52d4ba67",
+      "schema": 4,
+      "source": "https://github.com/squidowl/halloy/tree/8378f04c3e3e7141d7592c1e3ea64a3b52d4ba67/data/src",
+      "expected": "expected/v04.json"
+    },
+    {
+      "tag": "2024.5",
+      "commit": "40b9a8c83cf8c64ac1b8e6780fb4ace1be6c54d0",
+      "schema": 5,
+      "source": "https://github.com/squidowl/halloy/tree/40b9a8c83cf8c64ac1b8e6780fb4ace1be6c54d0/data/src",
+      "expected": "expected/v05.json"
+    },
+    {
+      "tag": "2024.6",
+      "commit": "7068008db2aa16da731c33a51406868a1f308b96",
+      "schema": 6,
+      "source": "https://github.com/squidowl/halloy/tree/7068008db2aa16da731c33a51406868a1f308b96/data/src",
+      "expected": "expected/v06.json"
+    },
+    {
+      "tag": "2024.7",
+      "commit": "08f4db0a433aef6c1126d4d857acbc834b9edcdf",
+      "schema": 6,
+      "source": "https://github.com/squidowl/halloy/tree/08f4db0a433aef6c1126d4d857acbc834b9edcdf/data/src",
+      "expected": "expected/v06.json"
+    },
+    {
+      "tag": "2024.8",
+      "commit": "6b63c40a3a7f169a7872ecbf76a42a2145ab9d0b",
+      "schema": 7,
+      "source": "https://github.com/squidowl/halloy/tree/6b63c40a3a7f169a7872ecbf76a42a2145ab9d0b/data/src",
+      "expected": "expected/v07.json"
+    },
+    {
+      "tag": "2024.9",
+      "commit": "8ec67bd5710208eb4269a0c14f616c1b45e55505",
+      "schema": 8,
+      "source": "https://github.com/squidowl/halloy/tree/8ec67bd5710208eb4269a0c14f616c1b45e55505/data/src",
+      "expected": "expected/v08.json"
+    },
+    {
+      "tag": "2024.10",
+      "commit": "4ff56fdccea690e6a9244fdb76187f5a4d02af80",
+      "schema": 8,
+      "source": "https://github.com/squidowl/halloy/tree/4ff56fdccea690e6a9244fdb76187f5a4d02af80/data/src",
+      "expected": "expected/v08.json"
+    },
+    {
+      "tag": "2024.11",
+      "commit": "deac1f8a748413ae1eeec7c8c24483e2f4eb7983",
+      "schema": 9,
+      "source": "https://github.com/squidowl/halloy/tree/deac1f8a748413ae1eeec7c8c24483e2f4eb7983/data/src",
+      "expected": "expected/v09.json"
+    },
+    {
+      "tag": "2024.12",
+      "commit": "a4a34c705e005f7bd3060e968bd488188146a78b",
+      "schema": 10,
+      "source": "https://github.com/squidowl/halloy/tree/a4a34c705e005f7bd3060e968bd488188146a78b/data/src",
+      "expected": "expected/v10.json"
+    },
+    {
+      "tag": "2024.13",
+      "commit": "02a8be9e9b3f1c3d432fae7883ee2f72ebcda600",
+      "schema": 11,
+      "source": "https://github.com/squidowl/halloy/tree/02a8be9e9b3f1c3d432fae7883ee2f72ebcda600/data/src",
+      "expected": "expected/v11.json"
+    },
+    {
+      "tag": "2024.14",
+      "commit": "3b9e3354f4864da2b76df749a3b5cf790e4be8fd",
+      "schema": 11,
+      "source": "https://github.com/squidowl/halloy/tree/3b9e3354f4864da2b76df749a3b5cf790e4be8fd/data/src",
+      "expected": "expected/v11.json"
+    },
+    {
+      "tag": "2025.1",
+      "commit": "a1b6dca61a6d74ab95551474d2e468f36bc96390",
+      "schema": 11,
+      "source": "https://github.com/squidowl/halloy/tree/a1b6dca61a6d74ab95551474d2e468f36bc96390/data/src",
+      "expected": "expected/v11.json"
+    },
+    {
+      "tag": "2025.2",
+      "commit": "b484dd769471a4a40c60e584a0894f767c0c5884",
+      "schema": 11,
+      "source": "https://github.com/squidowl/halloy/tree/b484dd769471a4a40c60e584a0894f767c0c5884/data/src",
+      "expected": "expected/v11.json"
+    },
+    {
+      "tag": "2025.3",
+      "commit": "69a7728a2406ce9200a0c1d5a0c98290ce031940",
+      "schema": 12,
+      "source": "https://github.com/squidowl/halloy/tree/69a7728a2406ce9200a0c1d5a0c98290ce031940/data/src",
+      "expected": "expected/v12.json"
+    },
+    {
+      "tag": "2025.4",
+      "commit": "03ef4b966ccceea349873068ba3f8576c2b371f2",
+      "schema": 13,
+      "source": "https://github.com/squidowl/halloy/tree/03ef4b966ccceea349873068ba3f8576c2b371f2/data/src",
+      "expected": "expected/v13.json"
+    },
+    {
+      "tag": "2025.5",
+      "commit": "7bba708643709761088c299f614ae592d916baa4",
+      "schema": 13,
+      "source": "https://github.com/squidowl/halloy/tree/7bba708643709761088c299f614ae592d916baa4/data/src",
+      "expected": "expected/v13.json"
+    },
+    {
+      "tag": "2025.6",
+      "commit": "a6523602d2efcb9fb1064a0c2f507f89295edc5f",
+      "schema": 14,
+      "source": "https://github.com/squidowl/halloy/tree/a6523602d2efcb9fb1064a0c2f507f89295edc5f/data/src",
+      "expected": "expected/v14.json"
+    },
+    {
+      "tag": "2025.7",
+      "commit": "6744c201b8dba299668a94ce5a7e057b2fb5796f",
+      "schema": 15,
+      "source": "https://github.com/squidowl/halloy/tree/6744c201b8dba299668a94ce5a7e057b2fb5796f/data/src",
+      "expected": "expected/v15.json"
+    },
+    {
+      "tag": "2025.8",
+      "commit": "404fc6c1e97210209964d20872da091ed4fabd6e",
+      "schema": 15,
+      "source": "https://github.com/squidowl/halloy/tree/404fc6c1e97210209964d20872da091ed4fabd6e/data/src",
+      "expected": "expected/v15.json"
+    },
+    {
+      "tag": "2025.9",
+      "commit": "746bd3cc111f11de1d84b922bea804fcfc99e8e1",
+      "schema": 16,
+      "source": "https://github.com/squidowl/halloy/tree/746bd3cc111f11de1d84b922bea804fcfc99e8e1/data/src",
+      "expected": "expected/v16.json"
+    },
+    {
+      "tag": "2025.10",
+      "commit": "dd7d6004844726e50dffd185d2d9b47da5d55fc6",
+      "schema": 17,
+      "source": "https://github.com/squidowl/halloy/tree/dd7d6004844726e50dffd185d2d9b47da5d55fc6/data/src",
+      "expected": "expected/v17.json"
+    },
+    {
+      "tag": "2025.11",
+      "commit": "295cba0e2e8a6f9b22cd2283a089206a2118d12d",
+      "schema": 17,
+      "source": "https://github.com/squidowl/halloy/tree/295cba0e2e8a6f9b22cd2283a089206a2118d12d/data/src",
+      "expected": "expected/v17.json"
+    },
+    {
+      "tag": "2025.12",
+      "commit": "c560a007c97c08594b3a5a35ef0a49b52720c727",
+      "schema": 18,
+      "source": "https://github.com/squidowl/halloy/tree/c560a007c97c08594b3a5a35ef0a49b52720c727/data/src",
+      "expected": "expected/v18.json"
+    },
+    {
+      "tag": "2026.1",
+      "commit": "d8975dff11ba29640aee1d8551a06aab2907a609",
+      "schema": 19,
+      "source": "https://github.com/squidowl/halloy/tree/d8975dff11ba29640aee1d8551a06aab2907a609/data/src",
+      "expected": "expected/v19.json"
+    },
+    {
+      "tag": "2026.1.1",
+      "commit": "ebc52d3fc26026c992691d7063daef11188f14de",
+      "schema": 19,
+      "source": "https://github.com/squidowl/halloy/tree/ebc52d3fc26026c992691d7063daef11188f14de/data/src",
+      "expected": "expected/v19.json"
+    },
+    {
+      "tag": "2026.2",
+      "commit": "2ba4f2f34ca1a6f3f175d09e2c5213e86d9e83a5",
+      "schema": 20,
+      "source": "https://github.com/squidowl/halloy/tree/2ba4f2f34ca1a6f3f175d09e2c5213e86d9e83a5/data/src",
+      "expected": "expected/v20.json"
+    },
+    {
+      "tag": "2026.3",
+      "commit": "1dcae00223693c9b59dd7dcc2673ea9e4700a33c",
+      "schema": 21,
+      "source": "https://github.com/squidowl/halloy/tree/1dcae00223693c9b59dd7dcc2673ea9e4700a33c/data/src",
+      "expected": "expected/v21.json"
+    },
+    {
+      "tag": "2026.4",
+      "commit": "5cc0677da6fb05e4208def0ead252a0cdba03674",
+      "schema": 21,
+      "source": "https://github.com/squidowl/halloy/tree/5cc0677da6fb05e4208def0ead252a0cdba03674/data/src",
+      "expected": "expected/v21.json"
+    },
+    {
+      "tag": "2026.5",
+      "commit": "a12a031ee74774c81b4d8db38bba1d2faed2a57c",
+      "schema": 21,
+      "source": "https://github.com/squidowl/halloy/tree/a12a031ee74774c81b4d8db38bba1d2faed2a57c/data/src",
+      "expected": "expected/v21.json"
+    },
+    {
+      "tag": "2026.6",
+      "commit": "3ffe6797a34b91937e5afa1c52309883139616ec",
+      "schema": 22,
+      "source": "https://github.com/squidowl/halloy/tree/3ffe6797a34b91937e5afa1c52309883139616ec/data/src",
+      "expected": "expected/v22.json"
+    },
+    {
+      "tag": "2026.7",
+      "commit": "b41dde61f6e2c53bd1bfaa7446e01b32db55b90f",
+      "schema": 23,
+      "source": "https://github.com/squidowl/halloy/tree/b41dde61f6e2c53bd1bfaa7446e01b32db55b90f/data/src",
+      "expected": "expected/v23.json"
+    },
+    {
+      "tag": "2026.7.1",
+      "commit": "b2b4d39f5b61915cb581992eab3e3fa3d7ee67a3",
+      "schema": 23,
+      "source": "https://github.com/squidowl/halloy/tree/b2b4d39f5b61915cb581992eab3e3fa3d7ee67a3/data/src",
+      "expected": "expected/v23.json"
+    },
+    {
+      "tag": "2026.7.2",
+      "commit": "abc0ad4e1a47acd38d0138492d8e46f5a1fcd56e",
+      "schema": 23,
+      "source": "https://github.com/squidowl/halloy/tree/abc0ad4e1a47acd38d0138492d8e46f5a1fcd56e/data/src",
+      "expected": "expected/v23.json"
+    },
+    {
+      "tag": "2026.8",
+      "commit": "00914c4b683e37b08663b4ca9461939caabaf773",
+      "schema": 24,
+      "source": "https://github.com/squidowl/halloy/tree/00914c4b683e37b08663b4ca9461939caabaf773/data/src",
+      "expected": "expected/v24.json"
+    },
+    {
+      "tag": "2026.9",
+      "commit": "2b3edc8eb5c3bae850d4f93d1f9c3f7f1abefb7d",
+      "schema": 25,
+      "source": "https://github.com/squidowl/halloy/tree/2b3edc8eb5c3bae850d4f93d1f9c3f7f1abefb7d/data/src",
+      "expected": "expected/v25.json"
+    }
+  ]
+}
+

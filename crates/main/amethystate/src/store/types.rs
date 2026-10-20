@@ -82,6 +82,20 @@ impl Writer {
     }
 }
 
+/// What a write replaces, where the writer already holds it.
+///
+/// An engine that keeps its values on disk would otherwise read the old one
+/// back to put in the event and to skip a write that changes nothing. A field
+/// holds that value in memory, so its write needs nothing from the disk.
+#[derive(Clone, Copy)]
+pub enum Replacing<'a> {
+    /// The engine looks it up.
+    Unknown,
+
+    /// What the store holds at the path, as the writer last heard it.
+    Held(&'a dyn erased_serde::Serialize),
+}
+
 impl From<Option<uuid::Uuid>> for Writer {
     fn from(handle: Option<uuid::Uuid>) -> Self {
         Self {

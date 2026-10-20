@@ -17,8 +17,8 @@ use crate::store::meta::SchemaSnapshot;
 use crate::store::screening::Screening;
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
-    InitState, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent, StoreOp,
-    SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
+    InitState, Replacing, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent,
+    StoreOp, SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
 };
 use amethystate_core::path::StorePath;
 use error::SqliteStoreError;
@@ -337,6 +337,22 @@ impl SqliteStoreInner {
             .attach_key(path)
     }
 
+    /// The value a write replaces, off the disk only where the writer does not
+    /// hold it.
+    fn replaced(
+        &self,
+        path: &StorePath,
+        replacing: Replacing<'_>,
+    ) -> StorageResult<Option<Vec<u8>>> {
+        if let Replacing::Held(old) = replacing
+            && self.pending.lock().get(path).is_none()
+            && let Ok(bytes) = sonic_rs::to_vec(&old)
+        {
+            return Ok(Some(bytes));
+        }
+        self.committed_or_buffered(path)
+    }
+
     fn run_migrations(&self, mset: MigrationSet) -> StorageResult<MigrationReport> {
         struct SqliteProvider<'a> {
             inner: &'a SqliteStoreInner,
@@ -401,15 +417,17 @@ impl SqliteStoreInner {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, by)
+        self.set_owned_erased(path.clone(), value, replacing, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
         self.check_debouncer()?;
@@ -436,7 +454,7 @@ impl SqliteStoreInner {
         }
 
         let old_bytes = self
-            .committed_or_buffered(&path)
+            .replaced(&path, replacing)
             .change_context(StorageError::Write)
             .attach_key(&path)
             .attach("reading the value being replaced")?;
@@ -981,18 +999,20 @@ impl StoreBackend for SqliteStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_erased(path, value, by)
+        self.inner.set_erased(path, value, replacing, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.inner.set_owned_erased(path, value, by)
+        self.inner.set_owned_erased(path, value, replacing, by)
     }
 
     #[cfg(feature = "test-utils")]

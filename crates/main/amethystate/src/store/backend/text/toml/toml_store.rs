@@ -8,7 +8,7 @@ use crate::store::format::TestFormatRecord;
 use crate::store::meta::SchemaSnapshot;
 use crate::store::traits::StoreLayout;
 use crate::store::{
-    InitState, StoreBackend, StoreCallback, SubscriptionId, SubscriptionKind, Writer,
+    InitState, Replacing, StoreBackend, StoreCallback, SubscriptionId, SubscriptionKind, Writer,
 };
 use crate::{MigrationReport, StorageResult};
 use amethystate_core::path::StorePath;
@@ -52,18 +52,20 @@ impl StoreBackend for TomlStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.0.set_erased(path, value, by)
+        self.0.set_erased(path, value, replacing, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.0.set_owned_erased(path, value, by)
+        self.0.set_owned_erased(path, value, replacing, by)
     }
 
     fn delete_with_source(&self, path: &StorePath, source: Option<Uuid>) -> StorageResult<()> {

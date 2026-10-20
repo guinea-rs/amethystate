@@ -1,15 +1,15 @@
 use crate::observability::Reason;
 use crate::observability::register_field;
-use crate::reactive::field::Unreadable;
+use crate::reactive::field::{Unreadable, Vacant};
 use crate::store::StorageError;
 use crate::store::StorageResult;
-use crate::store::Writer;
 use crate::store::facts::{Facts, Key, Prefix};
 use crate::store::opening::OpenStruct;
 use crate::store::reading::{LoadMap, LoadMapResult};
 use crate::store::rule::judged;
 use crate::store::rules::{OnDelete, OnUnreadable, ReadRules, UnreadableEntries};
 use crate::store::traits::{StoreExt as _, StoredAs};
+use crate::store::{Replacing, Writer};
 use crate::{Field, ReactiveMap, StateScope, Store, StoreBackend, StoreOp, SubscriptionKind};
 use crate::{ReactiveMapKey, ReactiveMapValue};
 use amethystate_core::path::{IntoStorePath, PathRef, StorePath, Under};
@@ -20,6 +20,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 /// A field under `TScope`'s path, at the levels `key` names.
@@ -164,11 +165,15 @@ where
 
     let unreadable = Unreadable::new(std::sync::Mutex::new(refused));
     let unreadable_sub = unreadable.clone();
+    let vacant = Vacant::default();
+    let vacant_sub = vacant.clone();
 
     let listening = store.subscribe(
         SubscriptionKind::ExactPath(path.clone()),
         Arc::new(move |event| match &event.new {
-            Some(raw) => match match stored_as.read {
+            Some(raw) => {
+                vacant_sub.store(false, Ordering::Release);
+                match match stored_as.read {
                 Some(read) => store_clone.decode_with(&event.path, raw, read),
                 None => store_clone.decode::<TValue>(raw),
             } {
@@ -218,8 +223,10 @@ where
 
                     Ok(())
                 }
-            },
+                }
+            }
             None => {
+                vacant_sub.store(true, Ordering::Release);
                 match on_delete {
                     OnDelete::UseDefault => {
                         // Back on the declared default, which is a value
@@ -241,6 +248,7 @@ where
     let field = Field {
         inner: Arc::new(crate::reactive::field::FieldInner {
             unreadable,
+            vacant,
             core: FieldCore::new_with_signal(signal),
             path,
             instance_id,
@@ -307,9 +315,9 @@ where
 {
     match stored_as.write {
         Some(write) => write(value, &mut |erased| {
-            StoreBackend::set_erased(store, path, erased, by)
+            StoreBackend::set_erased(store, path, erased, Replacing::Unknown, by)
         }),
-        None => StoreBackend::set_erased(store, path, value, by),
+        None => StoreBackend::set_erased(store, path, value, Replacing::Unknown, by),
     }
 }
 

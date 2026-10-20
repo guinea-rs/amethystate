@@ -22,8 +22,8 @@ use crate::store::meta::SchemaSnapshot;
 use crate::store::screening::{Noticed, Screening};
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
-    InitState, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent, StoreOp,
-    SubscriptionEntry, SubscriptionId, SubscriptionKind, WhenItWillNotRead, Writer,
+    InitState, Replacing, SchemaAwareStore, StorageResult, StoreBackend, StoreCallback, StoreEvent,
+    StoreOp, SubscriptionEntry, SubscriptionId, SubscriptionKind, WhenItWillNotRead, Writer,
 };
 use amethystate_core::Source;
 use amethystate_core::path::{SmolStr, StorePath, Stored};
@@ -1017,6 +1017,7 @@ impl<D: TextDocument + Send + 'static> StoreBackend for TextStore<D> {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        _: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
         self.inner.set_erased_inner(path, value, by)
@@ -1026,6 +1027,7 @@ impl<D: TextDocument + Send + 'static> StoreBackend for TextStore<D> {
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        _: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
         self.inner.set_erased_inner(&path, value, by)

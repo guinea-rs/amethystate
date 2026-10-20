@@ -1,0 +1,52 @@
+{
+  "halloy": {
+    "font": {
+      "family": "User Mono",
+      "size": 19
+    },
+    "buffer": {
+      "timestamp": {
+        "format": "%H:%M:%S",
+        "brackets": {
+          "left": "[",
+          "right": "]"
+        }
+      }
+    },
+    "servers": {
+      "libera.net": {
+        "nickname": "ignat",
+        "server": "irc.libera.chat",
+        "channels": [
+          "#rust",
+          "#halloy"
+        ]
+      },
+      "oftc": {
+        "nickname": "second",
+        "server": "irc.oftc.net",
+        "channels": []
+      }
+    },
+    "sidebar": {
+      "max_width": 173,
+      "unread_indicator": "title",
+      "position": "right",
+      "show_user_menu": false,
+      "order_by": "config",
+      "scrollbar": {
+        "width": 9,
+        "scroller_width": 3
+      }
+    },
+    "actions": {
+      "sidebar": {
+        "buffer": "replace-pane",
+        "focused_buffer": "close-pane"
+      }
+    },
+    "tooltips": false
+  },
+  "outside.note": "not ours"
+}
+

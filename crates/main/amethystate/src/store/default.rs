@@ -31,9 +31,9 @@ use crate::store::meta::SchemaSnapshot;
 use crate::store::places::Places;
 use crate::store::traits::StoreLayout;
 use crate::store::{
-    Fallbacks, Flush, FlushResult, InitState, ReadResult, RuleContext, ScanKeys, ScanResult,
-    StorageError, StorageResult, StoreBackend, StoreCallback, StoreExt, StoreSubscription,
-    SubscriptionId, WriteValue, Writer, to_path,
+    Fallbacks, Flush, FlushResult, InitState, ReadResult, Replacing, RuleContext, ScanKeys,
+    ScanResult, StorageError, StorageResult, StoreBackend, StoreCallback, StoreExt,
+    StoreSubscription, SubscriptionId, WriteValue, Writer, to_path,
 };
 use amethystate_core::path::{IntoStorePath, PathRef, StorePath};
 use error_stack::Report;
@@ -363,17 +363,19 @@ impl StoreBackend for Store {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.backend.set_erased(path, value, by)
+        self.backend.set_erased(path, value, replacing, by)
     }
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.backend.set_owned_erased(path, value, by)
+        self.backend.set_owned_erased(path, value, replacing, by)
     }
     fn get_erased(
         &self,

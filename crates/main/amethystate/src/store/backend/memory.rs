@@ -14,8 +14,8 @@ use crate::store::meta::{PrefixMeta, SchemaSnapshot};
 use crate::store::screening::Screening;
 use crate::store::traits::{MigrationBackendAdapter, StoreLayout};
 use crate::store::{
-    CodecFormat, InitState, StoreBackend, StoreCallback, StoreEvent, StoreOp, SubscriptionEntry,
-    SubscriptionId, SubscriptionKind, Writer,
+    CodecFormat, InitState, Replacing, StoreBackend, StoreCallback, StoreEvent, StoreOp,
+    SubscriptionEntry, SubscriptionId, SubscriptionKind, Writer,
 };
 use amethystate_core::path::StorePath;
 use error_stack::{Report, ResultExt};
@@ -254,15 +254,17 @@ impl StoreBackend for MemoryStore {
         &self,
         path: &StorePath,
         value: &dyn erased_serde::Serialize,
+        replacing: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
-        self.set_owned_erased(path.clone(), value, by)
+        self.set_owned_erased(path.clone(), value, replacing, by)
     }
 
     fn set_owned_erased(
         &self,
         path: StorePath,
         value: &dyn erased_serde::Serialize,
+        _: Replacing<'_>,
         by: Writer,
     ) -> StorageResult<()> {
         self.refuse_if_closed()?;

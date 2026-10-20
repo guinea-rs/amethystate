@@ -11,6 +11,7 @@ function Exec {
 }
 
 Exec { cargo fmt --all --check }
+Exec { cargo fmt --manifest-path crates/main/amethystate/tests/fixtures/halloy_history/Cargo.toml --all --check }
 Exec { cargo clippy --workspace --all-targets --no-default-features --features redb -- -D warnings }
 Exec { cargo clippy --workspace --all-targets --no-default-features --features json -- -D warnings }
 Exec { cargo clippy --workspace --all-targets --no-default-features --features toml -- -D warnings }
@@ -18,6 +19,7 @@ Exec { cargo clippy --workspace --all-targets --no-default-features --features r
 Exec { cargo clippy --workspace --all-targets --no-default-features --features sqlite -- -D warnings }
 Exec { cargo clippy -p amethystate -- -D warnings }
 Exec { cargo clippy --workspace --all-targets --all-features -- -D warnings }
+Exec { cargo clippy --manifest-path crates/main/amethystate/tests/fixtures/halloy_history/Cargo.toml --target-dir target/halloy-history --locked --all-features --bins -- -D warnings }
 Exec { cargo +1.90.0 check --workspace --exclude amethystate-guinea --all-features }
 
 Exec { cargo test --workspace --no-default-features --features redb }
@@ -26,6 +28,7 @@ Exec { cargo test --workspace --no-default-features --features toml }
 Exec { cargo test --workspace --no-default-features --features ron }
 Exec { cargo test --workspace --no-default-features --features sqlite }
 Exec { cargo test --workspace --all-features }
+Exec { cargo test -p amethystate --all-features --test migration_real_world -- --ignored }
 
 Exec { cargo clippy -p amethystate --target wasm32-unknown-unknown --tests -- -D warnings }
 Exec { cargo xtask browser }

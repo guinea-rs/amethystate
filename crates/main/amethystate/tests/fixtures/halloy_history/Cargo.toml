@@ -1,0 +1,44 @@
+[package]
+name = "halloy-history-app"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[profile.dev.package.halloy-history-app]
+debug = 0
+
+[dependencies]
+amethystate = { path = "../../..", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["s01"]
+s01 = []
+s02 = ["s01"]
+s03 = ["s02"]
+s04 = ["s03"]
+s05 = ["s04"]
+s06 = ["s05"]
+s07 = ["s06"]
+s08 = ["s07"]
+s09 = ["s08"]
+s10 = ["s09"]
+s11 = ["s10"]
+s12 = ["s11"]
+s13 = ["s12"]
+s14 = ["s13"]
+s15 = ["s14"]
+s16 = ["s15"]
+s17 = ["s16"]
+s18 = ["s17"]
+s19 = ["s18"]
+s20 = ["s19"]
+s21 = ["s20"]
+s22 = ["s21"]
+s23 = ["s22"]
+s24 = ["s23"]
+s25 = ["s24"]
+

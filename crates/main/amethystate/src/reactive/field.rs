@@ -4,7 +4,7 @@ use crate::observability::{Disagreement, Reason};
 use crate::reactive::cell::CellCommit;
 use crate::reactive::watch::{Watch, Watchable};
 use crate::store::facts::Facts;
-use crate::store::{Commit, Durable, StoreBackend, StoreSubscription, StoredAs, Writer};
+use crate::store::{Commit, Durable, Replacing, StoreBackend, StoreSubscription, StoredAs, Writer};
 use amethystate_core::Signal;
 use amethystate_core::path::{IntoStorePath, StorePath};
 use amethystate_core::{FieldCore, SignalSubscription};
@@ -21,9 +21,14 @@ pub(crate) struct FieldInner<TValue> {
     pub(crate) instance_id: Uuid,
     pub(crate) store_sub: Option<Arc<StoreSubscription>>,
     pub(crate) unreadable: Unreadable,
+    pub(crate) vacant: Vacant,
     pub(crate) stored_as: StoredAs<TValue>,
     pub(crate) streams: Arc<crate::reactive::watch::Streams>,
 }
+
+/// Whether the store holds nothing at the field's path: the key was removed
+/// under it, and nothing has been written there since.
+pub(crate) type Vacant = Arc<std::sync::atomic::AtomicBool>;
 
 /// Why this field is not reporting what the store holds, while that is the
 /// case.
@@ -152,6 +157,7 @@ where
                 instance_id: new_instance_id,
                 store_sub: self.inner.store_sub.clone(),
                 unreadable: self.inner.unreadable.clone(),
+                vacant: self.inner.vacant.clone(),
                 stored_as: self.inner.stored_as,
                 streams: self.inner.streams.clone(),
             }),
@@ -603,13 +609,23 @@ where
 
         if let Some(sub) = &self.inner.store_sub {
             let by = Writer::judged(change.source);
+            let store = sub.store();
+            let path = &self.inner.path;
+            let agrees = self.agrees_with_store();
 
             match self.inner.stored_as.write {
-                Some(write) => write(&change.new_value, &mut |erased| {
-                    StoreBackend::set_erased(sub.store(), &self.inner.path, erased, by)
+                Some(write) => write(&change.new_value, &mut |new| match agrees {
+                    true => write(&change.old_value, &mut |old| {
+                        StoreBackend::set_erased(store, path, new, Replacing::Held(old), by)
+                    }),
+                    false => StoreBackend::set_erased(store, path, new, Replacing::Unknown, by),
                 }),
                 None => {
-                    StoreBackend::set_erased(sub.store(), &self.inner.path, &change.new_value, by)
+                    let replacing = match agrees {
+                        true => Replacing::Held(&change.old_value),
+                        false => Replacing::Unknown,
+                    };
+                    StoreBackend::set_erased(store, path, &change.new_value, replacing, by)
                 }
             }
             .attach_key(&self.inner.path)
@@ -621,6 +637,15 @@ where
                 .set_forwarded(change.new_value, change.source);
         }
         Ok(())
+    }
+
+    fn agrees_with_store(&self) -> bool {
+        !self.inner.vacant.load(std::sync::atomic::Ordering::Acquire)
+            && self
+                .inner
+                .unreadable
+                .lock()
+                .is_ok_and(|reason| reason.is_none())
     }
 
     /// The same writes, each returning only once the value is on disk.
@@ -690,6 +715,7 @@ where
                 instance_id,
                 store_sub: None,
                 unreadable: Unreadable::default(),
+                vacant: Vacant::default(),
                 stored_as: StoredAs::default(),
                 streams: Arc::default(),
             }),
@@ -956,6 +982,7 @@ mod tests {
                     store_sub: Some(Arc::new(listening)),
                     instance_id: Default::default(),
                     unreadable: Unreadable::default(),
+                    vacant: Vacant::default(),
                     stored_as: StoredAs::default(),
                     streams: Arc::default(),
                 }),
