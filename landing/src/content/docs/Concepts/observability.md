@@ -4,11 +4,14 @@ sidebar:
   order: 19
 ---
 
-`amethystate` emits structured trace events via the [`tracing`](https://docs.rs/tracing) crate. All events use the target `amethystate`, so you can filter them independently of the rest of your application.
+`amethystate` uses [`tracing`](https://docs.rs/tracing) for structured logs.
+Its events use the `amethystate` target, which can be filtered separately
+from application logs.
 
 ## Enabling trace output
 
-Trace events are at the `TRACE` level. To see them, configure a `tracing` subscriber with the `amethystate` target enabled:
+Field and subscription trace events use `TRACE`. Enable that level for the
+`amethystate` target in your tracing subscriber:
 
 ```rust
 tracing_subscriber::fmt()
@@ -16,7 +19,7 @@ tracing_subscriber::fmt()
     .init();
 ```
 
-Or via the `RUST_LOG` environment variable:
+You can also set the filter through `RUST_LOG`:
 
 ```sh
 RUST_LOG=amethystate=trace cargo run
@@ -26,36 +29,37 @@ RUST_LOG=amethystate=trace cargo run
 
 ### Field writes
 
-Every `field.set()` emits one event:
+A call to `field.set()` produces a write-attempt trace:
 
 ```
 TRACE amethystate: field write path=network.port source=NetworkState
 TRACE amethystate: field write path=network.port source=external
 ```
 
-| Field | Value |
-|-------|-------|
-| `path` | Store key of the field, e.g. `network.port` |
-| `source` | Short name of the struct whose handle called `set()`, or `external` if that handle belongs to no struct (a fork, a field built with `field_with_path`) |
+| Field | Meaning |
+| --- | --- |
+| `path` | The stored path, for example `network.port`. |
+| `source` | The short name of the struct owning the writing handle, or `external` for an unattached handle such as a fork or `field_with_path` field. |
 
 ### Subscription fires
 
-Every time a subscription callback is invoked, one event is emitted:
+Each callback invocation produces a subscription trace:
 
 ```
 TRACE amethystate: signal emit → subscription fire subscription_id=0 name=PortWatcher location=src/main.rs:42
 TRACE amethystate: map signal emit → any subscription fire subscription_id=1 name=None location=src/server.rs:88
 ```
 
-| Field | Value |
-|-------|-------|
-| `subscription_id` | Monotonic integer identifying the subscription within its signal |
-| `name` | Label set via `.named()`, or `None` |
-| `location` | `file:line` of the `.subscribe()` call site |
+| Field | Meaning |
+| --- | --- |
+| `subscription_id` | Increasing subscription ID within its signal. |
+| `name` | Label set with `.named()`, or `None`. |
+| `location` | File and line of the subscription call. |
 
 ## Labeling subscriptions
 
-Subscriptions capture their call site automatically via `#[track_caller]`. Add a human-readable label with `.named()` for subscriptions created in generic or framework code where the file/line isn't meaningful on its own:
+The call site is captured with `#[track_caller]`. Add `.named()` when a generic
+helper or framework call site does not identify the subscription clearly:
 
 ```rust
 let _sub = state.port()
@@ -68,11 +72,11 @@ let _sub = state.limits()
     .named("LimitsWatcher");
 ```
 
-The label appears in every trace event fired for that subscription.
+The label appears in that subscription's trace events.
 
 ## Reading the output
 
-A write followed by two subscribers firing looks like this:
+A write followed by two callbacks looks like this:
 
 ```
 TRACE amethystate: field write path=network.port source=NetworkState
@@ -80,4 +84,6 @@ TRACE amethystate: signal emit → subscription fire subscription_id=0 name=Port
 TRACE amethystate: signal emit → subscription fire subscription_id=1 name=None location=src/logger.rs:12
 ```
 
-`source=external` still means a `set()` in this process, made through a handle no struct owns: a fork, or a field built with `field_with_path`. A change that does not go through `set()` — the file edited outside the process, another process, a migration step — logs no `field write` event at all.
+`source=external` does **not** mean an external process. It means a local
+`set()` through a handle with no owning struct. File edits and migration writes
+do not pass through `Field::set`, so they produce no `field write` trace.

@@ -2,10 +2,10 @@
 title: guinea
 ---
 
-`amethystate-guinea` lets a [guinea](https://crates.io/crates/guinea) timer's
-period follow a value in the store. Change the setting, from the UI, from
-another thread or by editing the file, and the timer re-arms with the new
-period at once, without waiting out the old one.
+`amethystate-guinea` connects a [guinea](https://crates.io/crates/guinea) timer
+to a reactive setting. Changing the setting restarts the timer's wait with
+the new interval, whether the change came from UI code, another thread or
+a file edit.
 
 ## Installation
 
@@ -14,42 +14,42 @@ period at once, without waiting out the old one.
 amethystate-guinea = "0.27"
 ```
 
-The crate's version is amethystate's. It builds against guinea 0.18 and every later release, and like guinea it needs Rust 1.95.
+The adapter uses amethystate's version number and requires Rust 1.95.
+It supports guinea 0.30; older versions use a different timer API and are not
+supported. The adapter does not enable guinea's default features, so your
+application chooses its GUI backend and runtime.
 
 ## A period that follows a field
 
 ```rust
 use amethystate_guinea::IntoChanging;
-use guinea::timers::Period;
+use guinea::sources::Period;
 use std::time::Duration;
 
 cx.every(
     Period::follows(settings.ping_interval_ms().changing(), Duration::from_millis),
-    &agent,
     || Ping,
+    &agent,
 );
 ```
 
-`changing()` turns the field into what `Period::follows` asks for. guinea reads
-the value before every wait and watches the field for as long as the timer
-runs: a write cuts the wait under way short, and the next tick comes one new
-period after it. The watch ends with the timer, or when `Timer::period` gives
-it another period.
+`changing()` adapts a field for `Period::follows`. The timer reads its value
+before each wait and subscribes to changes. A change interrupts the current
+wait; the next tick occurs after the new interval. The scope owns the timer,
+and leaving the scope ends the timer and its subscription. Dropping the
+returned `Source` handle does not stop it.
 
-A write can come from any thread. guinea moves the re-arming to the UI thread
-itself.
+The field may change on any thread; guinea handles re-arming on its UI thread.
 
 ## A period that follows a map entry
 
-A `ReactiveCell` takes `changing()` too, and that is how a map entry is
-followed:
+`ReactiveCell` also supports `changing()`, so a timer can follow one map entry:
 
 ```rust
 let ping = intervals.entry_cell("ping".to_string());
 
-cx.every(Period::follows(ping.changing(), Duration::from_millis), &agent, || Ping);
+cx.every(Period::follows(ping.changing(), Duration::from_millis), || Ping, &agent);
 ```
 
-While the key is absent the cell has nothing to read, and the timer does not
-tick. It starts once the entry is inserted, and stops again if the entry is
-removed or the map is dropped.
+An absent entry has no interval, so the timer pauses. Inserting the key starts
+it; removing the entry or dropping its source map pauses it again.

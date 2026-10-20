@@ -4,11 +4,13 @@ sidebar:
   order: 22
 ---
 
-Codegen migrations cover the common case: rename fields, change types, fill in defaults. When that isn't enough — reads from another struct, data backfills, key cleanup inside a `ReactiveMap` — you can write migration steps by hand.
+Use manual steps when you need direct key access, data from another prefix,
+or explicit cleanup of map entries. They run in the same migration engine
+as steps declared with `#[migrate]`.
 
 ## Entry point
 
-Manual steps are registered through the `.migrations()` builder method:
+Register manual steps with the builder's `.migrations()` method:
 
 <!-- shown: registering steps by hand -->
 ```rust
@@ -23,9 +25,12 @@ let (store, report) = StoreBuilder::new(app)
 ```
 <!-- /shown -->
 
-`migrate` runs these and every step declared with `#[migrate]`, and hands back a report of what it did. `build` runs none of them, which is why `.migrations()` leaves a builder that has no `build` at all: steps handed over and then dropped would be a mistake nothing reports. Set everything else about the store before it.
+Finish with `migrate` to run both these steps and linked `#[migrate]` functions
+and receive a report. After `.migrations()`, `build` is unavailable, preventing
+registered steps from being silently ignored. Set the other store options first.
 
-Steps for one line run in version order. Nothing orders the prefixes up front: a step that reads another prefix brings that one up to date first — see [Reading across prefixes](#reading-across-prefixes).
+Steps within a line run in version order. Cross-prefix dependencies are resolved
+when a step reads them; see [Reading across prefixes](#reading-across-prefixes).
 
 ## Defining a step
 
@@ -41,34 +46,43 @@ m.for_node::<Profile>()
     });
 ```
 
-`for_node::<T>()` targets the struct by its prefix and its `id`. By hand, `for_prefix("net")` names a prefix's unnamed line and `for_named("ui", "panels")` the line declared with that `id`.
+`for_node::<T>()` selects the line from the struct's prefix and `id`.
+`for_prefix("net")` selects the unnamed line at that prefix;
+`for_named("ui", "panels")` selects its named line.
 
-One version is reached by one step. A step written by hand to a version a `#[migrate]` step already reaches is refused before any step of that prefix runs, with `MigrationError::StepTwice` naming both. And a `#[migrate]` step keeps its struct where it stands: one between two prefixes, or two `id`s, is a compile error, because it would read the new place, find nothing and write the defaults. Moving what is stored is a step of its own, through `global_get` and `global_set`. `.step(version, description, closure)` registers the transformation that brings it from `version - 1` to `version`.
+`.step(version, description, closure)` converts `version - 1` to `version`.
+Only one step may target each version in a line. A manual step that duplicates
+a generated one is rejected with `MigrationError::StepTwice` before that line
+runs.
+
+A generated step cannot change its prefix or `id`; the macro rejects that
+transition. To move data between locations, use explicit global reads and writes.
 
 ## The context API
 
-Inside a step closure, `ctx` gives you low-level access to the line's stored keys. All key arguments are relative to its prefix unless noted.
+A step's `ctx` reads and writes stored keys directly. Unless marked global,
+paths are relative to the line's prefix.
 
 ### Basic operations
 
 | Method | Description |
-|--------|-------------|
-| `ctx.get::<T>(key)` | Read a key. Returns `Result<Option<T>>`. |
-| `ctx.set(key, value)` | Write a key. |
-| `ctx.delete(key)` | Remove a key. |
-| `ctx.rename(from, to)` | Copy a key to a new name and delete the old one. No-op if the source key is absent. |
+| --- | --- |
+| `ctx.get::<T>(key)` | Read a value as `Result<Option<T>>`. |
+| `ctx.set(key, value)` | Write a value. |
+| `ctx.delete(key)` | Delete a key. |
+| `ctx.rename(from, to)` | Copy to the new path and delete the source; do nothing if the source is absent. |
 
 ### Compound operations
 
-These combine read, transform, and write into a single call:
+These helpers combine reading, conversion and writing:
 
 | Method | Description |
-|--------|-------------|
-| `ctx.transform::<TOld, TNew>(key, f)` | Read a key, apply `f`, write the result back under the same key. No-op if key is absent. |
-| `ctx.merge::<T1, T2, TNew>((k1, k2), into, f)` | Read two keys, combine them with `f` into a third key, delete the originals. No-op if either source is absent. |
-| `ctx.split::<TOld, T1, T2>(from, (k1, k2), f)` | Read one key, split it into two with `f`, delete the original. No-op if source is absent. |
+| --- | --- |
+| `ctx.transform::<TOld, TNew>(key, f)` | Replace an existing value with `f(value)`; do nothing if absent. |
+| `ctx.merge::<T1, T2, TNew>((k1, k2), into, f)` | Combine two values at a destination and delete the sources; do nothing if either is absent. |
+| `ctx.split::<TOld, T1, T2>(from, (k1, k2), f)` | Split one value into two destinations and delete the source; do nothing if absent. |
 
-Examples:
+For example:
 
 ```rust
 // multiply a value in place
@@ -95,10 +109,10 @@ ctx.split::<String, String, u16>(
 ### Collections
 
 | Method | Description |
-|--------|-------------|
-| `ctx.scan_map::<K, V>(key)` | Scan all entries under `prefix.key.*` and return them as an `IndexMap<K, V>`, in the order the map itself walks. |
+| --- | --- |
+| `ctx.scan_map::<K, V>(key)` | Read entries beneath `prefix.key` as an `IndexMap<K, V>`, ordered like the map. |
 
-Useful when a `ReactiveMap` field is migrated without going through `AmeData` — read its entries, then write them where they belong now:
+Use this to migrate a `ReactiveMap` without constructing `AmeData`:
 
 ```rust
 let old_routes = ctx.scan_map::<String, String>("routes")?;
@@ -109,18 +123,21 @@ for (name, url) in &old_routes {
 }
 ```
 
-Taking the old level off is one call rather than a loop: a map owns everything under it, so `delete_prefix` is the whole of it.
+`delete_prefix` removes the old map subtree in one call.
 
-Every entry has to come back. A step reads the map, changes it and writes it back, so an entry left out on the way in would be an entry deleted. One that will not read as `K` or `V` is an error, and the step's transaction rolls back.
+`scan_map` must decode every key and value. An unreadable entry fails the step
+and rolls back its transaction, rather than silently losing that entry during
+conversion.
 
 ### Global access
 
 | Method | Description |
-|--------|-------------|
-| `ctx.global_get::<T>(path)` | Read any key from the store by its full path. |
-| `ctx.global_set(path, value)` | Write any key in the store by its full path. |
+| --- | --- |
+| `ctx.global_get::<T>(path)` | Read a full path anywhere in the store. |
+| `ctx.global_set(path, value)` | Write a full path anywhere in the store. |
 
-`global_get` and `global_set` bypass the line's prefix entirely. Useful when a step needs to read from a struct that has already migrated:
+These methods do not prepend the current line's prefix. Use them when reading
+or moving data outside it:
 
 ```rust
 let plan = ctx.global_get::<String>("identity.plan")?.unwrap();
@@ -128,11 +145,14 @@ let plan = ctx.global_get::<String>("identity.plan")?.unwrap();
 
 ### Scoping
 
-`ctx.scoped(sub_prefix)` returns a new `MigrationContext` rooted at `{current_prefix}.{sub_prefix}`. Used internally by `ctx.nested()` and rarely needed directly.
+`ctx.scoped(sub_prefix)` creates a context beneath the current prefix.
+It is also used internally by `ctx.nested()`.
 
 ## Values from the application
 
-A `#[migrate]` step is a bare `fn` and captures nothing, and a closure registered here has to be `'static`. So what a step needs from the application — a lookup table, the settings it is porting away from — is handed to the builder, one value per type, and asked for by type:
+A `#[migrate]` function cannot capture local variables, and registered closures
+must be `'static`. Supply dependencies such as lookup tables through the
+builder instead. They are stored one per type and retrieved by that type:
 
 <!-- shown: a value the application provides -->
 ```rust
@@ -153,11 +173,14 @@ let (store, report) = StoreBuilder::new(app)
 ```
 <!-- /shown -->
 
-`ctx.provided::<T>()` answers `None` where nothing of that type was given. `ctx.require::<T>()` makes that a failure, `RunStep::NothingProvided`, which names the type asked for and what was on offer instead.
+`ctx.provided::<T>()` returns `None` if the dependency is absent.
+`ctx.require::<T>()` instead returns `RunStep::NothingProvided`, identifying
+the requested type and the available types.
 
 ## Reading across prefixes
 
-A step that reads another prefix through `ctx.global_get` needs that prefix to have migrated first. Nothing is declared for this and no order is worked out up front: the read itself is what brings the other prefix up to date, on the spot, inside the same transaction.
+When a step calls `ctx.global_get` on another prefix, the engine migrates that
+prefix first, inside the same transaction. No separate ordering list is needed:
 
 ```rust
 m.for_node::<Profile>()
@@ -170,19 +193,29 @@ m.for_node::<Profile>()
     });
 ```
 
-So what a read sees is the migrated value, and the ordering is the reaching rather than a list somebody has to keep in step with the code. A chain — `Workspace` reads `Profile`, `Profile` reads `Identity` — migrates all three in that order whatever order they were registered in.
+The read therefore returns migrated data. If `Workspace` reads `Profile` and
+`Profile` reads `Identity`, the dependency reads complete `Identity` before
+`Profile`, then resume `Workspace`, regardless of registration order.
 
-A prefix reaching back into one that is part-way through is a cycle: neither can go first, and it comes back named end to end rather than at the one link that closed it.
+Reading a prefix whose migration is already active creates a dependency cycle.
+The error reports the complete cycle so you can remove the circular dependency.
 
 ## Reaching the context from #[migrate]
 
-The same context is available to a generated step: a `#[migrate]` function can take a `MigrationContext` as a second argument, and everything on this page applies to it. What that is for, and what a step already cleans up without being asked, is on [Defining steps](/amethystate/migrations/defining-steps/#cleanup-the-step-already-does).
+A `#[migrate]` function can also accept a `MigrationContext` as its second
+argument. All methods above are available there. See
+[Defining steps](/amethystate/migrations/defining-steps/#cleanup-the-step-already-does)
+for generated cleanup and cases needing explicit deletion.
 
 ## Failure and rollback
 
-`migrate` works through the store in passes. A pass starts at one prefix that has steps due and holds it and every prefix its steps reached; it is one transaction, and the report calls it a component. A step that fails rolls back its own pass and nothing else: the passes before and after it commit as usual.
+The engine groups a migration and the prefixes it reaches into one transactional
+**component**. A failed step rolls back that component, not unrelated components.
+Other components may already have committed or may still migrate successfully.
 
-The open is refused, with `OpenStore::Migrating` carrying the whole report: the data under that prefix is not what the code now declares, and a store opened over it would hand new code old data.
+The store then refuses to open with `OpenStore::Migrating`, which contains the
+complete report. This avoids returning a store whose data does not match the
+requested schema:
 
 <!-- shown: a step that fails refuses the open -->
 ```rust
@@ -204,7 +237,13 @@ else {
 ```
 <!-- /shown -->
 
-The report says which prefixes failed and why; they stay at the version they were at, and every other pass was migrated. An application that would rather run on the data as it stands opens it with `build`, which runs no step - or puts `or_in_memory()` in front of `migrate` and runs on an empty store in memory instead.
+The report identifies failed prefixes and their reasons. Those components
+retain their previous versions; successful components have advanced.
+
+For an application that can run without persisted state, `or_in_memory()`
+before `migrate` provides a fresh in-memory fallback. `build` skips migration
+steps, but is not a repair operation: use it only when your code explicitly
+supports the stored layout.
 
 <!-- shown: reading what failed, then opening without the steps -->
 ```rust
@@ -218,8 +257,19 @@ let store = StoreBuilder::new(app).build()?;
 ```
 <!-- /shown -->
 
-A failed component names the prefixes its pass held, and the error of a failed step carries the prefix, the version the step was taking it to, and the store's file.
+A failed component lists the prefixes involved. Step errors include the prefix,
+target version and store file.
 
 ### What a stopped open leaves on disk
 
-A failing step leaves nothing on disk: its pass is rolled back before anything is written. The text engines are the ones with more to say, because they keep data and metadata in two files and replace them one at a time. So the metadata is written first, with a record of the write under way, then the data, then the metadata itself. A process that stops in between leaves that record behind, and the next open reads it: data that is what was being written finishes the metadata, data that is what the stopped open found drops the record and the migration runs again, and anything else refuses the open, since which data the metadata describes cannot be told.
+A step error rolls back its component before commit. A process interruption
+while committing text files is different: data and metadata are separate files
+and cannot be replaced together.
+
+Text engines first write metadata recording the pending commit, then data,
+then finalized metadata. On the next open:
+
+- if the data matches the pending new state, the metadata commit is completed;
+- if it matches the old state, the pending record is cleared and migration can
+  run again;
+- if it matches neither, opening fails rather than guessing which schema applies.

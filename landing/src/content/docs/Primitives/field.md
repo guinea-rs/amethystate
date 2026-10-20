@@ -4,9 +4,9 @@ sidebar:
   order: 8
 ---
 
-A field declared with `#[amethystate]` is a handle onto one path in the store.
-Reading answers from memory, writing lands in memory at once and on disk on the
-debounce.
+A field declared with `#[amethystate]` is a handle to one stored value.
+Reads use memory. Writes update memory immediately and are flushed to disk
+after the configured interval.
 
 <!-- shown: reading and writing a field -->
 ```rust
@@ -31,79 +31,70 @@ fn update<F: FnOnce(T) -> T>(&self, f: F) -> T
 fn modify<F: FnOnce(&mut T)>(&self, f: F)
 ```
 
-A write answers nothing, because there is nothing for a caller to do about
-what could stop it - see [what a write will not take](#what-a-write-will-not-take).
-`try_get`'s `Err` is not a failure of the asking either - it is what this field
-and the store do not agree about.
+`set` returns `()`, not a `Result`; see
+[what a write will not take](#what-a-write-will-not-take) for error handling.
+`try_get` reports known problems such as an unreadable stored update or a
+closed store. It does not perform a new disk read.
 
 ## Reading when the answer might not be the store's
 
-`get` is the tolerant read: it always hands back something a render function
-can draw. `try_get` is the same read with the doubt kept.
+`get` always returns a value, so a render function can keep displaying it even
+if a later storage update cannot be read. Use `try_get` when the UI also needs
+to show that problem.
 
-It answers `Err` when a change arrived that would not decode into this field's
-type - a file edited outside the process, a migration that left something
-behind, a codec that accepted a value it cannot read back - or when a declared
-rule put a stored value right and the store would not take the correction.
+For example, someone may edit the file and replace a number with text. The
+field keeps its last readable value, does not notify subscribers of the invalid
+update, and returns `Err` from `try_get`. Once a readable update arrives,
+`try_get` returns `Ok` again.
 
-The field goes on reporting the last value the store agreed with, and nothing
-is delivered to subscribers. What is on screen was true a moment ago; the
-declared default is a compile-time guess and the least likely thing the person
-was looking at. So `get` keeps drawing, and `try_get` is where a caller that
-cares finds out the store has stopped agreeing.
+`try_get` also reports cases such as a rule correcting a stored value when
+the correction could not be written back. The error describes an existing
+disagreement; reading the cache is not what caused it.
 
-Nothing fails at the moment of asking. What failed happened earlier, and this
-reports it - and answers `Ok` again as soon as a change decodes, so it holds
-for exactly as long as it is true.
-
-A value that was already unreadable when the struct opened is a different
-moment, and one the declaration decides:
+An unreadable value found while opening the struct is handled separately,
+according to its declaration:
 [When a value will not read](/amethystate/state/unreadable-values/).
 
 ## Writing
 
-`update` and `modify` are read-modify-write and are **not atomic**. Two of them
-racing on the same field can lose one of the two results, the same way two
-`get`-then-`set` pairs would. Nothing in the store makes them atomic. Where that
-matters, give the field one writer: one thread, or a lock of your own around the
-read and the write -
+`update` and `modify` are **not atomic**: each reads a value, changes it and
+writes the result. Concurrent calls can overwrite each other's results, just
+like two `get`-then-`set` pairs. If this matters, use a single writer or protect
+the complete read-modify-write operation with your own lock. See
 [Concurrent access](/amethystate/concepts/durability/#concurrent-access).
 
-`update` returns the value it computed, which saves the `get` you would
-otherwise write on the next line. Where the field has a
-[rule](/amethystate/state/rules/), what landed is what the rule left of it, and
-`get` is the way to read that.
+`update` returns the value its closure computed. A field's
+[rule](/amethystate/state/rules/) may normalize that value before storing it;
+call `get` if you need the normalized result.
 
 ## What a write costs
 
-Nothing waits for the disk. A write reaches the buffer, the subscribers hear
-about it, and the flush happens on the debounce - so a field written every
-frame costs a buffer write per frame and one commit per debounce interval.
+Ordinary field writes do not wait for disk. They update the buffer and notify
+subscribers; the store batches them into flushes. Updating a field every frame
+therefore does not require committing every frame.
 
-To wait for the disk instead: [Durability](/amethystate/concepts/durability/).
-Waiting can commit more than this one field, and how much more is the engine's
-answer — the same page says which.
+To wait for a write to reach disk, see [Durability](/amethystate/concepts/durability/).
+Depending on the engine, that operation may also commit other pending writes.
 
 ## What a write will not take
 
-A field's declared [rule](/amethystate/state/rules/) refuses nothing: it puts
-the value right, and the write lands as the rule left it.
+A field's [rule](/amethystate/state/rules/) normalizes the value rather than
+rejecting it. The normalized value is the one stored.
 
-Nothing the disk does stops a write. A full disk, a file another program holds,
-a flush that keeps failing: the value lands in memory, the store keeps retrying,
-and the application hears of it once, through
-[the store's observers](/amethystate/store/configuration/#hearing-about-it).
-A subscriber that refuses the change is logged at `error`, and the write stands.
+Disk failures do not reject a buffered write. If the disk is full or the file
+cannot be replaced, the value remains in memory and the store retries saving.
+[Store observers](/amethystate/store/configuration/#hearing-about-it) report
+the problem. A subscriber error is logged at `error` and does not undo the write.
 
-Two things do stop it, and neither is a circumstance to handle at the call site.
-A value the running engine's codec cannot encode, or a path deeper than the
-store allows, is the declaration disagreeing with the engine, so `set` panics
-naming the field, before the value reaches the buffer. A store that was closed
-takes nothing: the write is dropped, the field keeps its value, and a warning
-in the log says so.
+Other failures are handled differently:
 
-Where a write has to answer - a value typed in by a person, an engine chosen at
-run time - `durable()` is the write that does, with a `Result`.
+- If the engine cannot encode the value, or the path exceeds the store's depth
+  limit, `set` panics before buffering the write. The message identifies the field.
+- If the store is closed, the write is ignored, the field keeps its previous
+  value, and a warning is logged.
+
+Use `durable()` when the caller needs a `Result` and must know whether a write
+reached disk, for example before confirming an operation to the user.
 
 ## Where to go next
 

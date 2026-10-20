@@ -4,9 +4,8 @@ sidebar:
   order: 15
 ---
 
-How many files a store keeps depends on the engine. Rebuilding their names from
-the one you passed in means writing down a rule the engine owns, so the store
-says it instead:
+Use the store's file description to find its data, metadata and recovery
+files. Their names depend on the engine; do not reconstruct them yourself:
 
 <!-- shown: asking a store where its files are -->
 ```rust
@@ -35,56 +34,44 @@ match StoreBackend::files_layout(&store) {
 ```
 <!-- /shown -->
 
-The answer is a shape rather than a list, so reaching a particular file is a
-match and never a search. An engine with no separate bookkeeping cannot be asked
-for it, and one that has it cannot be missing it.
-
-A file is named whether or not it exists at that moment. A backup is there only
-while a rewrite is in flight, and its name is worth having either way.
+The returned enum describes the engine's file layout. Match its variant to
+access a particular file. Paths are reported even when the corresponding
+file, such as a temporary backup, does not currently exist.
 
 ## redb and SQLite: one file
 
-Both keep the values and the bookkeeping inside a single file, in structures of
-their own. Nothing is written beside it.
+Both engines keep values and schema metadata in their database. They do not
+use a separate amethystate `.meta` file.
 
 ## The text engines: two files, and two more while writing
 
-| file | holds |
+| file | purpose |
 | --- | --- |
-| `settings.json` | the values |
-| `settings.json.meta` | the schema bookkeeping |
-| `settings.json.bak` | a copy of the data, while it is being rewritten |
-| `settings.json.meta.bak` | the same for the bookkeeping |
+| `settings.json` | stored values |
+| `settings.json.meta` | schema versions, field descriptions and migration state |
+| `settings.json.bak` | recovery copy of data during an opening rewrite |
+| `settings.json.meta.bak` | recovery copy of metadata during that rewrite |
 
-The sidecar carries what the store needs in order to read the data back: which
-version of each struct wrote it, what those fields looked like, and what the
-migration pass has already done. A person can read the data file on its own; a
-store opening it without the sidecar has lost the schema it was written under.
-Both belong to the store, and a backup takes both.
+The data document can be read independently, but the store needs its metadata
+to retain schema history. Include both files in your own backups.
 
-`.meta` and `.bak` are appended to the whole name rather than replacing the
-extension. Swapping it would give `settings.bak` for both files, so the second
-copy would land on the first and the data would have no backup left - and it
-would also name a file the store never created, a `settings.bak` somebody put
-there themselves. The same goes for the bookkeeping: `settings.user` and
-`settings.system` beside each other would share one `settings.meta`, and each
-store would overwrite the other's record of which migrations have run.
+Suffixes are appended to the **complete filename**. This keeps
+`settings.user.meta` separate from `settings.system.meta` and avoids collisions
+between the data and metadata backups.
 
-A store written by a release before 0.23 keeps its bookkeeping in
-`settings.meta`. While `settings.json.meta` is not there yet, the open reads
-the old file and writes the new one; the old file is left where it is, since
-another store may be reading it too.
+Before release 0.23, metadata used names such as `settings.meta`. If the new
+`settings.json.meta` is absent, opening reads the legacy file and writes the
+new name. The legacy file is left in place because another store may use it.
 
 ## What the backup is for
 
-It is a guard on the open, not a copy kept for you. Opening the store reads the
-files and runs the migration pass over what it read, in memory; only then does
-it write, and only the files the pass changed or that were not there yet. Each
-of those is copied first, and the copy goes once the writing lands. In a store
-that started normally there is no `.bak` at all.
+A `.bak` is temporary protection during opening, not a user backup. The store
+first reads the files and runs migrations in memory. Immediately before
+rewriting a changed file, it creates a recovery copy. Successful completion
+removes that copy. Unchanged files are neither copied nor rewritten.
 
-Which means a `.bak` sitting there is a previous open that never finished. The
-state one leaves behind, made by hand:
+A leftover `.bak` can therefore indicate an interrupted open. This example
+constructs such a state:
 
 <!-- shown: a previous open that never finished -->
 ```rust
@@ -93,71 +80,40 @@ std::fs::write(&data, "{ this never finished").unwrap();
 ```
 <!-- /shown -->
 
-A good backup beside a half-written data file. On the next open the data will
-not parse, the backup will, and the store recovers from it and carries on -
-saying so through `tracing::warn!` under the `amethystate` target.
+The data file is incomplete, but its backup is readable. On the next open,
+the store recovers from the backup and logs a warning under the `amethystate`
+target. It first preserves the unreadable file as `settings.json.unreadable`.
+After the recovered file is written successfully, the backup is removed.
 
-The file that would not parse is not thrown away: it is renamed to
-`settings.json.unreadable` before the copy takes its place, so whatever was in
-it is still there to look at. The `.bak` goes once the recovered file has
-landed. A copy answers once; left standing, it would answer the next file that
-does not parse too, a hand edit with a typo in it, by putting back data from
-before that edit without a word.
+Recovery copies are made **after a successful read**, immediately before a
+rewrite. Copying unreadable input over a valid backup would destroy the only
+recoverable data. A migration failure does not create new recovery copies or
+rewrite the original files.
 
-The order matters and is the whole point. The backup is taken **after** the
-read rather than before it: a copy exists to hold a readable file, so copying a
-half-written one over it destroys the only intact copy in exactly the case the
-backup is kept for.
-
-The copy is taken immediately before the open writes, once everything that could
-still refuse it has gone by - the migration pass included, since a pass that
-fails has written nothing and the files stay as the open found them. An open
-that is refused is an operation that did not happen, and it leaves nothing of
-its own: a `.bak` beside the store is read by the next open as an unfinished
-previous run.
-
-A file the pass did not change is neither copied nor written. Another store can
-have the same file open and be committing to it, and putting back what this open
-read would pour that copy over what the other one wrote.
+Unchanged files are left alone so that opening one store does not replace
+another store's recent writes with a stale copy.
 
 ## Starting over
 
-Deleting the data file starts the store over. With no data file and no `.bak`
-beside it, the bookkeeping has nothing left to describe, so the open pays no
-attention to the `.meta` left behind: declared maps get their defaults again,
-and every prefix starts at the version its struct declares.
+Deleting the data file starts a fresh store only when no data `.bak` remains.
+In that case, leftover `.meta` does not restore the old state: the store uses
+current schema versions, and state structs initialize their defaults.
 
 ## What the copy cannot promise
 
-It answers one question - *the migration did not finish, put the file back* -
-and it is asked others it has no way to answer.
+Recovery is based on whether the data file parses, not whether it is complete
+or recent:
 
-**A file cut short still parses.** A write that stops after the first key
-leaves a document with one key in it, and that is a document: it opens, it
-reads, and the keys that were committed and are now missing look exactly like
-keys nobody ever wrote. Nothing inside the file says how long it was meant to
-be.
+- A truncated document may still be syntactically valid. The store cannot
+  distinguish missing keys from keys that were never written.
+- If the document parses, it is accepted and the temporary recovery copy can
+  be removed without restoring it.
+- The backup has no trusted generation marker. A readable copy can be older
+  than expected; its modification time is not a reliable version identifier.
 
-**Whether to recover is decided by whether the file parses.** So the stump is
-taken as the store, and the copy that would have repaired it is deleted at the
-end of that open without being read.
+Treat a leftover `.bak` as a recovery artifact, not a restore point. Keep
+application backups separately when data loss would matter.
 
-**The copy carries no age the store can trust.** A `.bak` is recovered from
-when the data will not read, whether it holds the write before this one or a
-hundred before it. A modification time is not an answer - it moves when
-somebody copies the directory.
-
-All three are one fact from three sides: from outside, a document is whatever
-it parses as. Telling a whole file from a stump would mean the store writing
-its own length or checksum into it, and then it is no longer a file a person
-can edit, which is the reason the text engines exist at all.
-
-What that leaves for an application: a `.bak` is a fault report, not a restore
-point. It says an open did not finish. Where the data matters, keep copies of
-your own - the store's copy belongs to the migration and cannot be borrowed as
-a backup.
-
-An engine that owns its file outright has none of this. SQLite commits through
-its write-ahead log; redb writes new pages beside the old ones and then switches
-its header over to them in two phases, syncing the file after each. A write that
-is cut off is either there whole or not there at all.
+SQLite and redb use their database commit protocols instead of this text-file
+recovery mechanism: SQLite uses a write-ahead log, while redb commits new pages
+with a two-phase header update. These avoid exposing half-committed batches.

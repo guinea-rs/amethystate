@@ -4,24 +4,23 @@ sidebar:
   order: 3
 ---
 
-The shortest path from nothing to a running store, with a pointer at each step
-to the section that covers it properly.
+This example declares settings, opens a store and subscribes to a field.
+Links throughout the page explain the options in more detail.
 
-Every import below is in the prelude, and an ordinary program takes it whole:
+The prelude includes the types and traits used here:
 
 ```rust
 use amethystate::prelude::*;
 ```
 
-It carries what declaring, opening, reading and writing need — including
-`StoreExt` and `StoreBackend`, which are traits, and without which a store
-looks like it has no `get` and no `save_now`. The imports are spelled out in the
-snippets that follow so each one says where its pieces come from.
+This includes `StoreExt` and `StoreBackend`: import these traits to call methods
+such as `get` and `save_now`. The examples below use explicit imports to show
+which item comes from which module.
 
 ## Declare the state
 
-One attribute turns a struct's fields into persisted reactive ones. `prefix`
-says where in the store they live.
+`#[amethystate]` generates persistent, reactive fields from a struct.
+`prefix` sets their location in the store.
 
 <!-- shown: declaring a state struct -->
 ```rust
@@ -53,9 +52,9 @@ let state = NetworkState::new_with(&store);
 ```
 <!-- /shown -->
 
-`new_with` takes a store you hold. Opening one for the whole process instead,
-letting the platform decide where the file goes, what the extension becomes,
-and how closing reports a failure: [Opening a store](/amethystate/store/opening/).
+Pass the store to `new_with` to create the state. You can also use a global
+store or let the platform choose the data directory; see
+[Opening a store](/amethystate/store/opening/) for these options and shutdown.
 
 Timing, retries and what the store refuses to hold:
 [Configuring a store](/amethystate/store/configuration/). Which engine holds
@@ -75,9 +74,9 @@ state.port().set(9090);
 ```
 <!-- /shown -->
 
-A write reaches memory at once and the disk on the debounce. Delivering
-callbacks on your own thread, filtering out your own writes, and what a
-subscription costs: [Subscriptions](/amethystate/concepts/subscriptions/).
+A write updates memory immediately; the store flushes it to disk later.
+[Subscriptions](/amethystate/concepts/subscriptions/) explains callback threads,
+filtering your own writes and subscription overhead.
 
 To wait for the disk instead of the debounce:
 [Durability](/amethystate/concepts/durability/).
@@ -128,14 +127,13 @@ let _sub = state.limits().subscribe_any(|change| {
 ```
 <!-- /shown -->
 
-`entries()` walks in the store's own order, which is the order of the names the
-keys borrow. A key that is not a string goes through `Id`, and sorts by the
-spelling `Id` holds - so `Id<u16>` comes back `10, 100, 9`.
+`entries()` returns entries sorted by their string keys. Wrap non-string keys
+in `Id`; these also sort by their string representation, so `Id<u16>` keys
+can appear in the order `10, 100, 9`, not numeric order.
 
-Paths decided entirely at run time need no struct: [Kv](/amethystate/primitives/kv/)
-holds them. And where one such path wants watching,
-[ReactiveCell](/amethystate/primitives/reactive-cell/) gives you over it what a
-field gives you over a declared one - a read, a write and a subscription.
+Use [Kv](/amethystate/primitives/kv/) for paths chosen at runtime without a
+struct declaration. A [ReactiveCell](/amethystate/primitives/reactive-cell/)
+provides a handle for reading, writing and subscribing to a single value.
 
 ## When the struct changes
 
@@ -150,10 +148,10 @@ runs no step at all.
 
 ## Persistent-only mode
 
-For frameworks that own their update loop - egui, iced, ratatui - `mode =
-"persistent"` makes the fields plain Rust values on a plain struct, saved when
-you say so. Nothing is reactive, and the struct does not see changes made
-elsewhere.
+If you only need loading and saving, use `mode = "persistent"`. Fields remain
+plain Rust values, and you save the struct explicitly. It has no subscriptions
+and does not receive changes made elsewhere. This can suit an application that
+already manages updates in its own event loop.
 
 <!-- shown: a struct in persistent mode -->
 ```rust
@@ -187,7 +185,7 @@ the debouncer.
 
 ## What else there is
 
-- **Rules** - a function on a field that puts every value it takes right:
+- **Rules** - normalize values read from storage or written through a field:
   [Rules](/amethystate/state/rules/).
 - **Tracing** - structured events, each write tagged with the struct that made
   it: [Observability](/amethystate/concepts/observability/).

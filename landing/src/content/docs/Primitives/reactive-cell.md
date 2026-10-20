@@ -5,11 +5,9 @@ sidebar:
   order: 10
 ---
 
-The one type every reactive value can become. A field, a map entry, a path with
-no struct behind it, or a plain in-memory value all erase into it - so code that
-needs "a `u64` I can read, write and watch" takes a cell and nothing else:
-neither the struct the field is on, nor the map and the key, nor the store and
-the path.
+`ReactiveCell<T>` provides the same read, write and subscription API for a field,
+a map entry, a dynamic path or an in-memory value. A component can accept a cell
+without knowing which struct, map or store the value comes from.
 
 <!-- shown: four ways to reach a cell -->
 ```rust
@@ -26,16 +24,14 @@ columns.insert("loose".to_string(), loose);
 ```
 <!-- /shown -->
 
-Three of those write through to the store. `ReactiveCell::new_volatile` is the
-one that does not: it holds its value in memory and nothing survives the
-process. A cell from a field declared `#[amestate(volatile)]` is the same - the
-field never had a store subscription for the cell to commit through, which is
-what the name is borrowed from.
+The first three examples write through to the store. `ReactiveCell::new_volatile`
+keeps its value only in memory. A cell created from an `#[amestate(volatile)]`
+field is also in-memory only.
 
-`kv.cell` is the one that needs no declaration at all: it takes the path
-and the default at the call. Nothing records the type, and the stored value is
-the check: a second call at the same path with a different type reads what the
-first stored and fails to decode it.
+`kv.cell` creates a cell from a path and default without a state declaration.
+It reads existing data rather than registering a type. Requesting an
+incompatible type at the same path produces a decode error; compatible types
+are not distinguished by a separate type registry.
 [Kv](/amethystate/primitives/kv/#one-path-one-type).
 
 ## Reading
@@ -44,13 +40,12 @@ first stored and fails to decode it.
 fn get(&self) -> Option<T>
 ```
 
-`get` answers `None` where the value is not there to be had - a map entry whose
-key is absent, or a cell whose source is gone. That is what separates it from
-[`Field`](/amethystate/primitives/field/), where the declaration's default means
-there is always a value.
+`get` returns `None` if a map entry is absent or the cell's source has been
+dropped. Unlike [`Field`](/amethystate/primitives/field/), a cell does not
+always have a value to return.
 
-It reads a cache the cell holds, so it costs the same as reading the primitive
-directly - cheap enough for a render loop that reads every frame.
+Reads use the cell's cache rather than reading storage, so you can call `get`
+from a render loop.
 
 <!-- shown: reading, writing and watching a cell -->
 ```rust
@@ -66,11 +61,12 @@ cell.modify(|width| *width += 10)?;
 
 ## Writes land where the value lives
 
-A cell writes through to whatever is behind it. There is no way to obtain one
-whose writes go into a cache and stop there.
+A cell forwards writes to its source. A stored field is updated in the store;
+a volatile source is updated in memory.
 
-The cache is left alone on the way in: it is updated when the store reports what
-it committed, so a refused write never shows up in `get`.
+The cell updates its cache after the source accepts the change. If a write is
+rejected, `get` continues to return the previous value. Acceptance here does
+not mean the value has already reached disk.
 
 ## A cell onto a map entry
 
@@ -91,29 +87,24 @@ assert!(cpu.set(80).is_err());
 ```
 <!-- /shown -->
 
-An entry cell is empty while its key is absent, and removing the key empties it
-again. `set`, `update` and `modify` on an empty one are refused with
-`WriteValue::Absent`, which names the entry's path - a cell is a view onto an
-entry, and putting the key back is the map's business.
+An entry cell is empty while the key is absent, including after removal.
+`set`, `update` and `modify` then return `WriteValue::Absent` with the entry's
+path. Reinsert the key through the map before writing through its cell.
 
 ## What a cell keeps alive
 
-These are `Rc` and `Weak`, and not by analogy: what a cell keeps is an
-`Arc::downgrade` of the field.
+There are two lifetime choices:
 
-`cell()` and `entry_cell()` make a **view** - the `Weak`. The cell holds its
-source weakly and reads `None` once the last real handle to that source goes.
-Like a `Weak`, the cell itself is fine; what fails is the upgrade inside it,
-which is where the `None` comes from and the `WriteValue::SourceGone` on a
-write.
+- `cell()` and `entry_cell()` hold a **weak reference** to the source. They do
+  not keep it alive. Once its last owning handle is dropped, reads return `None`
+  and writes return `WriteValue::SourceGone`.
+- `into_cell()` and `into_entry_cell()` **keep the source alive** by retaining
+  an owning handle. Use them when the cell is stored in a component or passed
+  somewhere that may outlive the original state struct.
 
-`into_cell()` and `into_entry_cell()` make a cell that **owns** its source -
-the `Rc`. The handle you hand them is the one they keep, and they keep it
-strongly. Nothing is taken from the struct - a handle cannot be taken out of
-one at all: `state.sidebar_width()` and `state.widths()` both hand out an
-`Arc::clone` of the same thing, so the cell becomes one more owner, exactly
-like another `Rc::clone`. Reach for those wherever the cell is the handle that
-survives - stored in a component, put in a `HashMap`, handed to another thread.
+Getters such as `state.sidebar_width()` clone a handle; they do not remove the
+field from the struct. Converting that handle with `into_cell()` gives the cell
+shared ownership of the same source.
 
 <!-- shown: a view, and a cell that owns what feeds it -->
 ```rust
@@ -124,6 +115,6 @@ drop(state);
 ```
 <!-- /shown -->
 
-Both of those came from the same field, and the owning one is what keeps it
-alive - so the view above still answers after the struct is dropped, and goes
-empty only once the owning cell goes too. It is the same count an `Rc` keeps.
+Both cells refer to the same field. The owning cell keeps it alive after the
+struct is dropped, so the weak cell still reads a value. Once the owning cell
+is dropped too, the weak cell returns `None`.

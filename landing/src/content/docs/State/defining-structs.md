@@ -4,19 +4,16 @@ sidebar:
   order: 1
 ---
 
-The `#[amethystate]` macro transforms a plain Rust struct into a persistent
-state container. This page is about the struct itself: where it sits, which
-"line" of versions it belongs to, and how structs hold one another. The rest of
-this section is one subject a page:
+`#[amethystate]` generates stored state from a Rust struct. This page covers
+its storage location, version identity and nested components.
 
-- [Fields](/amethystate/state/fields/) - where each field is stored and how;
-- [When a value will not read](/amethystate/state/unreadable-values/) - bytes
-  that do not decode, and a key deleted under a field;
-- [Rules](/amethystate/state/rules/) - what a value may be, judged both ways:
-  on every way in and every way out;
-- [Opening a struct your own way](/amethystate/state/opening-structs/) -
-  `open = manual`, and invariants between fields;
-- [What serde says here](/amethystate/state/serde/).
+Related pages cover:
+
+- [Field attributes](/amethystate/state/fields/) — paths, defaults and encoding;
+- [Unreadable values](/amethystate/state/unreadable-values/) — read failures and deleted keys;
+- [Rules](/amethystate/state/rules/) — normalizing values;
+- [Custom construction](/amethystate/state/opening-structs/) — `open = manual` and cross-field checks;
+- [Serde](/amethystate/state/serde/) — attributes on declarations versus leaf values.
 
 ## Struct attributes
 
@@ -26,56 +23,53 @@ pub struct NetworkState { ... }
 ```
 
 | Attribute | Type | Description |
-|-----------|------|-------------|
-| `prefix` | `String` | The place in the store these fields hang under. A root struct needs this or `as_root`. |
-| `version` | `u32` | Schema version for migrations. Defaults to `0`. |
-| `id` | `String` | Which line of versions at the prefix this struct belongs to. Needed only where structs share a prefix; see below. |
-| `rename_all` | `&str` | How every field's own name is spelled where it is stored. A closed list of eight: `lowercase`, `UPPERCASE`, `PascalCase`, `camelCase`, `snake_case`, `SCREAMING_SNAKE_CASE`, `kebab-case`, `SCREAMING-KEBAB-CASE`. Anything else is a compile error. A field with a `path` of its own is not touched by it. |
-| `mode` | `String` | Code generation mode: `"reactive"` (default) or `"persistent"`. `"reactive"` opens with `new_with` and makes every field a `Field`; `"persistent"` is a plain struct that `load` reads and `save` writes, see [Persistent-only mode](/amethystate/getting-started/quick-start/#persistent-only-mode), and needs a `prefix` or `as_root`. |
-|`as_root`| `flag` | Fields sit at the top of the store, with no name above them. Written **instead of** `prefix` — the two say different things about the same place, so writing both is a compile error. |
-| `on_unreadable` | variant | What opening does about a stored value that will not decode. `Refuse` (the default) or `UseDefault`. See [When a value will not read](/amethystate/state/unreadable-values/). |
-| `on_delete` | variant | What a field does when its key is deleted under it. `Keep` (the default) or `UseDefault`. |
-| `unreadable_entries` | variant | What a `ReactiveMap` does with an entry it cannot read. `Refuse` (the default) or `Skip`. Fields that are not maps have no entries and ignore it. |
-| `open` | `manual` | The struct's `Open` is written by hand, and nothing opens it over the global store. See [Opening a struct your own way](/amethystate/state/opening-structs/). |
+| --- | --- | --- |
+| `prefix` | `String` | Base path for the fields. A standalone struct needs `prefix` or `as_root`. |
+| `version` | `u32` | Migration schema version; defaults to `0`. |
+| `id` | `String` | Distinguishes independent version histories sharing a prefix. |
+| `rename_all` | `&str` | Stored field-name convention: `lowercase`, `UPPERCASE`, `PascalCase`, `camelCase`, `snake_case`, `SCREAMING_SNAKE_CASE`, `kebab-case` or `SCREAMING-KEBAB-CASE`. Does not change explicit `path` attributes. Other values are compile errors. |
+| `mode` | `String` | `"reactive"` by default: access values through handles. `"persistent"`: load and save ordinary fields explicitly. See [Persistent-only mode](/amethystate/getting-started/quick-start/#persistent-only-mode). |
+| `as_root` | flag | Store fields directly at the root. Cannot be combined with `prefix`. |
+| `on_unreadable` | variant | Read-failure policy: `Refuse` by default, or `UseDefault`. |
+| `on_delete` | variant | Policy for a field's deleted key: `Keep` by default, or `UseDefault`. |
+| `unreadable_entries` | variant | Map-entry read policy: `Refuse` by default, or `Skip`. Applies only to maps. |
+| `open` | `manual` | Implement `Open` yourself; global-store constructors are not generated. |
 
-A struct takes no `rule`: a rule judges one value, and goes on a field. An
-invariant between fields goes in the struct's own `Open`.
+A `rule` belongs to a field, not a struct. Use a custom `Open` implementation
+for checks involving several fields.
 
-A struct that says neither `prefix` nor `as_root` is a component: it has no
-place of its own, and it goes inside another one through `nested`. Its place is
-the field that holds it.
+Without `prefix` or `as_root`, the struct is a component embedded through
+`nested`; its parent determines its location.
 
 ## Places and lines
 
-A `prefix` claims nothing by itself - the fields under it do, each its own path.
-So two structs over the same prefix live together happily until two of their
-paths meet, and the second one to open over a taken path is refused. A map is
-the exception and owns everything beneath it, because its keys are made while
-the program runs. That is a whole subject of its own, and the one that decides
-how a `prefix` and a dotted stored name interact:
-[Who owns which place](/amethystate/concepts/claims/).
+A struct reserves its field paths, not the entire `prefix`. Two structs can
+share a prefix if their field paths do not overlap. A map reserves its whole
+subtree because its entry keys are not known in advance.
+[Ownership](/amethystate/concepts/claims/) explains these rules.
 
-Places are one matter and versions another. Versions are counted per line, and
-a line is the prefix together with the struct's `id`. Structs written without
-an `id` are versions of the prefix's one unnamed line, so where several structs
-share a prefix, all but one of them need an `id`:
+Version histories are separate from path ownership. A **line** is identified
+by its prefix and optional `id`. Structs without an `id` belong to that prefix's
+unnamed line. When independent structs share a prefix, give all but at most one
+of them an explicit `id`:
 
 ```rust
 #[amethystate(prefix = "ui", id = "panels", version = 3)]
 pub struct Panels { ... }
 ```
 
-Two unnamed structs at one prefix and one version are one version declared
-twice, and the store does not open: `MigrationError::DeclaredTwice` names both.
-Lines that share a prefix still own their places apart, and two that own one
-place - or one inside the other's - do not open either:
-`MigrationError::ClaimedTwice` names the place and both structs.
-An `id` is kept once written. A struct given another one starts a new line, and
-what the old line recorded comes back as drift.
+Two declarations for the same line and version produce
+`MigrationError::DeclaredTwice`. Different lines with overlapping owned paths
+produce `MigrationError::ClaimedTwice`; an `id` does not make overlapping
+storage safe.
+
+Keep a released `id` stable. Changing it starts another history and leaves the
+previous line recorded as drift.
 
 ## Nested structs
 
-Structs without a `prefix` are components — they have no storage namespace of their own and are embedded into a parent struct via `nested`. The parent's prefix is prepended to all nested fields.
+A component without its own prefix is embedded in a parent through `nested`.
+Its fields are stored beneath the parent's prefix and the nested field's name:
 
 ```rust
 #[amethystate]
@@ -91,21 +85,22 @@ pub struct SystemSettings {
 }
 ```
 
-A nested field can also put its fields at its holder's level, with no segment
-of its own: [`flatten`](/amethystate/state/fields/#a-field-whose-paths-sit-at-its-holders-level).
+Use [`flatten`](/amethystate/state/fields/#a-field-whose-paths-sit-at-its-holders-level)
+to omit the nested field's segment from storage paths.
 
 ## Sharing one place between two structs
 
-Two structs cannot both declare the same place - the second to open is refused.
-Where one value has to be reachable from two sides, address it by path from the
-one that did not declare it: [Kv](/amethystate/primitives/kv/) reads and writes
-anywhere no struct has claimed, and
-[Who owns which place](/amethystate/concepts/claims/) is what decides where that
-line falls.
+Do not declare the same stored value twice. Instead, share clones of the
+existing field handle with the components that need it, or pass a
+`ReactiveCell` made from that field.
+
+`Kv` is intended for unclaimed paths; it does not bypass declared ownership.
+See [Ownership](/amethystate/concepts/claims/).
 
 ## Root-level storage (`as_root`)
 
-By default, all fields are stored under the struct's `prefix`. With `as_root`, fields are written directly to the store root with no namespace.
+With `as_root`, fields are stored directly at the root rather than beneath
+a prefix:
 
 ```rust
 #[amethystate(mode = "persistent", as_root)]
@@ -118,15 +113,14 @@ pub struct AppConfig {
 }
 ```
 
-This produces a file like:
+For example, a TOML file contains:
 
 ```toml
 name = "acme"
 verbose = false
 ```
 
-That is the shape to ask for when the file is read by something other than this
-crate — a config somebody edits by hand, or one whose keys another program
-already expects at the top level. Root fields are claimed like any others, so
-two structs reaching for the same key still collide:
-[Who owns which place](/amethystate/concepts/claims/).
+Use this layout when an external program expects top-level keys or when it
+makes a hand-edited config easier to read. Root fields still reserve their
+paths, so two structs cannot declare the same key. See
+[Ownership](/amethystate/concepts/claims/).

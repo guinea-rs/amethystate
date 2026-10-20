@@ -14,8 +14,9 @@ rust-version = "1.95"
 
 [dependencies]
 amethystate.workspace = true
-guinea-app = { version = ">=0.18.7", default-features = false }
+guinea = { version = "0.30", default-features = false }
 
 [dev-dependencies]
 amethystate = { workspace = true, features = ["test-utils", "redb"] }
-guinea-app = { version = ">=0.18.7", default-features = false }
+futures.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

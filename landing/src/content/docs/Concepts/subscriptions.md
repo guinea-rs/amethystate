@@ -4,10 +4,8 @@ sidebar:
   order: 17
 ---
 
-Every reactive primitive is watched the same way, so what is here is true of a
-[field](/amethystate/primitives/field/), a
-[cell](/amethystate/primitives/reactive-cell/) and a
-[map](/amethystate/primitives/reactive-map/) alike.
+Fields, cells and maps use the same subscription model. This page covers
+subscription lifetime, callback threads and identifying the writer.
 
 ## A subscription ends with its guard
 
@@ -27,13 +25,15 @@ assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
 
-`subscribe` returns a guard and the callback lives exactly as long as it does.
-There is no separate `unsubscribe`: dropping the guard is what unregisters.
+`subscribe` returns a guard that owns the subscription. Keep it while you need
+notifications; dropping it unregisters the callback. There is no separate
+`unsubscribe` call.
 
 ## Keeping the guard is the caller's job
 
-Which is where the trap is. A guard assigned to `_` is dropped at the end of
-that same statement, and the callback never fires at all:
+Do not assign the guard to `_`: that drops it at the end of the statement,
+before any later changes can reach the callback. A named binding such as `_sub`
+keeps it alive:
 
 <!-- shown: a subscription nobody held on to -->
 ```rust
@@ -47,9 +47,9 @@ assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
 
-`heard` still holds `[9090]`, from the first subscription. So every example here
-binds the guard to a name, and the place to keep it is beside whatever the
-callback writes into, so the two die together.
+`heard` still contains only `[9090]` from the first subscription. Store the guard
+alongside the component or state that uses the notifications, so their lifetimes
+match.
 
 ### Several at once
 
@@ -70,31 +70,28 @@ scope.clear();
 ```
 <!-- /shown -->
 
-`ReactiveScope` is one owner for many guards. `clear` drops them all; dropping
-the scope does the same.
+`ReactiveScope` owns several guards. `clear` or dropping the scope ends all of
+its subscriptions.
 
 ## When plain `subscribe` is not enough
 
-`subscribe` covers the common case. Anything past it goes through
-`subscription_with()`, whose links compose in any order:
+Use `subscription_with()` for additional options:
 
-| link | what it does |
+| method | behavior |
 | --- | --- |
-| `.external()` | skip changes this handle made |
-| `.key(k)` | on a map, narrow to one entry |
-| `.register(f)` | finish, returning the guard |
-| `.register_with_source(f)` | the same, with who made the change |
-| `.stream()` | finish as a `Stream` rather than a callback |
+| `.external()` | Filter this handle's own value updates. |
+| `.key(k)` | Watch one map entry. |
+| `.register(f)` | Register a callback and return its guard. |
+| `.register_with_source(f)` | Include the writing handle's ID in the callback. |
+| `.stream()` | Receive changes as a `Stream`. |
 
 ## Taking the changes into a loop of your own
 
-A callback must be `Send + Sync`, because a change made to the file outside the
-process is delivered from a watcher thread. That rules out `Rc` state and most
-GUI context handles.
+Callbacks must be `Send + Sync`: file-watcher updates can invoke them on a
+background thread. That excludes `Rc` state and many UI handles.
 
-`.stream()` finishes the subscription as a `Stream` instead. The value crosses
-the thread boundary and nothing else does, so what you do with it runs on the
-thread that drives the loop:
+With `.stream()`, values are delivered to a stream instead. Process it on the
+thread that owns your UI state:
 
 <!-- shown: taking the changes into a loop of your own -->
 ```rust
@@ -117,13 +114,14 @@ assert_eq!(heard, [9090, 1234]);
 ```
 <!-- /shown -->
 
-A stream yields every change rather than coalescing - it is a sequence, and
-coalescing downstream is your choice. Dropping it ends the subscription.
+The stream preserves individual changes rather than coalescing them.
+Coalesce them in your consumer if appropriate. Dropping the stream cancels
+the subscription.
 
 ## Whose write was it
 
-Every write carries the id of the handle that made it, and `.external()` is the
-filter that uses it:
+A write includes the writer's handle ID. `.external()` uses it to filter
+writes made through the subscribing handle:
 
 <!-- shown: hearing only about somebody else's writes -->
 ```rust
@@ -144,17 +142,16 @@ assert_eq!(*heard.lock().unwrap(), [9090]);
 ```
 <!-- /shown -->
 
-A background thread writing while the UI reacts is the usual shape: the thread
-holds a fork, the UI subscribes `.external()`, and the UI does not redraw on its
-own writes.
+For example, give a worker a forked handle and subscribe in the UI with
+`.external()`. The UI sees the worker's changes without receiving its own
+value writes again.
 
-A change made outside the process - the file edited by hand - has no id at all,
-so it is nobody's own write and reaches `external` subscribers too.
+An external file edit has no handle ID, so external-only subscriptions receive
+it too.
 
 ### `clone` and `fork`
 
-Both give another handle onto the same value. They differ in one thing: whose
-writes they count as.
+Both handles refer to the same value, but use different writer identities:
 
 <!-- shown: the same actor, and a different one -->
 ```rust
@@ -177,14 +174,11 @@ assert_ne!(port.instance_id(), other.instance_id());
 ```
 <!-- /shown -->
 
-`clone` keeps the id, so the original and the clone are one actor and neither
-hears the other's writes through `external`. `fork` takes a new id, so the two
-are separate actors and each hears the other.
+`clone` retains the ID: the original and clone count as one writer for
+`.external()`. `fork` gets a new ID, so the two handles see each other's writes.
 
-`instance_id()` is that id, and it is on a `Field` and on a `ReactiveMap` alike.
-Ask a handle for it when you need to hold the answer rather than filter on it -
-to name the actor in a log, or to compare it against the id a change arrives
-with, which is the next section.
+Use `instance_id()` on a field or map to obtain this ID for comparison or
+logging.
 
 ### The author arrives with the value
 
@@ -205,12 +199,12 @@ assert_eq!(who, Some(state.port().instance_id()));
 ```
 <!-- /shown -->
 
-`register_with_source` hands the callback the id beside the value, for deciding
-per change rather than filtering wholesale.
+`register_with_source` passes the writer ID with the value. Use it when the
+callback needs to decide separately for each event.
 
 ## On a map
 
-`.external()` filters `Update` and nothing else - `Insert`, `Remove` and `Clear`
-reach everyone including whoever caused them. The reasoning, and what that
-implies for `insert`, is on
-[ReactiveMap](/amethystate/primitives/reactive-map/#what-external-filters).
+On maps, `.external()` filters only `Update`. Structural changes — `Insert`,
+`Remove` and `Clear` — reach every subscriber. See
+[ReactiveMap](/amethystate/primitives/reactive-map/#what-external-filters)
+for the effect on `insert`.

@@ -4,11 +4,12 @@ sidebar:
   order: 13
 ---
 
-Everything here is set before `build`, and applies to the whole store. What
-every engine reads is set on the `StoreBuilder`; what only one engine reads is
-set on that engine - `Redb`, `Text` - and handed to `StoreBuilder::backend`, so
-a setting cannot reach an engine that would ignore it. Every one has a default
-that is meant to be left alone; this page is for the cases where it is not.
+Configure the store before opening it. Shared options belong on `StoreBuilder`;
+engine-specific options belong on `Redb`, `Text` or the corresponding engine
+configuration passed to `backend`. This prevents setting options an engine
+cannot use.
+
+Defaults cover ordinary use. The sections below explain when to adjust them.
 
 ## Timing
 
@@ -23,41 +24,32 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-Everything about when this store touches its file lives under
-`StoreBuilder::disk`, which hands the defaults in and takes back what you
-changed - so only the settings you name are written, and forgetting one cannot
-zero the rest.
+`StoreBuilder::disk` starts with default disk settings and lets you change only
+the options you need.
 
-`Disk::debounce` is how long after the first unsaved write the flush comes.
-Writes made in the meantime join that flush instead of putting it off, so a
-stream that never pauses is still written once per window. Raising it batches
-more writes into one commit; lowering it narrows the window
-a crash can take. Reads are unaffected either way - a buffered write is visible
-at once.
+`Disk::debounce` is the interval from the first pending write to its flush.
+Later writes join that batch without restarting the timer, so a continuous
+stream is still flushed regularly. Longer intervals batch more changes;
+shorter intervals reduce the changes a crash can lose. Reads see buffered
+writes immediately in either case.
 
-The flush the window brings commits the whole buffer, on every engine. A
-durable write asks for a flush of the path it wrote, and how far that one
-reaches is the engine's answer rather than this setting's: `redb` and `sqlite`
-commit what is buffered at that path and below it, a text engine rewrites the
-whole file and so commits everything waiting.
-[Durability](/amethystate/concepts/durability/) has the consequences.
+A timed flush commits the whole buffer. A durable write asks to flush its path:
+redb and SQLite commit that path and descendants, while text engines rewrite
+the document and commit every pending write. See
+[Durability](/amethystate/concepts/durability/).
 
-`Disk::watch_every` is the other direction: how long the file has to sit still
-before a change made outside the process is read back. Nothing polls - the
-watcher is event-driven, on inotify, `ReadDirectoryChangesW` or FSEvents
-depending on the platform - and this is the quiet period after the last event,
-so an editor saving in several bursts costs one re-read instead of several.
-
-`watch_every` is for the text engines only, the ones a person might edit by
-hand. `debounce` applies to every engine.
+`Disk::watch_every` controls reloading external edits in text engines. It is a
+quiet period after the last file event, not a polling interval. This combines
+an editor's burst of filesystem events into one reload. The watcher uses the
+platform's filesystem notifications.
 
 ## A flush that keeps failing
 
-A failing flush is not a lost write. The same buffered changes are retried, and
-they keep being retried until they land or the store is dropped - a full disk
-that someone frees up heals the store with no restart.
+A failed flush leaves its changes buffered. The store retries until saving
+succeeds or it is dropped. A temporary full disk can therefore recover without
+restarting the application.
 
-What is configurable is how often it tries, and how long it goes on quietly:
+Configure retry frequency and when the application should be notified:
 
 <!-- shown: how long a failing flush stays quiet -->
 ```rust
@@ -70,22 +62,17 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-`Disk::retry_every` is the gap between attempts. `Disk::give_up_after` is how
-long a failing streak may run before the store says so: once, at `error` under
-the `amethystate` target, and to every observer of its saving. It is how long
-the failing goes on *quietly*, never how long it goes on.
+`Disk::retry_every` sets the interval between attempts. `Disk::give_up_after`
+sets how long failures may continue before an error is logged and observers
+are notified. Despite its name, it does **not** stop retries.
 
-Writers are never told. A write lands in memory whatever the disk is doing, the
-buffer keeps it, and freeing space heals the store minutes or hours later with
-no restart. A full disk is an ordinary Tuesday on plenty of machines, and a
-field write has nothing to do about it - the application does, once, in one
-place. Only a caller that asked whether its write reached the disk hears the
-failure: `durable()`, `save_now`, a flush awaited.
+Ordinary buffered writes do not return disk errors. Handle persistence problems
+centrally through an observer, or use `durable()`, `save_now` or an awaited flush
+when a caller needs the saving result.
 
 ### Hearing about it
 
-Any number of places can listen on a store that is already open - a status bar,
-a telemetry sink, a test:
+Attach observers to an open store for a status indicator, telemetry or a test:
 
 <!-- shown: watching a store's saving from anywhere -->
 ```rust
@@ -104,38 +91,32 @@ if let Some(why) = store.persist_failure() {
 ```
 <!-- /shown -->
 
-An observer hears every streak that outlived `give_up_after`, and then the save
-that lands after it. It decides nothing. It stays attached while its watch is
-kept, and dropping the watch detaches it. It runs on the debouncer's thread,
-where closing the store is refused; one that panics is logged, and the store
-saves on.
+An observer receives a failure after `give_up_after`, then a recovery event
+when saving succeeds. Keep its watch to remain subscribed. The callback runs
+on the debouncer thread, where closing the store is not allowed. A callback
+panic is logged without stopping future saves.
 
-`failure.why.current_context()` says which failure it is. `StorageError::Flush`
-is the disk: full, read-only, taken away, held by something else.
-`StorageError::Codec` is the document not rendering - a failure that will not
-heal on its own, the same on the hundredth attempt as on the first.
-`failure.unsaved` is every path written since the last flush that landed:
-candidates rather than culprits, since a document is rendered whole and a render
-that fails names no path.
+`failure.why.current_context()` identifies the error category:
 
-It arrives as a `Report<StorageError>` rather than as one of the
-[error sets](/amethystate/concepts/errors/), and deliberately: this runs on the debouncer's
-thread with nobody's call to answer, so it is the engine's report rather than a
-boundary's.
+- `StorageError::Flush`: a storage operation failed, for example because the
+  disk is full, read-only or temporarily inaccessible.
+- `StorageError::Codec`: the complete document could not be encoded. Retrying
+  unchanged data is unlikely to fix that.
 
-`Store::persist_failure` is the same news for a caller that would rather ask
-than listen: the failure the last streak gave up with, until a save lands
-again.
+`failure.unsaved` lists pending paths, not necessarily the path that caused the
+failure: a document-level encoding error may not identify one value.
 
-Most codec failures never get this far. A value is encoded where it is written,
-so one the format cannot hold is refused by `set` itself and never enters the
-buffer.
+Observers receive a `Report<StorageError>`, preserving the engine's diagnostic
+context. `Store::persist_failure` lets you query the last reported failure
+instead; it clears when saving succeeds.
+
+Most unsupported values fail at the write itself, before entering the buffer.
+These observers concern failures during persistence.
 
 ## One write to one file
 
-Below the retry budget, and not beside it: this is what happens *inside* a
-single attempt, and only once it runs out does a flush count as having failed
-at all.
+Text engines have additional retries **inside** a single flush attempt.
+Only after these are exhausted does the outer flush retry policy apply:
 
 <!-- shown: how hard one write to one file fights -->
 ```rust
@@ -148,21 +129,19 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-A setting of the text engines, which write a whole document to a file of its
-own and then replace the target with it. Those two steps fail for unrelated
-reasons and take separate budgets: `writing` is ordinary I/O, where a full disk
-stays full and a few quick attempts are all it is worth, while `replacing` is
-an antivirus or a cloud client holding the file, which lets go on its own - so
-its budget is the longer one, and raising it costs nothing until something
-really is stuck.
+A text engine first writes a temporary document, then replaces the destination.
+`writing` and `replacing` configure separate retry budgets for these stages.
+A full disk will not usually recover after a few milliseconds, while a file
+held by an antivirus or sync client may soon become replaceable. Replacement
+therefore has the longer default budget.
 
-redb and SQLite hold their own handle and write through it, so there is no
-replacement to block and no such setting.
+redb and SQLite use database handles rather than this file-replacement protocol;
+these settings do not apply to them.
 
 ## What the store refuses to hold
 
-Set through `limits`, and described on its own page:
-[What a store refuses to hold](/amethystate/store/limits/).
+Use `limits` to restrict depth and portability. See
+[Store limits](/amethystate/store/limits/).
 
 ## Reading a large collection
 
@@ -174,17 +153,13 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-Parsing every stored key and decoding every value is around four hundred
-milliseconds of a million-entry open; splitting the work takes that to about
-eighty. Off by default, because this is a thread pool inside a state library
-and an application that already has one should say whether it wants a second.
-While it is off nothing is spawned - the pool is built on first use.
+Parallel decoding can reduce the cost of opening large collections. It uses a
+lazily initialized thread pool and is disabled by default, so applications can
+choose whether the extra pool is appropriate. Small collections stay on the
+calling thread to avoid scheduling overhead.
 
-Below roughly a thousand entries the handing out costs more than the work, and
-the split does not happen.
-
-A setting of redb, and of the engine in memory. SQLite and the text engines
-keep their reads on the calling thread and have no such setting.
+This option is available for redb and the memory engine. SQLite and text
+engines decode on the calling thread.
 
 ## redb's cache
 
@@ -196,29 +171,24 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-redb keeps no cache by default. What the store's fields, cells and maps hold is
-in memory already, and a cache of redb's own would be a second copy of the same
-data, growing to the size of the file. Without it, the reads that go to the
-file - a `get`, a `Kv` read, a scan - are served by the system's file cache
-instead.
+redb's own cache is disabled by default. Fields, cells and maps already keep
+their live state in memory; another cache can duplicate that data. Direct
+store reads without it rely on the operating system's file cache.
 
-That costs those reads, and nothing else. On a store of a hundred thousand
-entries a `get` takes about 20 µs without a cache and 2 µs with one, and a scan
-of a thousand entries about 300 µs against 100; a commit is the same either
-way, because it waits on the disk. A store read mostly through `Kv` is the one
-worth giving a cache, in bytes.
+A workload dominated by `Kv` reads or scans may benefit from a redb cache.
+Set its capacity in bytes and measure with the application's data; this changes
+read performance, not the durability of commits.
 
 ## What is not a setting
 
-`migrations`, `provide` and `context` sit on the same builder and are not
-configuration. They are **inputs**: the steps to run, the values those steps
-are handed, and the values the declared rules are handed.
-[Migrations](/amethystate/migrations/overview/) covers the first two, and
-[Rules](/amethystate/state/rules/) the third.
+The builder also accepts application inputs:
 
-The two that hand over a value are separate because they are read from
-different places. A migration step runs once, inside `build`, on the thread
-that called it, so `provide` takes anything at all - an `Rc`, a handle its
-toolkit refuses to move. A rule runs every time a value arrives or is written,
-including from the thread watching the file, so `context` asks for
-`Send + Sync`.
+- `migrations`: the steps to run;
+- `provide`: dependencies made available to migration steps;
+- `context`: dependencies available to field rules and custom construction.
+
+Migration dependencies may include non-`Send` values such as `Rc`: steps run
+synchronously during `migrate` on its calling thread. Rules can also run on a
+file-watcher thread, so values supplied through `context` must be `Send + Sync`.
+See [Migrations](/amethystate/migrations/overview/) and
+[Rules](/amethystate/state/rules/).

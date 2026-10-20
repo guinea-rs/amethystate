@@ -1,29 +1,36 @@
 ---
-title: "Durability: availability over consistency"
+title: "Durability: memory and disk"
 sidebar:
   label: Durability
   order: 18
 ---
 
-Most storage documentation opens with what it guarantees. This page opens with what it gives up, because that is the part you need in order to decide whether `amethystate` suits what you are building.
-
-The parallel with CAP is loose but honest: faced with the same kind of choice, this library gives consistency away. Durability is what drags asynchrony — or blocking — into the paths that touch state, and a user interface wants neither. Nobody wants to await a read, and few want to await a write. Consistency here means the agreement between what you read and what is durably stored, and that agreement is what pays for keeping both paths plain synchronous calls. What you read is always the truth about your application's state. It is not always the truth about what is on disk.
-
-Everything below is the shape of that decision: what it buys, what it costs, and where you can buy the guarantee back when you need it.
+Ordinary field writes update application state without waiting for disk.
+A crash before the next flush can therefore lose recent changes.
+Use explicit persistence operations when an action must not proceed until
+its data is saved.
 
 ## How it works
 
-Writes do not reach disk when you make them. `field.set()` puts the value in an in-memory buffer, notifies subscribers, and returns. A debounce timer flushes the buffer to storage a little later, and a burst of writes to one path costs one flush rather than one each.
+`field.set()` updates the write buffer, notifies subscribers and returns.
+A timer later flushes the accumulated changes. Multiple writes to one path
+before that flush can be saved as one final value.
 
-**An identical write stops at the comparison.** The bytes go against what the store holds, buffered or committed, and a match ends it there: nothing buffered, no subscriber called, no flush scheduled. A slider that rounds to the step it was already on, a form saving on blur without an edit, a cache revalidated on a timer — each costs one memcmp. The comparison is on bytes, so a `f64` holding `NaN` deduplicates against itself.
+Identical encoded values are skipped: no new buffered write, notification or
+flush is scheduled. Encoding and obtaining the previous value still cost work.
+The comparison is on bytes, so an unchanged NaN representation can also be
+recognized as identical.
 
-**Subscribers hear about changes.** Writing the same value again is silent, so anything that needs to say *checked, still valid* needs its own place to say it.
+Subscriptions report changes, not attempts. Send a separate event if callers
+need to know that a check completed without changing anything.
 
-Reads are cheap for the same reason. `get()` looks in that buffer first and answers from it, so a value you have been writing every frame is read back from memory, not from storage.
+`Field::get()` reads memory. Direct store reads check buffered writes before
+backing storage.
 
 ## What you get
 
-**Reads see your own writes.** A value you just wrote is immediately visible through `get()`, even before it reaches disk. The buffer is consulted first.
+**Read your own writes immediately.** A successful buffered write is visible
+through `get` before the file is updated:
 
 <!-- shown: a write you can read and the disk cannot -->
 ```rust
@@ -33,19 +40,26 @@ let reads_back = state.port().get();
 ```
 <!-- /shown -->
 
-`reads_back` is `9090`, and the document on disk still holds the value from before.
+`reads_back` is `9090`; the document may still contain the previous value.
 
-**Flushes are atomic.** Everything buffered goes to storage in a single transaction. Storage never holds a half-written batch.
+**Batched persistence.** Database engines commit their batches transactionally;
+text engines replace documents and maintain recovery metadata for opening
+rewrites. For text-file recovery limits, see [Files](/amethystate/store/files/).
 
-**Clean shutdown loses nothing.** Dropping the store flushes it. A process that exits normally has everything on disk.
+**A final save attempt on shutdown.** Dropping the store flushes its buffer,
+but saving can still fail. Call `save_now` or `close` explicitly if the
+application must handle that error.
 
-**Except the global store, which nothing drops.** A static is never dropped, so a clean return loses the last debounce interval unless the guard goes out of scope or `amethystate::shutdown()` is called. See [Opening a store](/amethystate/store/opening/#writing-the-buffer-out).
+Keep the global-store guard or call `amethystate::shutdown()`; statics are not
+automatically dropped. See [Opening a store](/amethystate/store/opening/#writing-the-buffer-out).
 
 ## What you lose
 
-**A crash loses the buffer.** A process killed by a signal, aborting on panic, or cut off by power loss loses everything written since the last flush. Destructors do not run in those cases.
+**An abrupt stop can lose pending writes.** Process termination, abort or power
+loss may prevent destructors from running and discard changes since the last
+successful flush.
 
-**The window is the debounce interval** — 300 ms by default:
+The default batching interval is **300 ms**:
 
 <!-- shown: narrowing the window -->
 ```rust
@@ -55,45 +69,64 @@ let store = StoreBuilder::new(path.path())
 ```
 <!-- /shown -->
 
-A smaller value narrows the window and flushes more often. A larger one widens it and flushes less. This is the only knob, and it controls exactly this trade.
+A shorter interval saves more often; a longer one batches more changes.
+Disk failures can extend the unsaved period beyond that interval.
 
-**A notification does not mean the value is stored.** Subscribers are called during `set()`, before the flush. A subscriber can observe a value that a later crash erases. If your callback does something irreversible outside the process — sends a request, writes another file — do not treat the event as proof the value survived.
+**Notification is not proof of persistence.** Callbacks run before the flush.
+Do not use a change notification alone as permission for an irreversible
+external action that depends on the value being saved.
 
 ## What a field and the store agree on
 
-Everything above is about the buffer and the disk, and there the disk is allowed to lag. Between a field and the store the answer is stricter: **what a field holds is what the store holds.** This is the guarantee the library is built around, and a place where it fails is a bug worth reporting.
+A field normally mirrors the store's current value in memory, even while the
+disk is behind:
 
-- A write through a field lands in both or in neither. A write to a closed store leaves the field as it was and says so in the log; a value the engine cannot hold panics before it lands anywhere. A subscriber that panics does not undo it: every other subscriber is told, the flush is already scheduled, and the panic reaches the writer after that.
-- A change that arrives some other way - `Store::set` by path, a person editing the file, a second store on it - reaches the field as the store took it.
-- A declared rule that puts a value right writes the corrected value back, wherever the value came from, so the file never keeps a value the field does not show.
-- `save` on a loaded struct leaves the struct in hand holding what it wrote.
+- A valid field write updates the store and the field. A closed store leaves
+  the field unchanged; an unencodable value is rejected before buffering.
+- Changes by path or external file edits update the field when processed.
+- A rule's correction is written back to the store.
+- Saving a loaded struct applies its rules and leaves corrected values in
+  that struct.
+
+A subscriber panic does not undo an accepted write: other subscribers are
+notified and persistence remains scheduled before the panic reaches the writer.
 
 ### Where the two may differ
 
-A few places, each on purpose, and each one a field can be asked about:
-
-- **A value the field will not take.** Bytes that do not decode, a default that could not be written because the path already held something else. The field shows its last good value or its default, and `try_get` answers `Err` saying why. The store keeps what it had, so nothing anyone wrote is destroyed before somebody fixes it.
-- **A key removed under a field that keeps its value.** Under `on_delete = Keep`, the default, the field goes on showing the last value, and the store holds nothing there until the next write.
-- **A correction the store will not take.** A rule put a stored value right, and writing the correction back failed - the store is closed, or the engine cannot hold what the rule made. The field holds the corrected value, the store the one it was given, and `try_get` answers `Reason::NotWrittenBack`.
-- **A loaded struct between load and save.** It is plain data in your hands: assigning to it changes nothing until `save`, and an edit from outside never reaches it.
-- **A save the store fails partway.** `save` puts every field through its rule before it writes any. A store error partway through - the store closed, a value the engine refuses - leaves the fields written before it, and `save` answers with the one it stopped at.
-- **A closed store.** A field answers the last value it heard, and `try_get` says the store is closed.
-- **A `volatile` field**, which is never stored at all.
+- **Unreadable data or an occupied path.** The field keeps its last readable
+  value or default. `try_get` describes the problem; original stored data is
+  preserved.
+- **Deletion with `on_delete = Keep`.** The field retains its value while the
+  store has no key, until a later write restores it.
+- **A correction cannot be saved.** The field has the corrected value while
+  storage retains the original; `try_get` reports `Reason::NotWrittenBack`.
+- **Persistent-only structs.** Local assignments do not update storage until
+  save, and external updates do not change the loaded struct.
+- **A partially failed struct save.** All field rules run first, but writes
+  are not one struct-wide transaction. A later error can leave earlier fields
+  written.
+- **Closed stores.** Cached fields remain readable; `try_get` reports closure.
+- **Volatile fields.** These are intentionally never stored.
 
 ### Concurrent access
 
-The agreement is kept for one writer at a time. Two threads writing the same field are put in order by the store, and the field settles on the write the store took last. What it does not cover:
+The store orders writes to the same field, but higher-level operations need
+application coordination:
 
-- **Read-modify-write is not atomic.** `update` and `modify` on a field or a cell, and `modify` and `upsert` on a map, read the value, run your closure and write the result. Two threads doing it at once can read the same value, and the second write drops the first one's change. The field and the store still agree - on the second write.
-- **Nothing spans two fields.** Two threads writing related fields can leave a pair neither of them meant. A check between fields written where the struct is opened, with `open = manual`, runs there and once, not on every write.
-- **Another process** on the same file is a matter for each engine, set out under [Closing](/amethystate/store/opening/#closing): redb refuses it, SQLite holds the file, and the text engines merge at save time, whoever saved last winning a key both wrote. Until the watcher brings its write in, the two processes disagree.
+- `update` and `modify`, and a map's `modify` or `upsert`, are not atomic
+  read-modify-write operations. Concurrent changes can overwrite each other.
+- There is no transaction across related fields. Checks in a custom `Open`
+  run at construction, not after every update.
+- Another process may not see a write until its watcher processes it. Engine
+  restrictions and text-file conflicts are described under
+  [Closing](/amethystate/store/opening/#closing).
 
-Where that matters, give the state one writer: one thread, or a lock of your own around the read and the write.
+Use one writer or an application lock around a complete read-modify-write or
+multi-field operation when consistency requires it.
 
 ## Waiting for the disk
 
-`save_now()` pushes the whole buffer out and returns once the store has
-committed it.
+`save_now()` flushes the whole buffer and returns its commit result:
 
 <!-- shown: forcing everything out -->
 ```rust
@@ -102,7 +135,9 @@ store.save_now()?;
 ```
 <!-- /shown -->
 
-Fields, maps, cells and `Kv` each offer a `durable()` view: the same writes, every one of them returning only once the change is on disk. That keeps the guarantee to a single call, with no gap between writing and committing for you to be preempted in — or to forget:
+Fields, maps, cells and `Kv` provide `durable()` views. Their write methods
+wait for persistence and return a `Result`, so the caller does not have to
+separately remember a flush:
 
 <!-- shown: a write that waits for the disk -->
 ```rust
@@ -110,17 +145,20 @@ state.port().durable().set(9090)?;
 ```
 <!-- /shown -->
 
-Off the UI thread there is `set_async`, lazy like any future, so nothing happens — the write included — until it is awaited:
+Use `set_async` when you want to await persistence without blocking the UI
+thread. Like other futures, it does nothing, including the write, until polled:
 
 ```rust
 state.port().durable().set_async(9090).await?;
 ```
 
-Reach for these at points where losing the last few hundred milliseconds actually matters — before launching an external process, after a step the user cannot repeat. Calling them on every write gives back the cheap writes you came for.
+Use these operations at meaningful boundaries: before starting an external
+process, or before confirming work that cannot be repeated. Using them for
+every slider update gives up the benefit of buffered writes.
 
 ### A durable write commits its neighbours
 
-`port` below is written durably, and `host` — buffered a moment earlier and never asked to be durable — is on disk when the call returns:
+In this example, saving `port` durably also saves the buffered `host`:
 
 <!-- shown: what else a durable write commits -->
 ```rust
@@ -130,12 +168,21 @@ state.port().durable().set(9090)?;
 ```
 <!-- /shown -->
 
-How wide that goes depends on the engine. A durable write puts its value in the buffer like any other and then flushes the path it wrote. The text engines rewrite the whole document on every commit, so one durable write makes the entire store durable — which is what happened above. `redb` and `sqlite` commit, in one transaction, what is buffered at that path and below it: a field's own value, every buffered entry of a map, one `Kv` path. There `host` would wait for the window. The async twins wait for the store's next full flush instead, so `set_async` commits everything buffered on every engine.
+The affected scope depends on the engine:
 
-Two consequences worth holding on to. The cost of a durable write is not the cost of your value — it is the cost of whatever else that commit takes with it, which you did not choose and cannot see. And a value you deliberately left buffered can reach disk because something beside it was committed, so "not durable yet" is never a guarantee about where a value *is not*.
+- Text engines rewrite the whole document, so a durable write commits all
+  pending changes in that store.
+- redb and SQLite flush the written path and its descendants. A durable field
+  write need not commit an unrelated field; a durable map operation includes
+  pending entries beneath its path.
+- Async variants wait for the next whole-store flush on every engine.
+
+Cost therefore depends on everything included in the flush, not just the one
+value. Conversely, leaving a value buffered does not guarantee it is absent
+from disk: another operation may flush it.
 
 ## There is no fast path
 
-Nothing writes straight to disk. `durable()` waits for a flush rather than skipping the buffer, and no call skips it.
-
-What you get for that is a thing you would otherwise have to check for yourself. The bookkeeping `amethystate` keeps — the mark saying a namespace was initialized, among others — goes into the same buffer a value does, so the two land together or not at all. A crash cannot leave you a namespace marked as initialized with nothing under it, or defaults written a second time over data that was already there.
+Durable writes still go through the buffer; they wait for its commit rather
+than bypassing it. Related initialization metadata uses that buffer too,
+so the engine can commit values together with the metadata describing them.

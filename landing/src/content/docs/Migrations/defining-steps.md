@@ -23,11 +23,14 @@ fn migrate_config_v1_to_v2(old: AmeData<v1::Config>) -> amethystate::MigrationRe
 }
 ```
 
-No registration call is needed. `migrate` picks up every `#[migrate]` function in the binary — that is the linker's answer rather than a list anyone keeps.
+Call `StoreBuilder::migrate` to collect and run the `#[migrate]` functions linked
+into the binary. You do not need to maintain a separate registration list.
 
 ## Versioning old structs
 
-A step takes the old struct as its argument, so the old struct has to still exist as a type. Where you put it is your business — nothing here reads the module path, and storage does not depend on it. The examples use `mod v1` because the old struct and the new one usually want the same name.
+A migration needs the old schema as a type, so keep its declaration in the code.
+The module path does not affect storage. Putting old declarations in `mod v1`
+lets you reuse the struct name for the current version.
 
 ```rust
 mod v1 {
@@ -95,9 +98,15 @@ fn migrate_identity_v1_to_v2(
 
 ## Cleanup the step already does
 
-Every generated step ends by removing each place the old declaration owned and the new one does not. A map is a place and owns everything under it — see [Who owns which place](/amethystate/concepts/claims/) — so a map that was dropped or renamed takes its entries with it. There is nothing to loop over and nothing to write.
+After a generated step, the library deletes storage paths owned by the old
+schema but not the new one. Deleting or renaming a map also removes its old
+entries, because a map owns its entire subtree. You do not need to delete those
+entries individually. See [Who owns which place](/amethystate/concepts/claims/).
 
-The other case is a map that stays while an entry leaves it. `routes` is declared in both versions, but the `obsolete` key should not be there any more. The new map is written entry by entry: the ones it holds are written over, and `routes.obsolete` is not touched — it stays on disk. That is what a `MigrationContext` second argument is for:
+A map that exists in both schemas is different. If the returned `routes` map
+omits an old `obsolete` entry, that alone does not delete `routes.obsolete` from
+storage: the returned entries are written individually. Accept a
+`MigrationContext` as the second argument and delete the obsolete key explicitly:
 
 ```rust
 #[migrate]

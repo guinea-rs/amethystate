@@ -14,26 +14,28 @@
 
 </div>
 
-`amethystate` is a state manager for Rust applications: state is declared as an ordinary struct, its fields are
-reactive, and they outlive the program.
+`amethystate` manages persistent, reactive state for Rust applications.
+Declare your settings as a struct, read and update them through field handles,
+and subscribe to changes. The library saves the values between runs.
 
 ### Features
 
-- **Struct-defined state** — one attribute turns a struct's fields into persisted reactive ones, with defaults and subscriptions
-- **Rules on a value** — one `fn` on a field puts right every value it takes, read or written, and the correction reaches the field and the file alike; an invariant between fields goes in the struct's own `Open`
-- **Runtime-defined keys** — a map entry or a `Kv` path gets the same subscriptions and durability as a declared field
-- **Read and write every frame** — writes are buffered and batched, reads answer from memory
-- **Durable when it matters** — `durable()` on a field, a map or a `Kv` path returns only once the value is on disk, for the writes that must not sit in a buffer
-- **Behaviour you choose** — which engine holds the state, when a write reaches the disk, what a field does with a value that will not read, what a new version does to an old file
-- **Migrations** — explicit versions, run at startup; drift is logged
-- **Engines** — `redb`, `sqlite`, and text as `json`/`toml`/`ron` on disk; text files reload on external edits
-- **In a browser** — `localStorage`; a page hears the writes another tab makes
-- **[guinea](https://guinea-rs.github.io/amethystate/integrations/guinea)** — a timer whose period follows a stored setting
-- **Tracing** — structured events, each write tagged with its source struct
+- **State declared as structs** — fields have defaults, persistent values and subscriptions.
+- **Rules for values** — normalize a value whenever it is read or written, such as clamping a window size. Use a custom `Open` implementation for checks involving several fields.
+- **Dynamic keys** — use a reactive map or `Kv` when the keys are not known at compile time.
+- **Buffered writes** — read from memory and update state without waiting for each change to reach disk.
+- **Explicit durability** — use `durable()` on a field, map or `Kv` path when a write must reach disk before returning.
+- **Configurable storage** — choose the engine, flush timing and policies for unreadable values.
+- **Migrations** — version your structs and transform old data when opening the store. Unversioned schema changes are reported as drift.
+- **File engines** — redb, SQLite, JSON, TOML and RON. Text engines also reload changes made outside the application.
+- **Browser storage** — persist to `localStorage` and receive changes from other tabs.
+- **[guinea integration](https://guinea-rs.github.io/amethystate/integrations/guinea)** — drive a timer's period from a stored setting.
+- **Tracing** — structured events identify the struct responsible for a write.
 
 > [!WARNING]
 > **About half of the engines are not used in any real application.**
-> They run in CI and were smoke-tested, so expect rough edges there, and report what you hit.
+> They are covered by CI and smoke tests, but that is not a substitute for
+> use in an application. Expect rough edges and report problems you find.
 
 <!-- shown: the readme's first example -->
 ```rust
@@ -67,7 +69,9 @@ See the **[book](https://guinea-rs.github.io/amethystate/introduction)** for ful
 
 ### For agents
 
-The API is broad, and a guess from the signatures seldom lands on the answer it already has. Before writing code against amethystate, read **[AGENTS.md](AGENTS.md)** and the book it points to.
+Before writing code against amethystate, read **[AGENTS.md](AGENTS.md)** and
+the relevant book sections. The book explains when to use each API and the
+trade-offs that are not visible in its signature.
 
 ### Compatibility
 The minimum supported Rust version (MSRV) for `amethystate` is **1.90**.

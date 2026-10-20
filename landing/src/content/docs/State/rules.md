@@ -4,31 +4,27 @@ sidebar:
   order: 4
 ---
 
-A window position of -32000, a font size of zero and the name of a theme nobody
-installed all decode perfectly.
-[When a value will not read](/amethystate/state/unreadable-values/) is about
-bytes that will not read; a `rule` is where the application says what the ones
-that do should be.
+A value can deserialize successfully and still be unsuitable for the
+application: a font size of zero, for example, or the name of an unavailable
+theme. Use a `rule` to normalize such values. Data that cannot deserialize at
+all is handled by [read policies](/amethystate/state/unreadable-values/).
 
-A rule is declared once, on the field, and it stands at every way a value goes
-through that field, in both directions:
+A field's rule runs on values read from storage and written by the application:
 
 - **in** - read from the store as the struct is built or loaded, brought in by
   an edit to the file, written past the field by path with `Store::set`;
 - **out** - written by this process with `set`, `update` or `modify`, or saved
   with a loaded struct's `save`.
 
-The declared default is not among them. It is the declaration's own value and
-is taken as written: where the store holds nothing, after `UseDefault`, and as
-a `volatile` field's first value. A default the rule would change is a default
-to change.
+**Defaults do not pass through the rule.** This includes a missing key,
+`UseDefault` and a volatile field's initial value. Choose a default that already
+satisfies the rule.
 
-A rule does not refuse. It takes the value by `&mut` and leaves it acceptable:
-a size out of range is clamped, a theme that is not installed is replaced.
-Whatever it leaves is what the field holds and what the store holds - a
-correction made on the way in is written back to the store, and one made by
-`save` is left in the struct in hand. So no caller has to trim a value before
-`set` to keep it in range, and no screen shows a value the file does not hold.
+A rule modifies a value through `&mut`; it does not reject it. It can clamp a
+size or replace a missing theme. The field uses the corrected value, and a
+correction made while reading is written back to the store. When saving a
+loaded struct, the corrected value also remains in that struct. Callers do not
+need to repeat the same normalization before each write.
 
 ## Writing one
 
@@ -59,9 +55,8 @@ pub struct Ui {
 ```
 <!-- /shown -->
 
-The context is the answer to a rule being a bare `fn`: it captures nothing, so
-the world it judges a value against - which monitors exist, which themes are
-installed - is handed to the store when it opens.
+A rule is a function pointer, not a capturing closure. Pass dependencies such
+as the available monitors or installed themes through the store's context:
 
 ```rust
 let store = StoreBuilder::new(settings)
@@ -69,14 +64,13 @@ let store = StoreBuilder::new(settings)
     .build()?;
 ```
 
-One value per type, asked for with `cx.get::<T>()`, which answers `None` when
-nothing was given, or `cx.require::<T>()`, which panics then. A store built
-without what its rules need is built wrong the same way on every run, and the
-panic names the type asked for and lists what was given instead.
+The context stores one value per type. `cx.get::<T>()` returns `None` when the
+type was not supplied. `cx.require::<T>()` panics with the missing and available
+types, making a missing required dependency visible during setup.
 
 ## A write it puts right
 
-A write lands as the rule left it, in the field and in the store alike.
+The field and store receive the rule's normalized value:
 
 <!-- shown: a write the rule puts right -->
 ```rust
@@ -89,49 +83,35 @@ assert_eq!(store.get::<u8>(["ruled_ui", "font_size"])?, Some(72));
 
 ## Where a rule runs, and where it does not
 
-| a value | a field's rule |
+| operation | behavior |
 | --- | --- |
-| read as the struct is built | runs; a correction is written back |
-| written through the field: `set`, `update`, `modify` | runs; the write lands as the rule left it |
-| written past the field: `Store::set` by path | runs as it arrives; a correction is written back |
-| an edit from outside the process | runs as it arrives, the same way |
-| `load_with` | runs; a correction is written back |
-| `save` on a loaded struct | runs on every field before any is written |
-| a migration step | does not run |
+| Opening or loading a field | Normalize the read value and write corrections back. |
+| `set`, `update`, `modify` through the field | Normalize before writing. |
+| `Store::set` by path | Normalize when the live field receives the change, then write corrections back. |
+| External file edit | Process like an incoming stored value. |
+| Saving a persistent-only struct | Run every field rule before starting writes. |
+| Migration step | Do not run field rules. |
 
-**A write past the field is put right after it was stored.** The store took
-it before the field heard of it, so for a moment the file holds what arrived.
-The correction is then written back over it, and the file ends up holding the
-value the field holds.
+A direct path write is accepted by the store before the live field handles it.
+The field then normalizes it and writes a correction if needed. Do not treat
+this as a store-wide validation gate before the original write.
 
-**A correction the store will not take is a disagreement.** A rule can turn a
-value into one the engine cannot hold - an infinity, for an engine that writes
-JSON. The field then holds what the rule made of it, the store what it was
-given, and `try_get` answers `Reason::NotWrittenBack` until a change lands.
+If writing a correction fails, the field retains its normalized value and
+`try_get` reports `Reason::NotWrittenBack`.
 
-`save` takes the struct by `&mut` and puts every field through its rule before
-anything is written. What a rule puts right is put right in the struct in hand
-as well, so after a save it holds what the file holds.
+Persistent-only `save` takes `&mut self`, so normalized values remain in the
+loaded struct as well as being written to storage.
 
 ## Where a rule goes, and where it does not
 
-A `volatile` field takes a rule too. Nothing arrives at it from the store, but
-every write goes through it, so the rule is what keeps a value this process
-holds and never stores in range.
+Volatile fields can have rules for local writes, even though nothing is persisted.
+The macro rejects `rule` on:
 
-Two fields will not take a rule at all, and the macro says so while it
-compiles:
+- **Nested fields:** they describe several paths, not one leaf value. Put rules
+  on the component's individual fields.
+- **Maps:** dynamic entries do not have individual field declarations to carry
+  this rule. `unreadable_entries` controls read failures, not normalization.
 
-- **A `nested` field.** A field's rule judges one value at one path. A nested
-  struct is not a value but a subtree of paths, so there is nothing to call a
-  rule with. The rules go on the nested struct's own fields.
-- **A map.** A rule is declared once against one value, and a map's entries
-  are data - they come and go while the program runs, and there is no declared
-  path to hang a rule on. What a map does with an entry it cannot read is
-  `unreadable_entries`, in [Fields](/amethystate/state/fields/), not this
-  page's subject.
-
-Nor does a struct take one. A struct is the place its fields are kept rather
-than a value of its own, so an invariant between two fields - a smallest width
-no wider than the largest - is put right where the struct is opened:
-[Opening a struct your own way](/amethystate/state/opening-structs/).
+Struct-wide rules are not supported. Put cross-field construction checks in
+[Open](/amethystate/state/opening-structs/), and maintain the invariant in your
+application's later updates.

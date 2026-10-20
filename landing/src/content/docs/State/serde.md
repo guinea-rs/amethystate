@@ -1,21 +1,18 @@
 ---
-title: What serde says here
+title: Serde and storage layouts
 sidebar:
   order: 6
 ---
 
-The library stores whatever serde will carry, so a stored type is written in two
-vocabularies at once. This page is about where the line between them falls, and
-it falls in one place: whether the type is serialized at all.
+State declarations and stored values use different attributes.
 
-**A struct whose fields are paths** - one with `#[amethystate]`, or embedded
-with `nested` - is not serialized, ever. Not "nothing gets round to it": no
-`Serialize` is written for it. It is not a value, it is a description of where
-other values live, and each of its fields goes to the store on its own, at its
-own path, when its own turn comes.
+A struct marked `#[amethystate]`, including a `nested` component, describes
+storage paths. Its fields are stored separately; the declaration itself is
+not serialized as one value. Use `#[amestate(..)]` to control those paths and
+field behavior.
 
-So a `#[serde(..)]` written on it, or on one of its fields, is a compile error -
-and rustc's own, not ours:
+A serde helper attribute on the declaration or its fields does not configure
+amethystate. Without a corresponding serde derive, rustc rejects it:
 
 ```
 error: cannot find attribute `serde` in this scope
@@ -23,44 +20,37 @@ error: cannot find attribute `serde` in this scope
           `Deserialize` and `Serialize`, you might be missing a `derive` attribute
 ```
 
-Which is the whole of it. The macro does not read serde, refuse it clause by
-clause, or explain it away: it carries every attribute it does not understand
-onto the field it generates, and the attribute is judged by whoever understands
-it. Where there is no derive, there is no attribute.
+The macro forwards attributes it does not handle to the generated fields;
+it does not translate serde attributes into storage declarations.
 
-**A leaf** - anything stored as one value at one path - is the opposite. The
-store hands it to the codec and takes back bytes, and never looks inside. Every
-serde attribute means there exactly what it means anywhere else.
+A **leaf value** is different: it is serialized as one value at one path.
+Its type can derive serde traits and use serde attributes normally.
 
 ## What says it instead
 
-Five things people reach for serde to say have somewhere to be said here. The
-spellings are kept apart because the operations are not the same one:
+For state declarations, use these attributes:
 
 | in serde | here |
 | --- | --- |
-| `rename = ".."` | `#[amestate(path = "..")]` - and a dot in it is a level, where serde's is one name with a dot in it |
-| `rename_all = ".."` | `rename_all` on the `#[amethystate(..)]` above |
-| `default` on a field | `#[amestate(default = ..)]`, taking an expression rather than the path to a function |
-| `flatten` | `#[amestate(flatten)]` on a `nested` field - and it moves segments on disk, where serde's merges a map into the map holding it |
-| `with`, `serialize_with`, `deserialize_with` | `#[amestate(with = ..)]` and its halves, taking the same functions |
+| `rename = ".."` | `#[amestate(path = "..")]`; dots separate path segments rather than forming one literal name |
+| `rename_all = ".."` | `rename_all` on `#[amethystate(..)]` |
+| `default` on a field | `#[amestate(default = ..)]`, with an expression rather than a function path |
+| `flatten` | `#[amestate(flatten)]` on a `nested` field; changes its storage paths |
+| `with`, `serialize_with`, `deserialize_with` | the corresponding `#[amestate(..)]` attributes, using the same functions |
 
-The rest of serde's vocabulary has nothing to be here. `deny_unknown_fields`,
-`tag`, `untagged`, `transparent`, `from`, `remote`, `skip`, `alias`, `getter`,
-`borrow` all describe one encoded value, and there is none: the fields are
-separate paths, present or absent on their own. What answers a path that will
-not read is `on_unreadable`; what a field kept out of the store entirely is, is
-`#[amestate(volatile)]`; what moves data written under an older name is a
-`#[migrate]` step with `#[rename(old => new)]`, which runs once at the open and
-converges, where an alias would be kept for good.
+Attributes such as `tag`, `untagged`, `transparent` and `deny_unknown_fields`
+configure a serialized value, not a collection of independently stored fields.
+For unreadable fields use `on_unreadable`; for fields that must stay in memory
+use `volatile`. To move previously saved data, write a migration step.
+`#[rename(old => new)]` records a rename but does not replace the conversion
+function's body.
 
-All of it is written up where the vocabulary lives:
-[Fields](/amethystate/state/fields/).
+See [Fields](/amethystate/state/fields/) for the complete attribute reference.
 
 ## Inside a leaf
 
-Nothing above applies. The store writes the whole value at one path and reads it
-back, and what it is told in between is between you and serde:
+The codec serializes the entire leaf value. Its serde attributes therefore
+apply normally:
 
 <!-- shown: a leaf, where serde answers to nobody here -->
 ```rust
@@ -81,35 +71,26 @@ pub struct Service {
 ```
 <!-- /shown -->
 
-`Endpoint` lands whole at `svc.upstream`, kebab-cased and strict about unknown
-fields, and the store has no opinion about any of it.
+Here `Endpoint` is stored at `svc.upstream`; serde controls its member names
+and rejects unknown fields during deserialization.
 
-Two things still cost something, and it is worth knowing which:
+Changes inside a leaf need separate attention:
 
-**A rename inside a leaf is a migration nothing here will notice.** The bytes
-move and the Rust name does not. A store written by the old build has the old
-field name inside the value, and the new build will not find it.
-
-**`deny_unknown_fields` turns every field a later version adds into a hard read
-failure for an older build.** proto3 dropped unknown fields in its first release
-and reversed it in 3.5.0 for the same reason. It is your value and your call.
-
-And two habits worth keeping, for the same reason any format keeps them:
-
-**`#[serde(default)]` on every field added after the first release.** Serde
-already ignores a field it does not know, so a value written by a newer build
-reads on an older one for free. The other direction is not free: a field with no
-default fails the whole value when it is missing, so a leaf stored before the
-field existed stops reading.
-
-**Named fields rather than a tuple.** A tuple struct serialises positionally, so
-a field added in the middle silently reassigns every field after it.
+- **Internal field renames are not detected as schema drift.** The stored path
+  stays the same. Ensure the new type can read old data, or convert it in a
+  migration.
+- **`deny_unknown_fields` restricts forward compatibility.** An older type
+  rejects members added by a newer release.
+- **New fields need a missing-value policy.** In formats with named members,
+  `#[serde(default)]` lets a new type read data written before that field existed.
+  Without a default, a missing required member fails the whole value.
+- **Positional layouts need particular care.** Inserting a tuple member can
+  shift subsequent values. Named Rust fields alone do not guarantee a named
+  storage layout; check the selected codec.
 
 ## What a format will carry is a different list
 
-None of this is about what an engine can hold. That is measured, and lives in
-[Choosing an engine](/amethystate/choosing/): ron will not carry an enum, json and
-sqlite will not carry a `NaN`, toml has no room past `i64`. Those refuse a
-*value*; this page is about a *type* saying something the store cannot record.
-
-A type can pass one list and fail the other.
+Serde support does not guarantee support in every engine. A codec may reject
+an enum, a non-finite float or an out-of-range integer even when the type
+implements serde traits. See [Choosing an engine](/amethystate/choosing/)
+for tested format limits.

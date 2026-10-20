@@ -5,9 +5,9 @@ sidebar:
   order: 9
 ---
 
-A collection whose keys are decided at run time. Each entry is stored at its own
-path, so a change is observable per entry as well as for the whole - which is
-what separates it from keeping a `HashMap` in one field.
+`ReactiveMap<K, V>` stores entries under separate paths. Keys can be added at
+runtime, and subscriptions can watch the whole map or one entry. Unlike a
+`HashMap` stored in a single field, each entry can be updated independently.
 
 ## Reading
 
@@ -32,17 +32,14 @@ for (key, value) in widths.entries() {
 ```
 <!-- /shown -->
 
-`len` is answered from the map's own projection, so it is a counter read rather
-than a scan, and it counts writes that have not reached disk yet.
-
-`keys` and `entries` walk that projection one entry at a time. `keys` touches no
-values at all - nothing beside a key is deserialized.
+`len` reads an in-memory counter, including changes that have not reached disk.
+`keys` and `entries` iterate over the map's in-memory state; `keys` does not
+deserialize values.
 
 ### Looking without taking
 
-`entries` clones what it hands out, because `Iterator` cannot lend from the
-thing it is iterating. `view` lends instead: bind it, then `iter()`, and nothing
-is cloned that you do not clone yourself.
+`entries` clones the values it returns. To borrow them instead, create a `view`
+and call its `iter()` method:
 
 <!-- shown: looking at a map without cloning it -->
 ```rust
@@ -56,16 +53,14 @@ for (_, width) in &widths.view() {
 ```
 <!-- /shown -->
 
-A `for` keeps the temporary alive for the whole loop, so the binding is only
-needed when what you read outlives the loop.
+A `for` loop keeps the temporary view alive for the loop. Bind the view to a
+variable if you need to use it outside that expression.
 
 ### A walk owns a version
 
-`view`, `entries` and `keys` each take the map's current version and read from
-that. Nothing is locked while one is alive, so a walk neither waits for a writer
-nor keeps one waiting, whatever thread either of them is on.
-
-Writing to the map during a walk is ordinary, the walking thread included:
+`view`, `entries` and `keys` capture the map's current version. Iteration does
+not hold a lock against writers, so you can update the map while reading it,
+including from the same thread:
 
 <!-- shown: walking a map and writing to it -->
 ```rust
@@ -81,15 +76,12 @@ assert!(widths.is_empty());
 ```
 <!-- /shown -->
 
-Every key is still offered, because the walk reads the version it started on and
-the removals go to the map. A write that lands during a walk is in the next read
-rather than that one.
+The iterator still visits every original key: removals affect the current map,
+not the version being iterated.
 
-That is the thing to know when a walk is kept rather than finished. A `view`
-bound for a frame holds what the map held when it was taken, so two reads made
-from it agree with each other even if the map moved between them. Holding it
-costs the version it pins, which is what the map has dropped since - not a copy
-of the map.
+A view retained for a frame gives consistent reads even if the map changes
+between them. It shares unchanged data with the map rather than copying the
+whole collection, but keeps old data alive until the view is dropped.
 
 ## Writing
 
@@ -107,21 +99,16 @@ widths.clear()?;
 ```
 <!-- /shown -->
 
-`insert` adds a key or replaces it. `update` writes a key that is **already
-there** and fails with `Absent` when it is not.
+`insert` adds or replaces an entry. `update` requires an existing key and
+returns `Absent` otherwise; its `MapChange::Update` event needs a previous value.
+`modify` accepts a mutable reference so you can change a value without
+constructing its replacement yourself.
 
-The reason is what subscribers are handed. `MapChange::Update` carries the
-previous value, and a key that does not exist has none, so `update` on an absent
-key could only announce a change it was unable to describe.
+`remove` emits one `MapChange::Remove` with the writing handle's ID.
+`clear` removes the map's contents with one store deletion and one map event,
+rather than an event per entry.
 
-`modify` is `update` reached without rebuilding the value, which matters when it
-is a large struct.
-
-`remove` sends one `MapChange::Remove` carrying this handle's id, and one store
-write. `clear` is the other shape: one event, one delete, whatever the map held.
-
-When the new value depends on the old one and the key may not be there yet - a
-counter, a list that grows - `upsert` takes both cases in one function:
+Use `upsert` when the new value depends on whether the key exists:
 
 <!-- shown: writing an entry whether or not it is there -->
 ```rust
@@ -135,14 +122,15 @@ let now = hits
 ```
 <!-- /shown -->
 
-The function is handed `Some` of the value or `None`, and what it returns is
-written and handed back. The key is borrowed, so the caller makes no `String`
-for a key that is already there. Subscribers see an `Insert` the first time and
-an `Update` after, as with `insert`. Reading and writing are two steps, as in
-`modify`: a write from another thread that lands between them is written over.
+The closure receives `Some(previous)` or `None`. Its result is stored and
+returned to the caller. The key is borrowed, so updating an existing key does
+not require constructing a new `String`. Subscribers receive `Insert` for a
+new key and `Update` for an existing one.
 
-To drop a subset, walk and remove - the walk reads its own version, so the loop
-is the plain one:
+Like `modify`, this is a non-atomic read-modify-write operation: a concurrent
+write between the read and write can be overwritten.
+
+To remove selected entries, iterate over a captured version and remove them:
 
 ```rust
 for (key, width) in widths.entries() {
@@ -154,12 +142,11 @@ for (key, width) in widths.entries() {
 
 ## What a key may be
 
-A key is the name its entry sits at. That is what `ReactiveMapKey` asks for -
-`AsRef<str>` - so a `String` key is spelled by being itself: nothing is rendered
-on a lookup and nothing is parsed on the way back.
+`ReactiveMapKey` requires `AsRef<str>`. String keys can therefore be looked up
+without formatting or parsing them.
 
-A key that is not a string goes through `Id`, which renders it once and keeps
-the rendering:
+Wrap a non-string key in `Id`, which formats the value once and retains that
+string:
 
 ```rust
 let ports = store.kv().map::<Id<u16>, bool>("ports")?;
@@ -168,19 +155,16 @@ ports.insert(Id::new(8080), &true)?;
 assert_eq!(ports.get("8080"), Some(true));
 ```
 
-`Id::new` spells the value when the key is made rather than at every read, which
-is what a `Uuid` wants most: 36 characters do not fit beside the value, so
-spelling one reaches the heap, and this pays that once for the life of the key.
-`get` hands back what was spelled.
+`Id::new` computes the string representation when the key is constructed.
+Later lookups reuse it, avoiding repeated formatting and allocation for values
+such as UUIDs. `get` returns that representation.
 
-The empty name is a name. Every format this library writes lets a member be
-named with nothing, so a map holds such an entry, lists it and writes to it like
-any other.
+An empty string is also a valid key and supports the usual read, write and
+listing operations.
 
 ## What order entries come back in
 
-Sorted by the name each key borrows, which is the order the store lists in - an
-entry is one level under the map, and a store orders keys by their levels:
+Entries are sorted by their string keys, in the same order as a store listing:
 
 <!-- shown: the order entries come back in -->
 ```rust
@@ -194,14 +178,12 @@ assert_eq!(order, ["10", "9", "a.b", "a1b"]);
 ```
 <!-- /shown -->
 
-Numbers spelled as text sort as text, so `"10"` comes before `"9"` - and an
-`Id<u16>` sorts the same way, by its spelling rather than by the number. A name
-holding the separator sorts by the name: `a.b` comes before `a1b`, because `.`
-is below `1`. The escape the store writes around that separator is a spelling,
-and nothing compares paths by their spelling.
+String order is not numeric order: `"10"` sorts before `"9"`, including for
+`Id<u16>`. Literal separators are compared as part of the key: `a.b` sorts
+before `a1b`. Internal path escaping does not change that order.
 
-Insertion order is not recorded anywhere. If the order matters - table columns,
-steps in a list - keep that order yourself and use the map for lookup.
+The map does not retain insertion order. For ordered columns or list items,
+keep a separate order and use the map for lookup.
 
 ## Hearing about a change
 
@@ -220,34 +202,25 @@ widths.insert("mem".to_string(), &80)?;
 ```
 <!-- /shown -->
 
-`subscribe_any` fires for every change to any key; `subscribe_key` narrows to
-one. Both return a guard, and dropping it ends the subscription.
+`subscribe_any` receives changes to any entry; `subscribe_key` watches one key.
+Both return a guard whose lifetime controls the subscription.
 
-`subscription_with()` is the same with the links: `.key(..)` to narrow,
-`.external()` to skip your own writes, `.stream()` to take the changes into a
-loop of your own instead of a callback. See
-[Subscriptions](/amethystate/concepts/subscriptions/).
+Use `subscription_with()` to combine key filtering, source filtering or a
+stream. See [Subscriptions](/amethystate/concepts/subscriptions/).
 
 ### What `external` filters
 
-What `external` is, and the handle ids it decides by, is
-[Subscriptions](/amethystate/concepts/subscriptions/#whose-write-was-it)'s
-subject. What a map does differently is this.
+On a map, `.external()` filters this handle's own **Update** events only.
+`Insert`, `Remove` and `Clear` still reach its subscribers: adding or removing
+a key changes the collection a UI needs to display, regardless of the writer.
 
-On a map it filters `Update` and nothing else. `Insert`, `Remove` and `Clear`
-reach every subscriber including the one that caused them.
-
-The line is between editing a value and changing what the map holds. A value you
-wrote yourself is your own business. A key appearing or disappearing changes the
-shape of the map, and a view listing the keys has to rebuild whether or not it
-was the one that added the key.
-
-That has a consequence worth knowing: `insert` on a new key is an `Insert` and
-on an existing one an `Update`, so whether your own call comes back to you
-depends on whether the key was already there.
+Consequently, `insert` on a new key is delivered to an external-only
+subscription, but `insert` on an existing key is filtered as an update.
+[Subscriptions](/amethystate/concepts/subscriptions/#whose-write-was-it)
+explains how handle IDs identify writers.
 
 ## One entry as a cell
 
-`entry_cell(key)` gives a [`ReactiveCell`](/amethystate/primitives/reactive-cell/)
-onto one entry, for handing a single value somewhere that should not know about
-the map.
+Use `entry_cell(key)` to pass a single entry as a
+[`ReactiveCell`](/amethystate/primitives/reactive-cell/) to code that does not
+need access to the map.

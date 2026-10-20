@@ -1,12 +1,11 @@
 ---
-title: Who owns which place
+title: Path ownership
 sidebar:
   order: 16
 ---
 
-A struct's `prefix` says where it sits, and its fields are paths under that
-prefix. Nothing stops two structs from spelling the same place - a dotted key
-reaches as deep as a dotted prefix does:
+A struct's `prefix` and each field's path together determine its storage
+location. Different declarations can therefore refer to the same value:
 
 <!-- shown: two structs that want the same place -->
 ```rust
@@ -24,14 +23,13 @@ pub struct Panels {
 ```
 <!-- /shown -->
 
-Both of those address `ui.panels.left.visible`. One reaches it as a key with
-dots in it, the other as a prefix one level down, and neither declaration
-mentions the other.
+Both declarations address `ui.panels.left.visible`, even though they split
+the prefix and field path differently.
 
 ## The second one is refused
 
-The store keeps a table of what has been claimed, and the second struct to open
-over the same place fails to build:
+The store records claimed paths. Opening a struct with a conflicting claim
+returns an error:
 
 <!-- shown: what the refusal looks like -->
 ```rust
@@ -55,39 +53,32 @@ println!("{wanted_by} wants {at}, which {held_by} already holds at {held_at}");
 ```
 <!-- /shown -->
 
-The failure is `OpenStruct::Taken`, and it names both sides at both paths:
-`at` and `wanted_by` for the declaration that was turned down, `held_at` and
-`held_by` for the one standing. The two paths differ whenever one declaration
-reaches the other through an ancestor - `root.b` holding `root.b.x` - and the
-pair is the whole diagnosis.
+`OpenStruct::Taken` identifies both declarations: `at` and `wanted_by` describe
+the requested path and struct; `held_at` and `held_by` describe the existing
+claim. The paths can differ when one is an ancestor of the other.
 
-Nothing has to be searched out of a rendered message. `Taken` is one of the six
-variants a constructor can answer with, and a `match` without a `_` arm has to
-name it. [Errors](/amethystate/concepts/errors/) has the other five.
+Match the error's fields rather than parsing its message. See
+[Errors](/amethystate/concepts/errors/).
 
-Refusing is the cheaper end of the same collision. Two structs writing the same
-path is one struct silently overwriting the other's value on every save, and
-finding that later means reading two declarations that never mention each other.
-A refusal happens at the call that opens the struct, and names both.
+The check prevents independent state structs from silently overwriting each
+other's data.
 
 ## What counts as overlapping
 
-Two places overlap when one holds the other. That is the whole rule, and it is
-symmetric: it does not matter which is declared first, only that one subtree
-starts the other.
+Paths conflict if they are equal or one is an ancestor of the other. The rule
+is independent of declaration order and compares segments, not string prefixes.
 
 | the two places | overlap |
 | --- | --- |
-| `ui` and `ui.panels` | yes - the second is inside the first |
-| `ui.panels` and `ui` | yes - the same pair, the other way round |
+| `ui` and `ui.panels` | yes: an ancestor and descendant |
+| `ui.panels` and `ui` | yes: the same conflict in reverse |
 | `ui.panels` and `ui.status` | no |
-| `ui` and `ui!x` | no - `ui!x` is a different name that happens to start with the same letters |
+| `ui` and `ui!x` | no: different segment names |
 
-A prefix may not land on another struct's field, either. A field is a place
-like any other, so a struct whose prefix is `root.b` is refused when some other
-struct already declares a `b` field under `root`.
+A struct cannot be opened beneath another struct's leaf field. For example,
+a `root.b` prefix conflicts with an existing field stored at `root.b`.
 
-Places that do not meet are left alone, however close they sit:
+Sibling paths are allowed:
 
 <!-- shown: a struct that sits right beside one and still opens -->
 ```rust
@@ -99,29 +90,20 @@ pub struct RightPanel {
 ```
 <!-- /shown -->
 
-That is as close as two can get: `Ui` holds `ui.panels.left.visible` and
-`RightPanel` holds `ui.panels.right.visible`. They part on the last level they
-share, neither path starts the other, and both open in the same store. `Panels`,
-which aimed at `ui.panels`, was refused because its place started `Ui`'s.
+`Ui` uses `ui.panels.left.visible`; `RightPanel` uses
+`ui.panels.right.visible`. Neither owns an ancestor of the other, so both can
+open. A declaration claiming `ui.panels` would conflict with both.
 
 ## What each kind of place owns
 
-Three laws, and everything above follows from them.
+- **A leaf reserves its path and descendants.** Another declaration cannot
+  store children beneath a value treated as one encoded leaf.
+- **A map reserves its path and subtree.** Its entries occupy the next level;
+  reserving the subtree protects keys that may be created later.
+- **A struct does not reserve its prefix alone.** Its fields reserve their
+  paths, leaving unrelated sibling paths available.
 
-**A leaf owns its path and everything under it, and should have nothing under
-it.** The subtree is not for holding things; owning it is what stops somebody
-nesting under a scalar.
-
-**A map owns its path and everything under it, and uses one level of it.** Its
-keys are made while the program runs, so nobody can declare them - and if the
-space beneath it were open, every entry it has not written yet would be
-contestable.
-
-**A struct owns nothing at its prefix. Its fields do.** All of its paths are
-declared, so what is not declared is not its business, and the level it sits on
-stays open.
-
-That last one is the asymmetry worth holding on to. One declaration:
+For example, this declaration:
 
 <!-- shown: a map and a leaf under one prefix -->
 ```rust
@@ -136,7 +118,7 @@ pub struct Panels {
 ```
 <!-- /shown -->
 
-and the space it leaves behind:
+leaves these paths available or reserved:
 
 ```
 ui                       ·  nobody's - a prefix is not claimed
@@ -147,8 +129,8 @@ ui                       ·  nobody's - a prefix is not claimed
 └─ myplugin              ·  nobody's - an extension may write here
 ```
 
-`ui.myplugin` is free because `ui` was never claimed. `ui.open.myplugin` is not,
-because `ui.open` was:
+`ui.myplugin` is available because the struct has not claimed all of `ui`.
+`ui.open.myplugin` is reserved beneath `ui.open`:
 
 ```
 under a struct's prefix            under a map's prefix
@@ -158,14 +140,13 @@ under a struct's prefix            under a map's prefix
   └─ myplugin    allowed             └─ myplugin   refused
 ```
 
-A map owning the whole subtree and using one level of it are two different
-statements, and both are enforced. `ui.open.left` is an entry; `ui.open.left.px`
-is inside the map's space and is not an entry, so it is refused as a place a map
-does not reach rather than as a place nobody owns.
+Reserving a subtree does not make every descendant a valid map entry.
+`ui.open.left` is an entry, but `ui.open.left.px` is not: a map's entries occupy
+exactly one level beneath it.
 
-**A value's own depth is not the store's.** An entry holds whatever its type is,
-encoded, at one path - so a structure nested five deep is one key and not five
-levels:
+**Value nesting is separate from path depth.** A complex value stored in an
+entry is encoded at that one path; its internal struct members do not become
+independent store paths:
 
 ```
 tree.roots.one           ▪  one key, one stored value
@@ -175,12 +156,9 @@ tree.roots.one           ▪  one key, one stored value
 
 ## The claim outlives the handle
 
-Dropping the struct does not release its place. The table belongs to the store
-and lasts as long as it does.
-
-That is deliberate: a claim released on drop would make the refusal depend on
-when a value happened to go out of scope, so the same program would open
-cleanly or fail depending on where a `let` binding ended.
+Dropping a state struct does not release its paths. Claims belong to the store
+and remain until that store is closed. This makes collision checks independent
+of local variable lifetimes.
 
 ## Asking who has a place
 
@@ -193,8 +171,6 @@ println!("{owner:?}");
 ```
 <!-- /shown -->
 
-The lookup is by exact path, and the paths recorded are the ones actually
-claimed - a field's own path, not the prefix it sits under. So `Ui` above is
-found at `ui.panels.left.visible` and not at `ui`.
-
-The name it answers with is the schema's, which is what the refusal prints.
+The lookup requires the exact claimed path, not the struct's prefix.
+The example `Ui` is registered at `ui.panels.left.visible`, not `ui`.
+The result is the schema name also used in collision errors.

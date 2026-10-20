@@ -1,23 +1,23 @@
 ---
-title: When a value will not read
+title: Unreadable values
 sidebar:
   order: 3
 ---
 
-Three moments, each with its own answer: a struct opening over bytes that will
-not decode, a key deleted under a live field, and a change arriving that will
-not decode. A value that decodes perfectly and is still nonsense is a different
-matter, and [Rules](/amethystate/state/rules/) is where it is answered.
+Unreadable data is handled differently during construction and after a field
+is already open. Deleting a key is a third, separate case.
+If a value decodes but needs correction, use a [rule](/amethystate/state/rules/).
 
 ## Opening
 
-A declared path holding something that will not decode into the field's type
-fails construction and names the path. That is `Refuse`, the default: `new_with`
-panics with the path and what the codec said, and `try_new_with` hands the same
-back as an `Err`. `UseDefault` is for the application that has to start anyway:
-the field takes its declared default, the stored value stays on disk for
-somebody to fix, and [`try_get`](/amethystate/primitives/field/) answers `Err`
-from construction until a change decodes.
+By default, an unreadable stored value prevents the struct from opening.
+`new_with` panics with the path and codec error; `try_new_with` returns the
+error. This policy is called `Refuse`.
+
+With `UseDefault`, construction succeeds and the field displays its declared
+default. The original data is preserved for recovery, and
+[`try_get`](/amethystate/primitives/field/) reports the unreadable value until
+a readable update arrives:
 
 <!-- shown: a struct that opens over a value it cannot read -->
 ```rust
@@ -32,21 +32,18 @@ pub struct Mixed {
 ```
 <!-- /shown -->
 
-**A field may tighten what its struct wrote.** Above, the settings open with a
-broken `port`, and a `licence` that will not read stops the whole thing.
-`Refuse` on the struct with `UseDefault` on a field is a compile error naming
-the field. A `nested` struct inherits its holder's answer, tightens it the same
-way, and is checked against the holder while it compiles.
+**A field can make the policy stricter.** In this example, an unreadable `port`
+uses a default, but an unreadable `licence` prevents construction. A `Refuse`
+struct cannot contain a field explicitly opting into `UseDefault`; the macro
+rejects that combination. Nested structs inherit and can tighten the parent's
+policy in the same way.
 
-**Where nothing said, the store does.** What a field says wins over what its
-struct says, and the struct over what the store was opened with — so an
-application says once what it wants of everything that had no opinion, and
-every declaration above stands untouched:
-[Opening a store](/amethystate/store/opening/).
+**Unspecified policies come from the store.** Field declarations override
+struct declarations, which override store settings. This lets an application
+set a default policy without replacing explicit choices in its state types.
+See [Opening a store](/amethystate/store/opening/).
 
-**A failed construction says which way it failed.** `try_new_with` hands back an
-`OpenStruct` - the ways a constructor can fail and no others - so a caller
-tells one from another by its variant rather than by reading the sentence:
+**Match errors by variant, not message.** `try_new_with` returns `OpenStruct`:
 
 <!-- shown: telling one failed open from another -->
 ```rust
@@ -61,9 +58,9 @@ match Strict::try_new_with(&store) {
 ```
 <!-- /shown -->
 
-Under `UseDefault` nothing fails, and the same place and reason arrive through
-the field instead - as a `Disagreement`, which is what the field and the store
-do not agree about rather than a failure of the asking:
+With `UseDefault`, construction succeeds, but the field exposes the path and
+reason through a `Disagreement`. It describes the difference between the
+cached value and storage, not a new read operation:
 
 <!-- shown: asking a field what the store disagrees with -->
 ```rust
@@ -82,22 +79,23 @@ let held = match state.port().try_get() {
 ```
 <!-- /shown -->
 
-Bytes that would not decode arrive as `WillNotRead` with the codec's own
-sentence, and a field that never got to write its default because the store
-already held something arrives as `Occupied`. A field whose store has closed
-answers `Reason::Closed` and says the value is the last one it heard. And
-`Reason::NotWrittenBack` is a [rule](/amethystate/state/rules/) that put a
-stored value right while the store would not take the correction.
+The reason identifies the problem:
 
-`Reason` is `#[non_exhaustive]` - it is a list of what a field can be found
-disagreeing about, and it grows - so a `match` over it keeps a `_` arm. The
-sets do not, and [Errors](/amethystate/concepts/errors/) is why.
+- `WillNotRead`: the codec could not decode the stored value.
+- `Occupied`: the field could not write its default because the path already
+  contained data.
+- `Reason::Closed`: the store is closed; the field retains its cached value.
+- `Reason::NotWrittenBack`: a [rule](/amethystate/state/rules/) corrected a stored
+  value, but the correction could not be written back.
+
+`Reason` is `#[non_exhaustive]`, so include a `_` arm when matching it.
+The operation error enums use a different policy; see
+[Errors](/amethystate/concepts/errors/).
 
 ## A key deleted under a live field
 
-The field goes on reporting what it last held: that is what was on screen a
-moment ago, and the declared default is a compile-time guess. `UseDefault` asks
-for the guess:
+By default, `on_delete = Keep` retains the field's current value when its key
+is deleted. Select `UseDefault` to reset the field instead:
 
 <!-- shown: a field that wants the default back when its key goes -->
 ```rust
@@ -114,6 +112,6 @@ pub struct MixedDelete {
 
 ## A live change that will not decode
 
-The field keeps the last value the store agreed with and no subscriber is
-called. `try_get` reports it, and clears itself as soon as a change decodes.
-There is nothing to declare here.
+If an update cannot be decoded, the field retains its last readable value and
+does not notify subscribers of the invalid update. `try_get` reports the
+problem until a readable update arrives. No additional policy is required.

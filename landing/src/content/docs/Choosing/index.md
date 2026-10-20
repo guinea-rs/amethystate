@@ -1,54 +1,40 @@
 ---
-title: Picking the engine you can live with
+title: Choosing a storage engine
 sidebar:
   label: Overview
   order: 21
 ---
 
-Five engines hold the same values, and they do not hold them identically. This
-section is where the differences are measured: what an engine cannot hold,
-cannot tell apart, or hands back changed, and which engine it happens on. It is
-the half of the book that decides which one to pick.
+Storage engines do not preserve every value in the same way. These comparisons
+show which values are rejected, which distinctions are lost and what the files
+contain after writing.
 
-Almost none of it is this library's doing. An engine writes values in a format,
-and the format decides what a value may be, what may name it, and what survives
-a round trip. TOML has no null; JSON names a member with a string; RON
-will not carry an enum. Those are decisions made before `amethystate` sees the
-value, and no setting here changes them.
-
-That is why the section stands apart. A limit the library imposes is
-configuration and lives in [What a store refuses to
-hold](/amethystate/store/limits/). A limit the format imposes is a fact about
-the engine you picked, and the only useful thing to say about it is what
-actually happens.
+Some differences come from the format, others from the engine's codec and value
+representation. For example, TOML has no null, and JSON object keys are strings.
+Do not assume that serde support alone makes a type portable.
+[Store limits](/amethystate/store/limits/) describes the checks the library can
+apply before a write.
 
 ## Every page here is a run
 
-None of these pages is written from reading the code. Each one is a test in
-`crates/main/amethystate/tests`, and `cargo xtask docs` runs it and builds the
-page out of what it printed: the code that was executed, then the documents the
-engines wrote, verbatim. Editing a page by hand is pointless - the next run
-replaces it.
-
-So a page cannot describe behaviour the code stopped having. If a claim here is
-wrong, the run that produced it was wrong, and it fails in the same place every
-other test does.
+The comparison pages are generated from tests in
+`crates/main/amethystate/tests`. `cargo xtask docs` runs each probe and includes
+its marked code and actual output. To change a finding, edit the probe's
+explanation or assertions and regenerate the page; manual page edits are
+replaced on the next run.
 
 ## What earns a page
 
-Something has to be genuinely lost or refused. A value spelled differently in
-one engine's file and read back as the type that went in belongs somewhere else:
-a page here is read as a warning, and every page here should be one.
-
-Each page carries `Tags:` at the top - `toml`, `keys`, `codec`, `choosing an
-engine` - and the search matches on those words, so a question shaped like
-*what does TOML do about* finds the pages about TOML.
+A comparison documents a meaningful loss or rejection, not just a harmless
+formatting difference. The tags at the top make related findings searchable
+by engine and topic.
 
 ## Reading a page
 
-Start at the bottom. The prose says what the section is about; the run says what
-happened. Where the two disagree the run is right, and the prose is a bug.
+Read the explanation together with the code and output. The code shows the
+exact operation tested; the table or documents show its result. The explanation
+still needs review: generation keeps the output current, but cannot prove
+that the prose interprets it correctly.
 
-If you are choosing an engine, read the runs across all of them and pick the one
-whose losses you can live with. If you have already chosen, only your column
-matters.
+When choosing an engine, check the values your application actually uses.
+After choosing one, use its results to plan validation and migrations.

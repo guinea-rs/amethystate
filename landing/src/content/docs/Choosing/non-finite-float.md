@@ -9,27 +9,22 @@ Tags: codec, json, sqlite, choosing an engine
 
 Features: redb, sqlite, json, toml, ron
 
-What a float that is not a number does to a store.
+This test checks which engines preserve non-finite `f64` values:
+`NaN`, positive infinity and negative infinity.
 
-`NaN` and the infinities are ordinary `f64` values a GUI produces by
-dividing badly. Three of the five engines carry them: msgpack writes the
-IEEE bits, and TOML and RON have `nan` and `inf` in their grammars.
+redb's MessagePack codec preserves their floating-point representation.
+TOML and RON also support non-finite numbers.
 
-JSON has no spelling for either, and neither `serde_json` nor `sonic_rs`
-says so - both write `null`, which then fails to read back as a float. That
-costs two engines rather than one, because sqlite stores its values as JSON
-and nothing in its name says which format that is.
+JSON has no representation for them. The JSON serializers used here would
+write `null`, which cannot be read back as `f64`. This affects SQLite too,
+because the SQLite engine encodes values as JSON.
 
-So which engines have it follows the codec rather than the file extension,
-and the two are not the pair anyone guesses. A store whose codec cannot
-read the value back refuses the write instead of taking it: left alone it
-would land as `null`, and the field would go on reporting the number it held
-before while the file holds nothing of the sort. A durable write answers the
-refusal as an `Err`; a plain `set` panics naming the field.
+amethystate rejects these lossy writes before buffering them. A durable
+write returns `Err`; an ordinary field `set` panics and identifies the field.
 
-`limits(|l| l.portable_across(..))` extends the refusal to engines that are
-not running. A store on redb that promises to stay readable on json refuses
-what msgpack alone would have held.
+`limits(|l| l.portable_across(..))` also checks target engines that are not
+currently running. For example, redb with JSON portability enabled rejects
+a NaN even though MessagePack itself could preserve it.
 
 ## What was done
 

@@ -5,11 +5,13 @@ sidebar:
   order: 5
 ---
 
-Every struct with a place of its own implements two traits. `Schema` opens it
-exactly as declared: the fields read, their rules run, the place claimed. `Open`
-is how the rest of the program opens it, and unless the struct says otherwise
-it is `Schema` and nothing more. Code that opens structs it does not name asks
-for `Open`:
+A state struct with its own storage location implements two traits:
+
+- `Schema` loads the declared fields, runs their rules and claims their paths.
+- `Open` is the constructor interface used by application code. Its generated
+  implementation delegates to `Schema`, but you can replace it with your own.
+
+Use an `Open` bound in generic code that constructs state structs:
 
 <!-- shown: opening any struct that has a place of its own -->
 ```rust
@@ -21,10 +23,10 @@ fn opened<S: Open>(store: &Store) -> S {
 
 ## `open = manual`
 
-`open = manual` is for a struct whose opening is more than its declaration - a
-value worked out from the machine it runs on, a check against something the
-application knows. The macro then writes no `Open`, and the struct's author
-does, starting from `Schema`:
+Use `open = manual` when construction needs additional work, such as adjusting
+settings to the current machine or checking them against application data.
+The macro stops generating `Open`; implement it yourself and call `Schema`
+to perform the normal loading first:
 
 <!-- shown: a struct that opens its own way -->
 ```rust
@@ -49,20 +51,16 @@ impl Open for AgentSettings {
 ```
 <!-- /shown -->
 
-The author writes `try_new_with`, the door that answers with a `Result`;
-`new_with`, which panics with what it answered, comes with the trait. What the
-struct needs comes from `store.context()`, the same values a declared
-[rule](/amethystate/state/rules/) is handed, and `require` panics naming a
-value nobody gave - a store built without it is built wrong the same way on
-every run.
+Implement `try_new_with`, which returns a `Result`. The trait provides
+`new_with`, which panics if that result is an error. Read dependencies from
+`store.context()`, as you would in a [rule](/amethystate/state/rules/).
+`require` panics if the required type was not supplied when building the store.
 
 ## An invariant between fields
 
-A field's rule sees one value and none of its siblings, and the struct is the
-place its fields are kept rather than a value with a rule of its own. So an
-invariant between fields goes here. The hand-written `Open` sees every field at
-once, after each has been through its own rule, and puts them right the way a
-rule would:
+A field rule only sees that field's value. Put checks involving several fields
+in `Open`, where all fields are available and their individual rules have
+already run:
 
 <!-- shown: an invariant between fields, checked where the struct is opened -->
 ```rust
@@ -89,22 +87,21 @@ impl Open for Window {
 ```
 <!-- /shown -->
 
-It runs once, where the struct is opened. A write to `min` afterwards goes
-through `min`'s own rule and through nothing that knows about `max`; two fields written
-from two threads are a limit the
-[Durability](/amethystate/concepts/durability/#concurrent-access) page sets out.
+This check runs only when the struct opens. Later writes to `min` run its field
+rule, not this cross-field check. Your application must preserve the invariant
+during subsequent updates. See also
+[Concurrent access](/amethystate/concepts/durability/#concurrent-access).
 
 ## The only way in
 
-The hand-written `Open` is the only way in. `new_with` and `try_new_with` on
-the struct, `load_with` and `try_load_with` on a persistent one and
-`AmeStateSlice` all go through it, so no caller opens the struct past it by
-accident. That is also why the impl itself starts from `<Self as Schema>::open`
-and never from `Self::try_new_with`: the second is this very `Open`, and would
-call itself. And a struct that says
-`open = manual` has no `new()` or `load()` over the global store: reaching for
-the global store is a compile error rather than something a review has to
-catch.
+The generated constructors use your `Open`: `new_with` and `try_new_with`,
+persistent-mode `load_with` and `try_load_with`, and loading through
+`AmeStateSlice`.
+
+Inside the implementation, call `<Self as Schema>::open`, not
+`Self::try_new_with`: the latter would recursively call the same `Open`.
+With `open = manual`, the macro also omits global-store `new()` and `load()`
+constructors, so callers must provide a store explicitly.
 
 `open` belongs to a struct with a place of its own. A nested struct is opened
 by the struct holding it, so the macro refuses `open` on one.

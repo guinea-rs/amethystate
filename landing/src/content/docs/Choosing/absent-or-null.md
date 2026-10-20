@@ -9,23 +9,17 @@ Tags: option, toml, json, ron, choosing an engine
 
 Features: json, toml, ron
 
-What each engine writes for a value that is there and holds nothing.
+A missing key and a stored `None` are different states. This test shows
+whether the text engines preserve that distinction.
 
-`{}` and `null` are different documents, and an absent key is a third thing
-again. Which of the three an engine produces for `None` decides what a
-schema can say about it: a property that may be null is not a property that
-may be missing, and the two are written differently.
+JSON writes a present optional value directly and uses `null` for `None`.
+RON keeps the `Option` representation, so hand-edited values use `Some(...)`
+or `None`.
 
-The engines answer in two ways, and the run below says which is which.
-
-Note what the two that do have a null still do differently: ron spells the
-`Option` in the document, so a hand-edited file has to say `Some(...)`,
-while json writes the value bare and lets `null` carry the absence.
-
-TOML has no null, so a key holding nothing is a key that is not written.
-That is how every TOML config expresses an optional setting, and it means
-the format answers `set(None)` and `delete` with the same document - a
-distinction the other engines keep and this one cannot.
+TOML has no null value. Setting the field to `None` removes its key from
+the document, producing the same representation as deleting it.
+The output below shows both the saved document and the result of reading
+the value back through the store.
 
 ## What was done
 

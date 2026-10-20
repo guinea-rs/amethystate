@@ -4,14 +4,13 @@ sidebar:
   order: 12
 ---
 
-A store is the handle everything is read from and written through. It is built
-from a `StoreBuilder`, which decides where the files go and which engine holds
-them, and it is `Clone` - the clone is another handle onto the same open store,
-not a second one.
+Create a `Store` with `StoreBuilder`, choosing a file location and storage
+engine. Pass that store to your state structs or use it for direct path access.
+Cloning a `Store` creates another handle to the same open store, not another
+database connection or file.
 
-An application usually opens one and keeps it for the life of the process, but
-nothing enforces that: several stores can be open at once, over different files
-or different engines.
+An application typically keeps a store open until shutdown. You can also open
+several stores with different files or engines.
 
 ## At a path you name
 
@@ -21,14 +20,14 @@ let store = StoreBuilder::new(settings).build()?;
 ```
 <!-- /shown -->
 
-`build` returns a `Store`. Hold it, pass it to `new_with`, and let it drop when
-the process ends - see [Closing](#closing) for what that costs you if you never
-look at the result.
+`build` returns a `Store` that you can pass to `new_with`. Dropping the store
+attempts to flush pending writes, but cannot return a failure to your code.
+Use explicit [Closing](#closing) if you need to handle that result.
 
 ## Or once, for the whole process
 
-Passing a store into everything that needs one is explicit and tedious. The
-process-wide store is installed once and reached from anywhere:
+If you do not want to pass a store through your application, install a global
+one and access it from anywhere in the process:
 
 <!-- shown: opening the process-wide store -->
 ```rust
@@ -38,12 +37,10 @@ let state = NetworkState::new();
 ```
 <!-- /shown -->
 
-`NetworkState::new()` is `new_with` with the global store filled in, so a
-struct declared anywhere can build itself with nothing passed to it. A struct
-declared with `open = manual` has no `new()`, so that a program moving off the
-global store has the compiler find every call that still reaches for it - see
-[Opening a struct your own way](/amethystate/state/opening-structs/).
-The store itself is reachable too:
+`NetworkState::new()` uses the installed global store instead of accepting one
+as an argument. Structs with `open = manual` omit this constructor and require
+an explicit store; see [Custom construction](/amethystate/state/opening-structs/).
+You can also access the store itself:
 
 <!-- shown: reaching the global store from anywhere -->
 ```rust
@@ -52,24 +49,17 @@ store.kv().set("theme", &"dark".to_string())?;
 ```
 <!-- /shown -->
 
-**The guard is the store.** `init_global` returns one and it is `#[must_use]`
-for a blunt reason: dropping it closes the store, so `"./app.redb".init_global();`
-on its own line opens the store and closes it on the same line. Bind it in
-`main` - `let _ame = ...` - and the last writes are flushed when `main` returns.
+**Keep the guard returned by `init_global`.** Dropping it closes the global
+store. A standalone `"./app.redb".init_global();` therefore opens and immediately
+closes it. Bind the guard in `main`, for example as `let _ame = ...`.
 
-Installing a second store while the first is open panics: in a running
-application that is a bug rather than a re-configuration. Once the first is
-closed - its guard closed or dropped, or `shutdown()` called - the next one takes
-its place, which is what a test harness that opens a store per case relies on. A
-handle to the closed store taken before that goes on answering `Closed`, and
-the old guard, dropped late, closes nothing but its own store. Reaching the
-store before anything installed one panics too, and says so: every accessor on a
-struct opened globally goes through `global_store()`, so a field read above the
-`init_global` line in `main` is what that panic usually means.
+Installing another global store while one is open panics. After the first is
+closed or shut down, another can be installed. Existing handles still refer
+to the closed store; an old guard cannot close the replacement.
+Accessing the global store before installation also panics.
 
-Where a store that will not open is something the application answers - a
-settings file it can offer to reset, a plugin that reports its own setup error -
-the builder's `build_global` hands the failure back instead of panicking:
+For recoverable opening errors, such as a config the UI can offer to reset,
+use `build_global`, which returns the error:
 
 <!-- shown: opening the process-wide store without a panic -->
 ```rust
@@ -84,13 +74,12 @@ let _ame = match StoreBuilder::new("./app.redb").build_global() {
 ```
 <!-- /shown -->
 
-Every way to finish a builder has a global twin: `build` and `build_global`,
-`migrate` and `migrate_global`, and the same two after `or_in_memory()`. Each
-opens nothing when an open store is in place already. A store opened some other
-way goes in with `install_global`, which hands the store back if an open one is
-there.
+Builder methods have global variants: `build_global`, `migrate_global`, and
+both after `or_in_memory()`. They reject installation if a store is already
+open. To install a store opened separately, use `install_global`; if occupied,
+it returns the uninstalled store.
 
-The migration pass, put in place:
+For migrations and global installation together:
 
 <!-- shown: opening it with the migration pass -->
 ```rust
@@ -104,9 +93,8 @@ if report.has_drift() {
 
 ## Letting the platform say where
 
-Spelling a path yourself is right for a test or a tool pointed at a file. An
-application that installs on someone's machine wants the place that platform
-keeps for it, and `located` works one out:
+Explicit paths suit tests and tools working on a chosen file. For an installed
+application, use `located` to resolve an application directory:
 
 <!-- shown: letting the platform say where the file goes -->
 ```rust
@@ -118,47 +106,39 @@ let portable = StoreBuilder::located(|at| at.beside_the_executable("settings"))?
 ```
 <!-- /shown -->
 
-Three places are on offer:
+Available location helpers:
 
-| how | where it lands |
+| helper | location |
 | --- | --- |
-| `at.app("my-app", "settings")` | the configuration directory this platform keeps for the application |
-| `at.app_under(Layout::App, ..)` | the same, under the convention you name |
-| `at.beside_the_executable("settings")` | next to the running binary, for an install somebody unpacked |
+| `at.app("my-app", "settings")` | Application configuration directory using `Layout::App`. |
+| `at.app_under(Layout::App, ..)` | Application directory under an explicitly selected layout. |
+| `at.beside_the_executable("settings")` | Next to the executable, for portable installs. |
 
 ### Which convention `app` follows
 
-There is more than one answer to "where does an application keep its files",
-and `Layout` names them:
+`Layout` selects the directory convention:
 
-| layout | where it puts things |
+| layout | convention |
 | --- | --- |
-| `Layout::App` | the XDG layout, on every platform including Windows and macOS |
-| `Layout::Native` | wherever the host system says application files go, which differs from XDG off Linux |
-| `Layout::ProjectDirs` | what the `directories` crate produces - XDG on Linux and Windows, `Library/Application Support` on macOS |
+| `Layout::App` | XDG-style layout on every platform, including Windows and macOS. |
+| `Layout::Native` | The host platform's native application directories. |
+| `Layout::ProjectDirs` | The layout produced by the `directories` crate. |
 
-`app` picks `Layout::App` for you.
+`app` defaults to `Layout::App`, not `Layout::Native`. Choose `Native` explicitly
+if the application's files should follow the platform convention. Use
+`ProjectDirs` to match an existing application using `directories`.
 
-`Layout::Native` is what a desktop application usually wants, since it is where
-the rest of the platform's software puts things - and `app` never chooses it.
-Ask for it by name. `Layout::ProjectDirs` is for an application whose files are
-already where the `directories` crate puts them, so that crate's reading of the
-directory is the one the store has to match.
-
-**Name the layout once you have shipped.** The conventions disagree about
-enough of the tree that a store written under one is not found under the other,
-so `app_under` is what pins where someone's settings live across an upgrade.
+**Keep the chosen layout stable after release.** Switching conventions can make
+the application look in another directory and appear to lose settings.
+Use `app_under` to make the choice explicit.
 
 ### Moving a store that is already somewhere else
 
-The closure is called once and its answer is the path. What it does before
-answering is yours - `located` hands over a `Location` and takes back a
-`PathBuf`, and everything in between is ordinary code.
+`located` calls your closure once and uses its returned `PathBuf`. The closure
+can also detect or move existing files before returning the chosen location.
 
-Moving needs more than one path, though. A path is what a store is *opened* at;
-the files it is *made of* are the engine's - an extension it added, a sidecar
-beside it, a copy kept while a rewrite is in flight. A layout names all of them,
-and a move is a walk down one:
+Move the complete engine layout, not just the supplied base path: a text store
+also has metadata and may have recovery files. For example:
 
 <!-- shown: moving every file a store is made of -->
 ```rust
@@ -174,16 +154,11 @@ fn relocate(from: &StoreLayout, to: &StoreLayout) -> std::io::Result<()> {
 ```
 <!-- /shown -->
 
-**`names` is every name and not every file.** A rewrite copy is written when a
-rewrite starts and removed when it finishes, so a store sitting still has none -
-which is why the move above skips what is absent rather than failing on it. Two
-layouts of the same engine pair up name by name, so the data file lands as the
-data file and the sidecar as the sidecar; `present` is the same list with the
-missing ones dropped, for asking what is actually there.
+`names` lists every possible layout path, including temporary files that may
+not exist. Skip absent files when moving. Two layouts of the same engine list
+corresponding roles in the same order; `present` lists only existing files.
 
-The layout itself comes from `at.files_at`, worked out from a path with nothing
-opened - which is the whole difficulty with the old place, since there is
-nothing there to ask:
+Use `at.files_at` to resolve a layout without opening the old store:
 
 <!-- shown: a store found where an older release left it -->
 ```rust
@@ -200,24 +175,17 @@ let store = StoreBuilder::located(|at| {
 ```
 <!-- /shown -->
 
-That is the answer to shipping under one layout and wanting another. Nothing
-about it is special: move the files, copy them, ask the person first, or open
-the old place and leave it there - the library does none of it and refuses none
-of it. It is handed one path and works the rest out from that.
+The application decides how to move: copy the files, rename them, ask the user,
+or continue using the old location. The library only needs the final path.
+Make this operation repeatable if a previous run might have stopped midway.
 
-Whether the move converges is yours too. A closure that keeps answering with
-the old path keeps both places alive forever, which is a decision rather than
-an oversight - it is written where somebody can read it.
-
-`beside_the_executable` is for a portable install, and not for an installed
-one: `Program Files` and `/usr/bin` are not writable by the person running the
-program, and on macOS the binary sits inside a signed bundle. Any of those
-shows up as a failure to open the store - at startup, which is the good time
-for it.
+`beside_the_executable` is intended for writable portable installs. Installed
+locations such as `Program Files`, `/usr/bin` or a signed macOS bundle are not
+suitable for writing settings and can fail at opening.
 
 ## Which file the name becomes
 
-The engine names the file when the path you give has no extension:
+A base path without an extension receives the engine's default extension:
 
 <!-- shown: letting the engine name the file -->
 ```rust
@@ -227,7 +195,7 @@ let store = StoreBuilder::new(config_dir.join("settings"))
 ```
 <!-- /shown -->
 
-That writes `settings.json`. Name the extension yourself and it is left alone:
+This creates `settings.json`. An explicit extension is preserved:
 
 <!-- shown: naming the file yourself -->
 ```rust
@@ -237,24 +205,18 @@ let store = StoreBuilder::new(config_dir.join("settings.conf"))
 ```
 <!-- /shown -->
 
-That writes `settings.conf`, still in JSON. The rule is about ownership rather
-than format: a name you spelled is yours - a `.conf` some other tool already
-watches keeps working - and a name the library invented belongs to whichever
-engine actually runs. It matters most when `backend` is called after the path
-is set, since the extension is re-derived at that point.
+This creates `settings.conf` containing JSON. The extension does not choose
+the format: `backend` does. If you change the backend after setting an
+extensionless path, the automatically chosen extension changes with it.
 
-Which engines exist and what each writes:
-[Installation](/amethystate/getting-started/installation/).
+See [Installation](/amethystate/getting-started/installation/) for available
+engines and formats.
 
 ## What to do when a value will not read, or its key is gone
 
-Two decisions, and there is no opening without them. What is on disk does not
-parse into the type it was declared as — fail, or take the declared default?
-The key under a field was removed — go on reporting what was last there, or the
-declared default again?
-
-Left alone, the open refuses and names the path, and a field whose key was
-removed goes on reporting the value it held before. To say otherwise:
+Read failures and deleted keys have separate policies. By default, an unreadable
+stored value prevents construction, while a deleted key leaves a live field
+showing its previous value. To change those defaults:
 
 ```rust
 use amethystate::store::OnUnreadable;
@@ -264,16 +226,12 @@ let store = StoreBuilder::new(path)
     .build()?;
 ```
 
-The same rule can be written in three places: here, on the store; as an
-attribute on a struct; and as an attribute on one field. Whichever sits closest
-to the data wins, which makes what is said here the weakest of the three.
-`Refuse` written on a struct stays `Refuse` whatever the store was told: nothing
-said out here overrules somebody else's promise, it only supplies one to whoever
-made none.
+Policies can be set on the store, struct or field. More specific declarations
+take precedence: field, then struct, then store. A store-level `UseDefault`
+therefore does not override an explicit `Refuse` on a structure.
 
-That is what makes this safe to reach for. Say an application keeps generated
-thumbnails in the store and a licence beside them. Nothing about the thumbnails
-is worth failing to start over — but the licence is:
+For example, rebuildable thumbnail settings can use defaults on failure,
+while a licence must remain readable:
 
 <!-- shown: one process, two answers about the same store -->
 ```rust
@@ -291,26 +249,20 @@ pub struct Licence {
 ```
 <!-- /shown -->
 
-Opened with `UseDefault`, a thumbnail count that will not read is replaced by
-its declared default and the application starts. A licence that will not read
-still stops it, because `Licence` said so for itself. One store, one process,
-and the struct that cared is the one that decides.
-
-Left alone, a value that will not decode refuses the open, and a field whose key
-was removed goes on reporting what it last held. Which is which, and why:
-[When a value will not read](/amethystate/state/unreadable-values/).
+With the store set to `UseDefault`, an unreadable thumbnail count uses its
+default. An unreadable `Licence` still fails construction because it explicitly
+uses `Refuse`. See [Unreadable values](/amethystate/state/unreadable-values/)
+for policy inheritance and live-update behavior.
 
 ## What to do when the file itself will not read
 
-The section above is about one value inside a document. This is about the
-document. Two moments ask it, and they are not the same question.
+An unreadable file is different from one unreadable field inside a valid
+file. Policies also differ between opening and later saving.
 
 ### Opening
 
-The store's own files are there and are not a store: bytes some other program
-wrote, a database that is not one, a document that will not parse. Left alone
-the open fails and the files are left exactly as they are, for a person to look
-at.
+By default, opening an invalid database or unparseable document fails and leaves
+the files untouched:
 
 ```rust
 use amethystate::store::WillNotOpen;
@@ -320,24 +272,18 @@ let cache = StoreBuilder::new(path)
     .build()?;
 ```
 
-`StartFresh` takes the files away and opens an empty store in their place -
-everything `StoreLayout::names` names, the rewrite copies included, since a copy
-of what would not read is not a recovery. It is said at `warn` before anything
-is removed, and nothing is undone afterwards. That is a trade for a store whose
-contents can be rebuilt: a cache, an index, anything derived.
+`StartFresh` deletes the store's layout files, including recovery copies,
+then creates an empty store. A warning is logged before deletion, but the
+operation is not reversible. Use it only for rebuildable data such as a cache.
 
-Neither answer is about a directory that cannot be created, a file something
-else holds, or one this process may not read. Nor is it about a SQLite database
-another application marked as its own, or one a newer SQLite wrote. Those are
-refused whatever this says: each is somebody's data that reads fine where it
-belongs, and taking it away would lose it because of where this process
-stands.
+It does not override permission failures, a file held by another process,
+a SQLite database owned by another application, or a database requiring a
+newer SQLite version. These are not reasons to delete someone else's data.
 
 ### Or running in memory
 
-An application that would rather run without its settings than not run at all
-puts `or_in_memory()` in front of `build` or `migrate`, behind the `memory`
-feature:
+Enable the `memory` feature and add `or_in_memory()` before `build` or `migrate`
+to continue with a fresh in-memory store if opening fails:
 
 <!-- shown: running in memory when the file will not open -->
 ```rust
@@ -349,29 +295,23 @@ if let Persistence::InMemory { because } = &persistence {
 ```
 <!-- /shown -->
 
-Where the open would be refused, this opens a store in memory instead and says
-why: the file another process holds, the directory that cannot be written, the
-file that will not read - and, under `migrate`, the file a newer release wrote
-that this release's steps turn down. The store in memory starts empty, so every
-declared struct seeds its defaults, and it writes nothing: the file stays as it
-is for whoever can read it. The pass that refused a newer file ran in an open
-that went through first and was closed again, and the prefix it refused is left
-as it was.
+The result tells you whether persistence is available and why a fallback was
+needed. The in-memory store starts empty, initializes structs from defaults
+and does not overwrite the failed store's files. A failed migration component
+is not converted into a successful migration by this fallback.
 
-`Persistence::OnDisk` is the ordinary answer. `or_in_memory().build_global()`
-and `.migrate_global()` are the same for the process-wide store, and answer an
-error only when an open store is in place already.
+`Persistence::OnDisk` indicates a normal file-backed result. Global variants
+`build_global` and `migrate_global` support the same fallback, but still reject
+an already installed store.
 
-A store in memory can also be asked for outright, with `StoreBuilder::in_memory()`
-or `.backend(Backend::Memory)`, for a test or a session that keeps nothing. It
-holds what redb holds, one value per path in MessagePack, so a store that falls
-back to it takes every write it took on disk. What it does not keep is the
-document shape a text engine gives its file.
+For a deliberately temporary session, use `StoreBuilder::in_memory()` or
+`.backend(Backend::Memory)` directly. The memory engine uses MessagePack values
+per path; it does not reproduce a text file's document layout.
 
 ### Saving
 
-A text store's file is meant to be edited, so a save can meet one left
-half-typed - and it cannot lay its own paths over a document it cannot parse.
+A text file may become temporarily invalid while someone edits it. Saving must
+then decide how to handle the unreadable document:
 
 <!-- shown: what a save does with a file that will not read -->
 ```rust
@@ -384,61 +324,42 @@ let store = StoreBuilder::new(path)
 ```
 <!-- /shown -->
 
-| answer | what the save does |
+| policy | behavior |
 | --- | --- |
-| `TryAgainFor(duration)` | leaves the file alone and comes round again until the duration runs out; past it, behaves as `SetAside` |
-| `SetAside` | moves the file to `<name>.unreadable` and writes at once |
-| `Refuse` | writes nothing, for as long as the file stays broken |
-| `Overwrite` | writes the document whole, and what was in the file is gone |
+| `TryAgainFor(duration)` | Retry without changing the file; after the duration, use `SetAside`. |
+| `SetAside` | Move the file to `<name>.unreadable`, then save. |
+| `Refuse` | Do not save while the file remains unreadable. |
+| `Overwrite` | Replace it with the store's document, discarding the old contents. |
 
-`TryAgainFor(Duration::from_secs(5))` is the default, because a file that will
-not read is usually an editor mid-keystroke and is a document again a moment
-later. Nothing is decided while it might still fix itself: the save is refused,
-the debouncer retries at its own interval, and what the store holds waits in
-memory. The duration is counted from the first save that met the broken file
-rather than from each attempt, and it starts over once the file parses again.
+The default is `TryAgainFor(Duration::from_secs(5))`. The period starts at the
+first save that encounters unreadable data, not at each retry. A successful
+parse resets it. Pending writes remain in memory while saving is refused.
 
-Which answer is right depends on whose the file is. A settings file somebody
-keeps open in their editor wants `Refuse` or the default - what they typed is
-their work. A file only the application was ever going to touch wants
-`Overwrite`, where an unreadable one is a fault to flatten rather than somebody's
-half-finished edit.
+For user-edited settings, choose `Refuse` or the default to protect unfinished
+edits. `Overwrite` is appropriate only when discarding the existing contents is
+acceptable. `SetAside` preserves the unreadable file, but a later unreadable
+copy replaces the previous one. For a symbolic link, the target is moved and
+the link remains.
 
-`SetAside` is the middle: nothing is lost and the application keeps running,
-since what was typed is still on disk under `<name>.unreadable`. A second one
-replaces the first - two copies of a file that will not read are worth no more
-than one. Behind a link it is the file the link points at that moves, and the
-link stays where it was.
-
-A save that writes nothing reports it the way any failed flush does, so
-`save_now` hands it back and a drop puts it in the log.
-
-None of this is redb's or SQLite's question. Their file is a database rather
-than a document: nothing outside the engine writes it, and a file that will not
-read is refused at the open rather than met at a save.
+A refused save is a flush error: `save_now` returns it, while drop logs it.
+These policies concern text documents, not redb or SQLite databases.
 
 ## Which migrations run
 
-A store is finished one of two ways, and the difference is only this.
+- `build` opens without executing migration steps. Schema registration and
+  drift checking still occur.
+- `migrate` executes the registered steps and returns a report. A failed
+  component refuses opening with `OpenStore::Migrating` and that report.
 
-`build` opens the store and runs no step: neither the ones handed to
-`.migrations()` nor the ones written with `#[migrate]`. What the declarations
-look like is still written down, and drift is still reported.
-
-`migrate` opens it and runs them all, then hands back a report of what it did
-alongside the store. A step that fails refuses the open with
-`OpenStore::Migrating`, which carries the same report - a store opened over
-data that did not come up to date would hand the code old data.
-
-`or_in_memory()` goes in front of either, and `build_global` and
-`migrate_global` are the same two for the process-wide store.
-[Migrations](/amethystate/migrations/overview/).
+After `.migrations()`, only the migration-opening methods remain available.
+Use `or_in_memory()` before either opening path for fallback, or the
+`build_global` / `migrate_global` variants for a global store.
+See [Migrations](/amethystate/migrations/overview/).
 
 ## Writing the buffer out
 
-Dropping the store flushes what it holds, so an ordinary exit loses nothing.
-Dropping says nothing about whether the flush landed, though, and a disk that
-was full at that moment is the case worth hearing about:
+Drop attempts a final flush but can only log failures. Call `save_now` while
+the store is open if your code needs the result:
 
 <!-- shown: writing the buffer out and hearing whether it landed -->
 ```rust
@@ -450,15 +371,15 @@ if let Err(report) = store.save_now() {
 ```
 <!-- /shown -->
 
-`save_now` is the same flush with the failure handed back. The store goes on
-working: the later drop flushes again, and reports what it finds to the log
-rather than to you. That is the whole difference - the drop is the one nobody
-hears.
+`save_now` returns the flush result and leaves the store open. If it fails,
+you can retry while the buffer is still available. A later drop attempts to
+flush again and logs any failure.
 
 ## Closing
 
-`save_now` leaves the store holding its file. `close` gives it up: it writes
-what is buffered, stops the background thread, and lets go.
+`close` flushes pending writes, stops background work and releases the store's
+resources. Unlike `save_now`, it makes the store unusable for further storage
+operations:
 
 <!-- shown: closing the store and letting go of the file -->
 ```rust
@@ -468,48 +389,36 @@ if let Err(report) = store.close() {
 ```
 <!-- /shown -->
 
-Afterwards every read, write, scan and flush on that store answers `Closed` -
-`ReadValue::Closed`, `WriteValue::Closed`, `ScanKeys::Closed`, `Flush::Closed`,
-each naming the place it was asked about - and so does every clone of it, since
-there is one file between them. Calling it twice is fine, and the drop that
-follows does nothing.
+All clones refer to that same closed store. Direct reads, writes, scans and
+flushes return their operation-specific `Closed` error. Closing it again is
+allowed but does not retry the flush.
 
-A field is the exception, and on purpose: it goes on answering `get` from
-memory, and says so through `try_get`, whose `Reason::Closed` means *this is the
-last thing I heard* rather than *this failed*.
+A field's `get` still returns its in-memory value; `try_get` reports
+`Reason::Closed` to identify that cached state.
 
-This is what to call when something else needs the file: another process, a
-backup, a rename. What that buys differs by engine, and each engine gives up
-what it was holding:
+Close the store before handing its file to another process, moving it or
+starting a coordinated backup. Resource release depends on the engine:
 
-| engine | what a live store claims | what closing releases |
-| --- | --- | --- |
-| sqlite | the file, against the whole machine | renaming or deleting it starts working |
-| redb | the right to open it | a second store can open the same path |
-| json, toml, ron | nothing between flushes | the background thread only |
+| engine | what closing releases |
+| --- | --- |
+| SQLite | Its database handle, allowing file operations previously blocked by it. |
+| redb | Its exclusive open, allowing another store at that path. |
+| JSON, TOML, RON | Background work; these engines hold no persistent file handle between flushes. |
 
-**A text store is still one process's file.** Holding nothing between flushes
-means nothing stops a second store on the same file, and what the two write to
-the data meets there: different values from each both land, and the same value
-is whoever saved last. The bookkeeping beside it is not merged - the `.meta` is
-written whole by whichever store writes it last. Neither is a migration: two
-stores opening at once, both with steps to run, copy to the same `.bak`, and one
-of them is refused. Give the file to one process at a time, and close the store
-before another takes it.
+**Use one process at a time for a text store.** Separate instances can merge
+different data edits, but conflicting values use the last saved value.
+Metadata is replaced as a whole, not merged; concurrent migrations also compete
+for the same recovery files. This is not a multi-process coordination protocol.
 
-**The global store closes the same way.** Dropping the guard closes it, and a
-failure there goes to `tracing::error!` under the `amethystate` target - nowhere
-a caller can act on it. `amethystate::shutdown()` hands the failure back
-instead, and it is called before the guard goes out of scope. A static is never
-dropped, so without one of the two the last debounce interval is lost on a clean
-return.
+**Global shutdown follows the same rules.** Dropping the guard closes its store
+and logs failures. Call `amethystate::shutdown()` before dropping the guard to
+receive the close result instead. Static storage is not dropped automatically;
+without a guard or explicit shutdown, pending writes can be lost even on a
+normal process exit.
 
-What that buys is exactly one thing: you find out, and can tell the person. The
-writes cannot be rescued at that point - the store is closed, and everything
-but a `get` from memory answers `Closed`. Calling `close` again will not help
-either: it sees that closing has already begun and answers `Ok` without
-flushing anything. The place for a second attempt is `save_now`, while the
-store is still open.
+A failed `close` still leaves the store closed. Retry with `save_now` **before**
+closing if you need to recover from a saving failure. Another `close` call will
+not recover the buffer.
 
-For waiting on the disk for one write rather than all of them:
+For waiting on a single write, see
 [Durability](/amethystate/concepts/durability/).

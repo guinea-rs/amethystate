@@ -4,7 +4,8 @@ sidebar:
   order: 2
 ---
 
-Field attributes are optional. A field with no `#[amestate]` annotation uses `Default::default()` as its value and the field name as its storage key.
+Without `#[amestate]`, a field uses its Rust name as its storage key and
+`Default::default()` as its initial value. Add attributes to change these defaults:
 
 ```rust
 #[amethystate(prefix = "app")]
@@ -17,20 +18,19 @@ pub struct AppState {
 ```
 
 | Attribute | Type | Description |
-|-----------|------|-------------|
-| `path` | `&str` | Where the field is stored, when that is not its own name. A dot in it is a level, so a field can be put anywhere under the prefix and not only renamed. |
-| `default` | `Expr` | Initial value on first run. If omitted, uses `Default::default()`. |
-| `nested` | flag | Marks field as an embedded `#[amethystate]` struct. |
-| `flatten` | flag | On a `nested` field: its fields sit at this level, with no segment named after it. |
-| `volatile` | flag | In-memory only. Never read from or written to the store. Resets to default on every restart. |
-| `with`, `serialize_with`, `deserialize_with` | path | The functions this field is written and read through, when its own type is not what writes it. |
-| `on_unreadable` | variant | This field's answer, overriding the struct's. A map has no default to stand in for one entry, so writing it there is a compile error naming `unreadable_entries` instead. See [When a value will not read](/amethystate/state/unreadable-values/). |
-| `on_delete` | variant | The same for a deleted key. On a map it is the level this is about and not the entries - removing an entry is a removal under either answer. When the level itself goes, `UseDefault` puts the declared entries back and `Keep` (the default) leaves the map empty. |
-| `unreadable_entries` | variant | On a map, and only on a map: `Skip` leaves out an entry it cannot read and builds the rest, `Refuse` (the default) fails and names the entry. |
-| `rule` | `fn` | A rule every value from the store or from a write has to pass, on every way in and out: read, brought in by an edit, or written; the declared default does not go through it. What it puts right reaches the field and the store alike. See [Rules](/amethystate/state/rules/). |
+| --- | --- | --- |
+| `path` | `&str` | Stored path relative to the struct's prefix. Dots separate levels. |
+| `default` | expression | Value used when initializing an empty path; otherwise `Default::default()`. |
+| `nested` | flag | Embed another `#[amethystate]` struct. |
+| `flatten` | flag | Omit a nested field's own path segment. |
+| `volatile` | flag | Keep only in memory, initialized from the default on each run. |
+| `with`, `serialize_with`, `deserialize_with` | path | Custom serde-compatible encoding and decoding functions. |
+| `on_unreadable` | variant | Override the struct's read-failure policy. Not valid on maps; use `unreadable_entries`. |
+| `on_delete` | variant | Policy after deletion. For a whole map level, `UseDefault` restores declared defaults; `Keep` leaves it empty. Deleting an individual entry removes it under either policy. |
+| `unreadable_entries` | variant | Map-only: `Skip` omits unreadable entries; `Refuse` (default) fails with the entry path. |
+| `rule` | `fn` | Normalize reads and writes. Defaults are not processed. See [Rules](/amethystate/state/rules/). |
 
-They can be written in one `#[amestate(..)]` or spread over several, whichever
-reads better:
+Combine attributes in one `#[amestate(..)]` or use several annotations:
 
 ```rust
 #[amestate(path = "panels.left.visible")]
@@ -38,14 +38,13 @@ reads better:
 pub left_panel_visible: bool,
 ```
 
-Saying one of them twice is a compile error naming it: the second would win and
-the first would look like it had been read.
+Repeating an attribute is a compile error rather than an implicit override.
 
 ## Where a field goes
 
-`path` names the place a field is stored at, and `rename_all` on the struct says
-it once for all of them. A dot in a `path` is a level, so a field can be put
-anywhere under the prefix and not only renamed:
+`path` sets a field's stored path. The struct's `rename_all` applies a naming
+convention to fields without an explicit path. Dots in `path` create levels,
+not literal dots in a key:
 
 <!-- shown: a struct that says where its fields go -->
 ```rust
@@ -60,12 +59,12 @@ pub struct NetState {
 ```
 <!-- /shown -->
 
-That writes `net.listenPort` and `net.tls.enabled`.
+The resulting paths are `net.listenPort` and `net.tls.enabled`.
 
 ## A field whose paths sit at its holder's level
 
-`flatten` on a `nested` field says its fields are stored here, without a segment
-named after it:
+Use `flatten` on a `nested` field to store its children directly at the parent
+level, without a segment for that field:
 
 <!-- shown: a nested struct whose fields sit at their holder's level -->
 ```rust
@@ -77,71 +76,53 @@ pub struct Editor {
 ```
 <!-- /shown -->
 
-That writes `editor.width`, not `editor.window.width`.
+The path becomes `editor.width`, not `editor.window.width`.
 
-Two flattened children that reach one place are a compile error naming both,
-since each stores its fields at this level and the two would write over each
-other. So is a flattened child that reaches the place of a field written beside
-it. Places are compared a level at a time, and a field's place is its path and
-everything under it: `path = "window.width"` beside a flattened child that holds
-a `window` struct is refused too, though neither spells the other's name whole.
+Overlapping paths from flattened children or adjacent fields are compile errors.
+This includes ancestor conflicts: a flattened `window` subtree conflicts with
+an adjacent `path = "window.width"`, even though their complete paths differ.
 
-**Both `path` and `flatten` decide where data lands, so changing either on
-something already shipped is a migration.** The data stays where the old build
-wrote it while the new build looks somewhere else, and what a person sees is
-their settings gone back to defaults.
+**Changing a released `path` or adding/removing `flatten` requires a migration.**
+Otherwise the old data remains at the old path while the new code reads a
+missing path and uses its default.
 
 ## A field stored some other way
 
-When a type's own encoding is not the one you want on disk, the field is written
-and read through a pair of functions of your own:
+To customize a field's stored representation, provide encoding and decoding
+functions:
 
 ```rust
 #[amestate(with = since_the_epoch)]
 pub opened: SystemTime,
 ```
 
-`with = m` is `m::serialize`, which writes, and `m::deserialize`, which reads.
-Either half can be named on its own, as `serialize_with` or `deserialize_with`.
-Then the type does the other half, and the value goes to disk one way and comes
-back another. That is usually a mistake, so write both unless you want exactly
-that difference.
+`with = m` uses `m::serialize` and `m::deserialize`. You can override one
+function with `serialize_with` or `deserialize_with`; the other then uses the
+type's normal serde implementation. Make sure the two representations match.
 
-Nothing else touches the value on its way to disk. What lies at the path is what
-the first function wrote, and only the second turns it back.
+The field type must still implement `Serialize` and `Deserialize`.
+The custom functions change its stored representation, not those trait bounds.
+Wrap a foreign type without serde support in a newtype that implements them.
 
-The type itself still has to implement `Serialize` and `Deserialize`. Every
-field's type does, and `with` chooses the form on disk rather than standing in
-for them. A type from another crate that has neither goes into a newtype of your
-own, which implements both - through the same pair of functions, if that is the
-form you want.
-
-The macro checks what it is given and names what it accepts, so a misspelling
-is a compile error rather than an attribute that does nothing.
+Unknown `amestate` options produce compile errors listing accepted attributes.
 
 ## Attributes that are not this macro's
 
-Everything else written on a field is carried onto the field the macro
-generates, and onto its getter. A doc comment arrives where it was aimed;
-`#[allow]` and `#[deprecated]` do what they say; and an attribute nobody here
-understands is judged by whoever does — which is how `#[serde(..)]` becomes
-rustc's own error about an attribute that is not in scope, rather than something
-this macro has an opinion about.
+Other field attributes are forwarded to the generated field and getter.
+Documentation comments, `#[allow]` and `#[deprecated]` retain their usual meaning.
+A serde helper attribute without a serde derive is rejected by rustc.
 
-`#[cfg]` is the exception, and it is refused. A field appears in a dozen places
-in what is generated — the struct, its constructor, the snapshot, the schema
-written to disk — and some of those are `const` arrays, where an element cannot
-be conditional. Carried to the places that allow it and not the rest, a field
-compiled out would be missing from the struct and present in the schema, and
-nothing would say so. Put the whole struct behind the `cfg`, or keep the field
-and decide at runtime what it holds.
+Field-level `#[cfg]` is not supported: a field must remain consistent across
+the generated struct, constructors, snapshots and schema metadata. Apply `cfg`
+to the whole struct, or keep the field and select its value at runtime.
 
-Which of serde's words do not carry over here, and why:
-[What serde says here](/amethystate/state/serde/).
+See [Serde](/amethystate/state/serde/) for the distinction between state
+attributes and attributes on serialized values.
 
 ## Volatile fields
 
-Volatile fields live in memory only and reset to their default on every restart. Useful for transient UI state that should not persist.
+Volatile fields stay in memory and start from their default on each run.
+Use them for transient UI state:
 
 ```rust
 #[amethystate(prefix = "app")]
@@ -154,6 +135,5 @@ pub struct AppState {
 }
 ```
 
-A volatile field still takes a [rule](/amethystate/state/rules/): every write
-goes through it, so it keeps in range a value this process holds and never
-stores.
+A volatile field can still have a [rule](/amethystate/state/rules/).
+It normalizes writes even though the value is not persisted.

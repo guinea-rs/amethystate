@@ -4,9 +4,8 @@ sidebar:
   order: 11
 ---
 
-Reactive values addressed by path, with no struct declared. For a key set that
-is not known at compile time, or where a schema is more ceremony than the job is
-worth.
+`Kv` provides path-based access without a state struct. Use it for keys chosen
+at runtime or for data that does not need a declared schema.
 
 <!-- shown: reading and writing without a schema -->
 ```rust
@@ -25,18 +24,16 @@ kv.remove("theme")?;
 
 ## A name is one level
 
-Every name here is a **single level**, and `namespace` is what nests. So
-`kv.set("ui.width", ..)` writes one key called `ui.width` - a name that happens
-to hold a dot - while `kv.namespace("ui").set("width", ..)` writes `width`
-inside `ui`.
+Each name passed to `Kv` is one path segment. `kv.set("ui.width", ..)` writes
+a single key named `ui.width`. To write `width` inside `ui`, use
+`kv.namespace("ui").set("width", ..)`.
 
-The dot in a name is escaped on disk, so the two are different places and stay
-different. Getting this the wrong way round is the mistake to watch for: a
-dotted string looks like a path and is not one.
+A literal dot in a name is escaped in storage, so these calls address different
+keys. Do not use a dotted name as a substitute for `namespace`.
 
-`keys()` lists everything under the handle it is called on, at every level below
-it and sorted. Narrowing a listing is what `namespace` is for; the root handle
-lists the whole store.
+`keys()` returns sorted paths at every depth beneath the current namespace.
+Use a narrower namespace to restrict the listing; the root handle lists the
+whole store.
 
 <!-- shown: what a listing covers -->
 ```rust
@@ -55,8 +52,8 @@ assert_eq!(from_ui, ["ui.panel.left", "ui.width"]);
 ```
 <!-- /shown -->
 
-The paths that come back are whole, so a `width` inside `ui` is listed as
-`ui.width`, and `theme` at the root is not listed at all from a `ui` handle.
+Returned paths include their namespace: `width` inside `ui` appears as
+`ui.width`. A listing from `ui` does not include a root-level `theme` key.
 
 ## Cells and maps
 
@@ -69,15 +66,13 @@ flags.insert("dark".to_string(), &true)?;
 ```
 <!-- /shown -->
 
-What comes back is an ordinary
-[`ReactiveCell`](/amethystate/primitives/reactive-cell/) or `ReactiveMap`, so
-subscriptions work as they do for declared fields. The type of a cell comes from
-its default, so there is nothing to spell out twice.
+These methods return a [`ReactiveCell`](/amethystate/primitives/reactive-cell/)
+or `ReactiveMap`, with the same subscriptions as declared fields. A cell's type
+is inferred from its default value.
 
 ## Where a struct already lives
 
-A declared `prefix` belongs to that struct, and writing inside it through `Kv`
-is refused:
+`Kv` refuses writes into paths reserved by declared state:
 
 <!-- shown: writing where a struct lives -->
 ```rust
@@ -100,7 +95,7 @@ kv.namespace("networkish")
 ```
 <!-- /shown -->
 
-Printed as it stands, the refusal is one line:
+The error formats as a single line:
 
 <!-- printed: writing where a struct lives from book_kv -->
 ```
@@ -108,9 +103,8 @@ network.port is declared by Network
 ```
 <!-- /printed -->
 
-The three facts are on the variant. `at` is the path that was written,
-`declared_at` the path the schema declared - `at` itself, or one it lies inside
-- and `by` the struct that declared it:
+You can also match its fields: `at` is the attempted write path,
+`declared_at` is the conflicting declared path, and `by` identifies the struct:
 
 <!-- printed: what the caller can say about it from book_kv -->
 ```
@@ -118,17 +112,15 @@ network.port lies in network.port, which Network declared
 ```
 <!-- /printed -->
 
-`networkish` is untouched by any of it: what a declaration owns is its own path
-and what lies inside it, not every name that starts the same way.
+A key named `networkish` does not conflict with `network`: ownership is based
+on path segments, not string prefixes.
 
-A `cell` or a `map` over the same place is an open rather than a write, so that
-one comes back as `OpenStruct::Taken` - the same collision said by the set the
-call belongs to.
+Opening a `cell` or `map` over a reserved location returns `OpenStruct::Taken`
+rather than the raw-write error above.
 
-The reason is what a wrong type does to the struct. Storing a `String` where a
-`u16` is declared leaves the field's subscription unable to decode it, so the
-field goes on showing its old value while the store holds something else - and
-the next startup fails outright reading that path back.
+These checks prevent raw access from replacing a declared field with an
+incompatible value. Such a replacement would leave the live field displaying
+its previous value and could prevent the struct from opening on the next run.
 
 ## One path, one type
 
@@ -141,14 +133,12 @@ let refused = ui.cell("width", String::new());
 ```
 <!-- /shown -->
 
-Nothing here records a type. A cell reads its path to seed itself, so the second
-ask finds what the first stored and fails to decode it. The error is a codec
-error naming what it found.
+`Kv` does not keep a type registry. Creating a cell reads the stored value;
+a second cell requesting an incompatible type fails to decode it.
 
-The check is therefore the stored value, and that has consequences a registry
-would not. It holds across restarts, because what an earlier run wrote is still
-there to be read. It holds over a path that was empty, because the first cell
-**writes its default** there. And it does not hold for raw access at all:
+This check also works after a restart because the stored value remains.
+If the path is empty, the first cell writes its default. Raw `set` is different:
+it can replace a value with another type.
 
 ```rust
 kv.set("thing", &1u32)?;
@@ -156,18 +146,21 @@ kv.set("thing", &"now a string".to_string())?;   // replaces it
 kv.get::<u32>("thing")?;                          // Err, at the read
 ```
 
-A raw `set` overwrites whatever was there, whatever its type. The disagreement
-surfaces at the next `get` that asks for the old one.
+After that replacement, a `get` requesting the old type returns a decode error.
+
+## Schema and migrations
+
+Versioned schemas, generated migrations and drift checking belong to declared
+state structs. Use a struct instead of raw keys when you need to evolve a known
+data layout across releases.
 
 ## Where it lands in the file
 
-On redb and sqlite there is nothing to say: every key is stored whole, and a
-`Kv` write is one more of them.
+redb and SQLite store a `Kv` path as a key, like any other path.
 
-A document engine - json, toml, ron - holds two things, and this is where you
-see it. A declared struct is written as a tree, level by level, because the
-declarations say where each of its values ends. A path nothing declares is
-written **whole, as one key** beside those trees:
+In JSON, TOML and RON documents, declared structs form nested trees. Undeclared
+paths are stored as **complete keys** alongside those trees, rather than split
+into document members:
 
 <!-- shown: a declared struct and a Kv write, side by side in one file -->
 ```rust

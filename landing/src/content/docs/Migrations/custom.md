@@ -4,12 +4,12 @@ sidebar:
   order: 24
 ---
 
-What there is to do turns on one question: are the settings you have now a
-TOML, JSON or RON file with your struct's fields at its top level?
+If an existing TOML, JSON or RON file stores the struct's fields at the top
+level, you may be able to adopt it directly. Other layouts need an explicit import.
 
 ## The file is your struct
 
-A struct serde loads from a file and saves back:
+Start with the struct currently loaded and saved through serde:
 
 <!-- shown: the struct serde was writing -->
 ```rust
@@ -21,7 +21,7 @@ pub struct Settings {
 ```
 <!-- /shown -->
 
-is declared again, with the same fields, at the top of the store:
+Declare matching fields at the store root:
 
 <!-- shown: the same fields at the top of the store -->
 ```rust
@@ -36,13 +36,13 @@ pub struct Settings {
 ```
 <!-- /shown -->
 
-Turn on the engine for the file's format:
+Enable the matching storage engine:
 
 ```toml
 amethystate = { version = "0.27", features = ["toml"] }
 ```
 
-and open the file the application already has:
+Open the existing file:
 
 <!-- shown: opening the file that was there -->
 ```rust
@@ -51,25 +51,22 @@ let settings = Settings::load_with(&store);
 ```
 <!-- /shown -->
 
-Nothing is converted. `as_root` puts the fields where serde put them, so
-`load_with` reads what the file holds, and a field the file lacks takes its
-default. Beside the file the store keeps a `.meta` of its own:
-[What is on disk](/amethystate/store/files/).
+`as_root` preserves the fields' top-level locations. `load_with` reads existing
+values and uses defaults for missing fields. The store adds a `.meta` file
+alongside the data; see [Files](/amethystate/store/files/).
 
-After a save, the old struct still reads a TOML or JSON file, so an older build
-of the application opens it too. RON is different: the store writes it back as a
-map, `{ "theme": .. }`, and serde reads a struct only from `(theme: ..)`.
+For compatible TOML and JSON layouts, the old struct can still deserialize the
+saved file. Check RON separately: the engine writes a map, `{ "theme": .. }`,
+whereas a derived RON struct normally expects `(theme: ..)`.
 
-Where the old struct renamed a field through serde, the same thing has its own
-spelling here: [What serde says here](/amethystate/state/serde/).
+If the old declaration used serde field renames, map them to the appropriate
+state attributes; see [Serde](/amethystate/state/serde/).
 
 ## Everything else
 
-A database of your own, a format other than those three, a file laid out
-differently from the struct: there is nothing the store can open in place. The
-values move in once, by your code, right after the store opens. Read the old
-source with whatever reads it today, write the values through the struct, and
-remove the old source:
+For a custom database, another format or a different layout, import the values
+in application code. Open the new store, read the old source with its existing
+reader, save the values through the new state struct, then remove the old source:
 
 <!-- shown: moving the values in once -->
 ```rust
@@ -85,10 +82,10 @@ if let Some(old) = read_old_settings(&old_file)? {
 ```
 <!-- /shown -->
 
-`mutate` returns once the values are on disk, so the old file goes only after
-they are safe. A crash between the two leaves both, and the next start moves the
-same values again.
+`mutate` waits for persistence. Delete the old file only after it succeeds.
+If the process stops before deletion, both sources remain and the next run
+repeats the import, so the conversion must tolerate repetition.
 
-A migration step cannot do this, because it would have nothing to run over:
-steps rewrite what a store already holds, and a new store runs none. See
-[What happens on a clean install](/amethystate/migrations/overview/#what-happens-on-a-clean-install).
+This initial import is not a store migration step: a fresh empty store skips
+historical steps. See
+[Clean installs](/amethystate/migrations/overview/#what-happens-on-a-clean-install).

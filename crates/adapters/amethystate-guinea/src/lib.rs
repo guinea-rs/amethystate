@@ -4,7 +4,7 @@ use std::any::Any;
 
 use amethystate::reactive::field::FieldValue;
 use amethystate::{Field, ReactiveCell};
-use guinea_app::timers::Changing;
+use guinea::sources::Changing;
 
 /// A reactive value as something a guinea timer's period can follow.
 pub trait IntoChanging: Sized {
@@ -33,7 +33,7 @@ impl<T: FieldValue> Changing for Changes<Field<T>> {
         Some(self.0.get())
     }
 
-    fn watch(&self, changed: Box<dyn Fn() + Send + Sync>) -> Box<dyn Any> {
+    fn watch(&self, changed: Box<dyn Fn() + Send + Sync>) -> Box<dyn Any + Send> {
         Box::new(self.0.subscribe(move |_| changed()))
     }
 }
@@ -45,7 +45,7 @@ impl<T: Clone + Send + Sync + 'static> Changing for Changes<ReactiveCell<T>> {
         self.0.get()
     }
 
-    fn watch(&self, changed: Box<dyn Fn() + Send + Sync>) -> Box<dyn Any> {
+    fn watch(&self, changed: Box<dyn Fn() + Send + Sync>) -> Box<dyn Any + Send> {
         Box::new(self.0.subscribe(move |_| changed()))
     }
 }

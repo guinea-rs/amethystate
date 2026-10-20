@@ -1,23 +1,26 @@
 # amethystate-guinea
 
-Lets a [guinea](https://crates.io/crates/guinea) timer's period follow a value
-held by an [amethystate](https://crates.io/crates/amethystate) store: change the
-setting, and the timer re-arms with the new period at once.
+Connect a [guinea](https://crates.io/crates/guinea) timer to a reactive
+[amethystate](https://crates.io/crates/amethystate) setting. Changing the value
+restarts the timer's wait with the new interval.
 
 ```rust,ignore
 use amethystate_guinea::IntoChanging;
-use guinea::timers::Period;
+use guinea::sources::Period;
 use std::time::Duration;
 
 cx.every(
     Period::follows(settings.ping_interval_ms().changing(), Duration::from_millis),
-    &agent,
     || Ping,
+    &agent,
 );
 ```
 
-`changing()` takes a `Field<T>` or a `ReactiveCell<T>`. A map entry is followed
-through `map.entry_cell(key)`: while the key is absent, or once the map is
-dropped, there is nothing to read and the timer does not tick.
+Call `changing()` on a `Field<T>` or `ReactiveCell<T>`. To follow a map entry,
+use `map.entry_cell(key)`. An absent entry has no interval, so the timer pauses
+until the key is inserted. Dropping the source map also pauses the timer.
 
-The crate's version is amethystate's; it builds against guinea 0.18 and every later release.
+The adapter's version follows amethystate. It supports guinea 0.30 and requires
+Rust 1.95. Older guinea versions use a different timer API and are not supported.
+The guinea dependency has default features disabled: the adapter does not select
+a GUI backend or start its own runtime.

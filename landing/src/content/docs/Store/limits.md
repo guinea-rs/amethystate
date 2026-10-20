@@ -1,37 +1,24 @@
 ---
-title: What a store refuses to hold
+title: Value and path limits
 sidebar:
   order: 14
 ---
 
-Two different things refuse a write, and only one of them is yours to set.
+The store rejects values that its codec cannot read back. You can add stricter
+limits, but cannot disable these safety checks.
 
 ## How deeply a value may nest
 
-The limit is on the **shape of the value**. A struct holding a struct holding a
-`Vec` of structs is three levels before anything else is counted, and a type
-that refers to itself - a tree, a menu, an expression - has as many levels as
-the data does on the day it runs.
+Depth includes nested structs, sequences and maps inside a value. Recursive
+types such as trees or menus can have different depths for different inputs.
 
-Every engine's codec reads less deeply than it writes. `serde_json` stops at 128
-on the way in and has no limit on the way out; `ron` stops at 64; `rmp_serde`
-has no limit at all, and the stack runs out around three thousand instead
-(measured on Windows 11 at the default stack size; where it actually gives out
-depends on the platform and on the stack the thread was started with) - killing
-the process rather than returning an error, on every later start, because the
-value is already committed.
+A serializer may accept deeper data than its deserializer can read. Without a
+write-time check, saving such a value could make the next open fail. In a text
+engine, one excessively deep value can prevent parsing the whole document.
 
-So without a check a write past the reader's ceiling is accepted and cannot be
-read back: no error anywhere, and on the text engines the whole file is gone,
-since the document is parsed as one thing. The ceiling is therefore enforced
-always, whatever else is configured, and the refusal happens at the write.
-
-**It is counted during the write, not before it.** The value cannot be inspected
-first - by the time it reaches the store it is a `&dyn Serialize`, and a
-five-level struct is indistinguishable from a five-level tree. Nor can it be
-built and measured, because building it is the dangerous act: on redb that is
-exactly what overflows the stack. Serde pushes and the store receives, so the
-levels are counted as they go past, inside the codec's own pass.
+The store therefore counts nesting during serialization and stops before the
+reader's limit. Counting in the codec pass also avoids first building a deeply
+nested intermediate value that could overflow the stack.
 
 <!-- shown: how deep the engine you are running reads -->
 ```rust
@@ -40,8 +27,7 @@ println!("{}: {} levels", engine.extension(), engine.depth_ceiling());
 ```
 <!-- /shown -->
 
-The numbers are measured rather than looked up - `tests/probe_*.rs` walked each
-engine to its boundary:
+The enforced limits are covered by `tests/probe_*.rs`:
 
 | engine | levels |
 | --- | --- |
@@ -51,33 +37,24 @@ engine to its boundary:
 | TOML | 80 |
 | RON | 64 |
 
-redb has no limit of its own. `rmp_serde` recurses until the stack ends, around
-three thousand levels on Windows 11 at the default stack size, and the process
-dies rather than returning an error - on every later start, because the value is
-already committed. That number is a measurement, not a constant: it moves with
-the platform and with the stack the thread was given. The 512 is imposed for
-that reason: far above any data anyone means to store, far below where the stack
-gives out on any of them.
+The redb codec has no useful built-in recursion limit. Its 512-level ceiling is
+a library safety limit intended to stop before stack exhaustion, rather than a
+measured promise about every platform's stack size.
 
 ### The path spends from the same budget
 
-On every text engine a path's levels *become* document levels - `ui.panels.left`
-is three levels of nesting in the file before the value starts - so the two are
-counted together. A shallow value at a deep path is as unreadable as a deep
-value at a shallow one.
+Paths consume depth budget too. In text documents, `ui.panels.left` adds three
+levels before the value's own nesting begins. The shared check also subtracts
+path depth for SQLite even though its key does not add JSON nesting; that is a
+conservative limit.
 
-SQLite is the exception, since its path is a `TEXT` key rather than nesting, but
-paying the path there costs a few levels out of 127 and is not worth a second
-rule.
-
-When a write is refused the report says where the budget went: how many levels
-the path took, how many were left for the value, and how many this store reads
-in all.
+A depth error reports the total budget, the levels used by the path and the
+remaining allowance for the value.
 
 ## The two caps you can set
 
-Both go through `limits`, and neither can raise the ceiling above - they only
-narrow it.
+Configure stricter limits through `limits`. Neither option can raise the
+engine's safety ceiling:
 
 <!-- shown: capping how deep a path may go -->
 ```rust
@@ -93,9 +70,9 @@ if let Err(refused) = store.set(&deep, &1u32) {
 ```
 <!-- /shown -->
 
-`key_depth` refuses a path with more levels than that, before the value is even
-encoded. Useful for a store whose paths are built at run time, where a bug that
-nests without bound otherwise shows up as an unreadable file much later.
+`key_depth` rejects a path with too many segments before encoding its value.
+This is useful for runtime-generated paths, where accidental recursive nesting
+should fail at the write rather than leave unreadable data.
 
 <!-- shown: promising the contents stay readable on another engine -->
 ```rust
@@ -105,36 +82,29 @@ let store = StoreBuilder::new(settings)
 ```
 <!-- /shown -->
 
-`portable_across` names engines the contents must stay readable on beyond the
-one actually running, and lowers the ceiling to the lowest of them. A store on
-redb that names RON reads 64 levels rather than 512, so a value too deep for the
-file it will be exported to is refused now instead of after the export.
+`portable_across` lists other engines that must also be able to read the values.
+The effective depth limit is the lowest among the active and listed engines.
+For example, redb plus RON portability allows 64 levels rather than 512.
 
-Depth is not where it ends. The engines named settle six more properties, each
-by one rule: the running engine and every engine named must all hold it, or the
-write is refused.
+Portability checks also cover these value properties:
 
-| property | who loses it |
+| property | limitation |
 | --- | --- |
-| `NaN` and the infinities | JSON and SQLite, which have no spelling for them and read back `null` |
-| enum variants | RON, whose value tree has none - [ron#122](https://github.com/ron-rs/ron/issues/122). A type that writes itself as a string for a reader, an `IpAddr` among them, is asked in that form |
-| `Some(None)` | every engine but RON: a nested `Option` collapses to `None` |
-| a `u128` or an `i128`, whatever it holds | TOML and RON, which have no 128-bit integer type |
-| integers past `i64` | TOML, which has no room for them |
-| integers neither an `i64` nor a `u64` holds | JSON, which reads a number back as an `i64`, a `u64` or an `f64` |
+| `NaN` and infinities | JSON and SQLite cannot preserve them as numeric values. |
+| enum variants | The RON value tree used by the engine cannot retain them. Types such as `IpAddr` that serialize as strings in a human-readable format are checked in that representation. |
+| `Some(None)` | All engines except RON collapse nested `Option` distinctions. |
+| `u128` and `i128` | TOML and RON do not support the 128-bit integer type, even for small values. |
+| integers outside `i64` | Outside TOML's integer range. |
+| integers outside both `i64` and `u64` | JSON's value representation cannot retain them as integers. |
 
-The running engine counts alongside the named ones for the same reason its
-ceiling does: a value its own codec cannot read back is lost whatever anyone
-configured. So a store on JSON refuses a `NaN` with nothing named at all.
+The active engine is always included. A JSON store therefore rejects a NaN even
+without an explicit portability setting.
 
-Naming the engines rather than saying *all* is deliberate. "All" is a moving
-target - it changes under a store when an engine is added - and the honest
-requirement is usually narrower: an application shipping JSON on the desktop
-and SQLite on a phone needs those two and has no opinion about RON.
+Name the engines you actually need. An implicit “all engines” policy would
+change its meaning whenever another engine was added.
 
 ## What this does not cover
 
-The store enforces depth and the six properties above, by refusing a write that
-breaks one. What a format can *express* is a different question, and no setting
-changes it:
-[Choosing an engine](/amethystate/choosing/absent-or-null/).
+These checks cover depth and the properties listed above, not every difference
+between formats. See [Choosing an engine](/amethystate/choosing/absent-or-null/)
+for other tested limitations.

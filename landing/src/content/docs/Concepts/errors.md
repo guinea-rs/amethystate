@@ -1,17 +1,17 @@
 ---
-title: What a failure carries
+title: Handling errors
 sidebar:
   label: Errors
   order: 20
 ---
 
-**Each point in the API fails with the set that is possible there.** A
-`try_` constructor answers with the four ways a struct can fail to open; a `Kv`
-write with the six ways a raw write can be turned down. The set lists them, so a
-`match` over it is complete and the compiler keeps it that way.
+Operations return error enums specific to that operation. For example,
+`OpenStruct` describes failures when opening a state struct, while `KvWrite`
+describes errors from raw path access. You can match the relevant cases without
+handling variants that cannot occur at that call.
 
-Each set is an ordinary `std::error::Error`. So a refusal gets one of two
-treatments, and both are cheap: take it apart, or hand it on.
+These types implement `std::error::Error`. Match individual variants when you
+can recover, or propagate the error with `?`.
 
 ## Taking a refusal apart
 
@@ -31,20 +31,13 @@ let said = match refused {
 ```
 <!-- /shown -->
 
-No `_` arm, and that is the point of saying it in the type. A catch-all is
-where a caller who wanted *refused* and met a slightly different failure ends
-up without noticing; here there is nothing for it to catch. And when a call
-gains a way to fail, every caller that was handling them all stops compiling -
-which is what a caller wants to be told.
+The match has no `_` arm because it handles every variant. These error enums
+are exhaustive: if a future version adds a variant, the compiler will identify
+matches that need updating.
 
-Every one of these sets is exhaustive, for the same reason.
-
-**A variant carries everything known where it was raised:** the place together
-with its owner, the place together with the reason, both sides of a collision.
-`OpenStruct::Taken` carries four things - which place, who wanted it, through
-which path it is held, and by whom - because a collision is only diagnosable
-with all four and neither declaration mentions the other. A field you do not
-need is one to skip; the one you need is there.
+Variants include context for diagnosing the failure. `OpenStruct::Taken`, for
+example, identifies the requested path and struct as well as the conflicting
+path and its owner. Match the fields you need and ignore the rest.
 
 ## Handing it on
 
@@ -62,9 +55,9 @@ fn with_a_box(store: &amethystate::Store) -> Result<(), Box<dyn Error + Send + S
 ```
 <!-- /shown -->
 
-`Send + Sync + 'static`, a `Display` writing one line, and a `source()` chaining
-down to the cause. So `anyhow`, `eyre` and `Box<dyn Error>` all take one with a
-plain `?`, and giving up costs nothing.
+Errors are `Send + Sync + 'static`, format as a single line through `Display`,
+and expose their underlying cause through `source()`. They can be propagated
+into `anyhow`, `eyre` or `Box<dyn Error>` with `?`.
 
 ## The sets
 
@@ -80,38 +73,28 @@ plain `?`, and giving up costs nothing.
 | `Flush` | `save_now`, `close`, `flush_prefix` |
 | `RunStep` | every `MigrationContext` method, and what a migration step hands back |
 
-They overlap and they are still separate types. `WriteValue` has `Absent` and
-`SourceGone`, which a raw `Kv` write cannot reach; `KvWrite` has `Declared`,
-which a write through a field cannot. Five variants are shared. Written as one
-set, every caller would read past arms that cannot fire where they are.
+These types deliberately differ. `WriteValue` can report `Absent` and
+`SourceGone`, while a raw `Kv` call can report `Declared`. Separate enums keep
+unreachable cases out of a caller's match.
 
-Two doors have no set at all, because what stops them is a bug rather than a
-circumstance. The plain constructors - `new`, `new_with`, `load`, `load_with`,
-`load_slice` - panic with what their `try_` twin would have answered. And
-`Field::set`, `update` and `modify` take every write: a value the engine cannot
-hold panics naming the field, a write to a closed store is dropped with a
-warning, and a disk that is not taking writes is the store's to report, not the
-write's. `Field::durable` is the write that answers with a `Result`.
+Plain constructors such as `new_with` panic on errors returned by their `try_`
+variants. `Field::set`, `update` and `modify` also have no error result:
+unencodable values panic, closed-store writes are ignored with a warning,
+and background saving failures are reported by store observers.
+Use `Field::durable` when a write needs a `Result`.
 
-A map gets its own set rather than sharing `OpenStruct` because it is opened
-over what is already under it, and so meets two failures nothing else can: a
-stored key that is not one of its entries, and an entry whose *name* will not
-read as the key type. A migration step gets one because the distinction it
-needs - *this record is not what I expected*, which a step can often skip past,
-against *the disk is broken*, which it cannot - has nowhere else to live.
+Maps have their own opening errors for invalid entry paths and unreadable key
+names. Migration steps distinguish incompatible records from storage failures
+so the step can handle them differently.
 
-`Field::try_get` is the odd one out and deliberately so: it is not a write, and
-not the store's failure, but what this field and the store do not agree about.
-It answers with a `Disagreement` - a path and one of four reasons - which is an
-ordinary `Error` too. What each reason means:
-[When a value will not read](/amethystate/state/unreadable-values/).
+`Field::try_get` instead returns a `Disagreement`: it describes a known problem
+with the cached field's view of storage, not a new storage operation.
+See [Unreadable values](/amethystate/state/unreadable-values/).
 
 ## The report is still there
 
-A set's `Store(..)` variant carries what the engine said, whole, as a `Report`
-from [`error_stack`](https://docs.rs/error-stack). So does every variant that
-classified one: `WillNotRead`, `WillNotEncode` and `TooDeep` hold their report
-rather than a rendered sentence, because the numbers are the diagnosis.
+Storage-backed variants preserve an `error_stack::Report`, not just a message.
+This includes `Store`, `WillNotRead`, `WillNotEncode` and `TooDeep` errors.
 
 <!-- shown: the report under a variant that named the failure -->
 ```rust
@@ -123,12 +106,12 @@ let amethystate::store::ReadValue::WillNotRead { at, why } = refused else {
 ```
 <!-- /shown -->
 
-A report has two parts, and only the first is an enum:
+A report contains:
 
-- **a chain of contexts** - what failed, at each level that knew it was failing;
-- **attachments** - the particulars, carried as types rather than as sentences.
+- **Contexts:** error categories added as the failure passes through layers.
+- **Attachments:** typed facts such as paths, file names and limits.
 
-Pulling one out of a set is a `match` like any other:
+Extract a report by matching the outer error:
 
 <!-- shown: getting at the report a set carries -->
 ```rust
@@ -153,28 +136,23 @@ let sentence = report.to_string();
 ```
 <!-- /shown -->
 
-`context` is `StorageError::Codec`, and `sentence` is *the value could not be
-encoded or decoded*.
+Here `context` is `StorageError::Codec`, and `sentence` is
+*the value could not be encoded or decoded*.
 
-`current_context()` is the outermost context. `StorageError`'s variants name
-**the operation that failed**, not the thing that failed it: `Write`, `Scan`,
-`Codec`. Two engines failing to write are the same context, told apart by the
-frames underneath - which is deliberate, because a caller deciding what to do
-next cares whether a write landed, not whether redb or `serde_json` was the one
-to say no.
+`current_context()` returns the outermost error category. `StorageError`
+identifies the operation, such as `Write`, `Scan` or `Codec`; deeper frames
+preserve the engine-specific cause.
 
-`StorageError` **is** `#[non_exhaustive]`, unlike the sets. It is the disk's own
-list, it grows with the engines, and it is meant to be read rather than
-dispatched on arm by arm.
+Unlike the operation error enums, `StorageError` is `#[non_exhaustive]`.
+Include a catch-all when matching it.
 
 ### The particulars are attached as types
 
-Each fact is its own type, so nothing is parsed back out of a message. They live
-in `amethystate::errors::facts`: a key, the prefix a scan was under, the entry
-it stopped on, the file it was reading, how large the value was. Each is a
-newtype over the thing it holds, and its label lives on its `Display`.
+`amethystate::errors::facts` contains typed attachments for keys, scan prefixes,
+entries, store files and value sizes. Each wraps its data and formats it with
+a descriptive label.
 
-`facts::all::<T, _>` hands back every fact of one type, innermost first:
+`facts::all::<T, _>` retrieves all attachments of a type, innermost first:
 
 <!-- shown: reaching the entry that failed -->
 ```rust
@@ -186,11 +164,11 @@ let prefixes: Vec<&Prefix> = facts::all::<Prefix, _>(&report).collect();
 ```
 <!-- /shown -->
 
-`entries` holds one `Entry("http")` and `prefixes` one `Prefix("ports")`. A map
-that will not open over one bad entry says which entry, and that is the part a
-`{}` print discards.
+`entries` contains `Entry("http")`, and `prefixes` contains `Prefix("ports")`.
+These identify the map entry that failed; a one-line error message does not
+necessarily include every attachment.
 
-Asking for a fact the report does not carry hands back nothing:
+A lookup for an attachment not present in this report returns nothing:
 
 <!-- shown: asking for a fact the report does not carry -->
 ```rust
@@ -201,21 +179,20 @@ let key = facts::all::<Key, _>(&report).next();
 ```
 <!-- /shown -->
 
-`key` is `None`: this report was never about a single key.
+`key` is `None` because this failure concerns an entry under a prefix,
+not a separately attached key.
 
-Which facts a report carries depends on who was on the stack: they are attached
-by whoever knew them, and a `Key` is not attached by code that only ever saw a
-prefix. Read them as evidence that is there when it is there, not as a schema.
-Attaching is lazy - nothing is built on the path that succeeds.
+Attachments depend on what each error layer knew. They are diagnostic evidence,
+not a fixed record guaranteed to contain every field. They are constructed only
+on the error path.
 
-This is the layer the sets exist to keep you out of. Reach for it when you are
-writing a log line or a bug report, not when you are deciding what to do next.
+Use reports for logging and diagnostics; prefer the outer error variants when
+choosing a recovery action.
 
 ## Printing one
 
-A set's `{}` is one line, written for the person who has to fix it. `{:?}` on
-the report underneath gives the whole thing - every context in the chain, with
-the facts under the frame that attached them.
+`Display` (`{}`) formats the operation error as one line. `Debug` (`{:?}`) on
+its underlying report includes the context chain and typed facts:
 
 <!-- shown: an entry that will not decode -->
 ```rust
@@ -253,8 +230,8 @@ let wrong_key = store.kv().map::<Id<u16>, String>("ports").unwrap_err();
 ```
 <!-- /printed -->
 
-That one has no report under it, and needs none: the variant already names the
-map, the entry and the type it would not read as.
+This variant needs no underlying report: it already contains the map,
+entry and requested key type.
 
 <!-- shown: a path that names nothing -->
 ```rust
@@ -290,21 +267,15 @@ deeper than this store reads back
 ```
 <!-- /printed -->
 
-The last one is the shape to aim for when a refusal is yours to write: the
-sentence names what was refused, and the facts under it answer the question the
-reader is about to ask - whose limit that was, and what it cost.
-
-So `{:?}` on the report is what belongs in a log, and the set's `{}` is the one
-line a person reads.
+The next report separates a short description from details such as the limit
+and the amount used. Use that structure in diagnostics: a readable summary
+with enough attached data to investigate.
 
 ## When a bound asks for `std::error::Error`
 
-A `Report` does not implement that trait, so it does not satisfy `E: Error` -
-which is what `anyhow::Error::new` asks for, and `thiserror` through `#[source]`,
-and any wrapper of your own over somebody else's error. The sets satisfy it, so
-at the boundary the question does not come up; it comes up once a report has
-been pulled out and has to cross on its own. `into_error` is the way, and it
-loses nothing:
+`Report` does not itself implement `std::error::Error`. The operation error
+enums do, so ordinary `?` propagation works. If you extract a report and need
+to pass it through an `E: Error` boundary, convert it with `into_error`:
 
 <!-- shown: turning a report into a std error -->
 ```rust
@@ -315,11 +286,10 @@ let whole = format!("{std_error:?}");
 ```
 <!-- /shown -->
 
-`sentence` is the same *the value could not be encoded or decoded*, and `whole`
-still holds `entry: http`. The wrapper keeps the report behind it rather than
-flattening it. `as_error` is the borrowing twin, for handing one out without
-giving it up.
+The wrapper retains the report: `sentence` stays the same and `whole` still
+contains `entry: http`. Use `as_error` to borrow the corresponding error view
+without consuming the report.
 
-`error_stack` is re-exported as `amethystate::error_stack`, and `Report` also
-sits in `amethystate::errors`, so naming one in your own signature costs no
-dependency of your own and cannot drift out of version with this crate.
+`error_stack` is re-exported as `amethystate::error_stack`, and `Report` is also
+available through `amethystate::errors`. These re-exports let your code use
+the same version as the library.

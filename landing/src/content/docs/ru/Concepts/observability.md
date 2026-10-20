@@ -4,11 +4,14 @@ sidebar:
   order: 19
 ---
 
-`amethystate` шлёт структурированные события трассировки через крейт [`tracing`](https://docs.rs/tracing). У всех событий таргет `amethystate`, так что фильтровать их можно отдельно от остального приложения.
+`amethystate` использует [`tracing`](https://docs.rs/tracing) для структурированных
+логов. События имеют таргет `amethystate`, который можно фильтровать отдельно
+от логов приложения.
 
 ## Как включить трассировку
 
-События идут на уровне `TRACE`. Чтобы увидеть их, настройте подписчика `tracing` с включённым таргетом `amethystate`:
+Трассы записей полей и вызовов подписчиков используют `TRACE`.
+Включите этот уровень для таргета `amethystate` в подписчике tracing:
 
 ```rust
 tracing_subscriber::fmt()
@@ -16,7 +19,7 @@ tracing_subscriber::fmt()
     .init();
 ```
 
-Или через переменную окружения `RUST_LOG`:
+Фильтр можно также задать через `RUST_LOG`:
 
 ```sh
 RUST_LOG=amethystate=trace cargo run
@@ -26,7 +29,7 @@ RUST_LOG=amethystate=trace cargo run
 
 ### Записи в поля
 
-Каждый `field.set()` даёт одно событие:
+Вызов `field.set()` создаёт трассу попытки записи:
 
 ```
 TRACE amethystate: field write path=network.port source=NetworkState
@@ -34,13 +37,13 @@ TRACE amethystate: field write path=network.port source=external
 ```
 
 | Поле | Значение |
-|-------|-------|
-| `path` | Ключ поля в store, например `network.port` |
-| `source` | Короткое имя структуры, чей хендл позвал `set()`, или `external`, если хендл не принадлежит никакой структуре (форк, поле из `field_with_path`) |
+| --- | --- |
+| `path` | Путь хранения, например `network.port`. |
+| `source` | Короткое имя структуры-владельца хендла либо `external` для отдельного хендла: форка или поля из `field_with_path`. |
 
 ### Срабатывания подписок
 
-Каждый вызов колбэка подписки даёт одно событие:
+Каждый вызов колбэка создаёт трассу подписки:
 
 ```
 TRACE amethystate: signal emit → subscription fire subscription_id=0 name=PortWatcher location=src/main.rs:42
@@ -48,14 +51,15 @@ TRACE amethystate: map signal emit → any subscription fire subscription_id=1 n
 ```
 
 | Поле | Значение |
-|-------|-------|
-| `subscription_id` | Монотонное целое: опознаёт подписку внутри её сигнала |
-| `name` | Метка из `.named()`, или `None` |
-| `location` | `file:line` того места, где позвали `.subscribe()` |
+| --- | --- |
+| `subscription_id` | Возрастающий ID подписки внутри её сигнала. |
+| `name` | Метка из `.named()` либо `None`. |
+| `location` | Файл и строка вызова подписки. |
 
 ## Как помечать подписки
 
-Место вызова подписка запоминает сама, через `#[track_caller]`. Метку человеческими словами добавляют через `.named()` — для подписок из обобщённого кода или из кода фреймворка, где файл и строка сами по себе ничего не скажут:
+Место вызова сохраняется через `#[track_caller]`. Добавьте `.named()`, если
+строка в обобщённом коде или фреймворке недостаточно ясно определяет подписку:
 
 ```rust
 let _sub = state.port()
@@ -68,11 +72,11 @@ let _sub = state.limits()
     .named("LimitsWatcher");
 ```
 
-Дальше она стоит в каждом событии этой подписки.
+Метка появляется в трассах этой подписки.
 
 ## Как читать вывод
 
-Запись, за которой сработали два подписчика, выглядит так:
+Запись и последующие вызовы двух колбэков выглядят так:
 
 ```
 TRACE amethystate: field write path=network.port source=NetworkState
@@ -80,4 +84,6 @@ TRACE amethystate: signal emit → subscription fire subscription_id=0 name=Port
 TRACE amethystate: signal emit → subscription fire subscription_id=1 name=None location=src/logger.rs:12
 ```
 
-`source=external` — это всё равно `set()` в этом процессе, только через хендл, которым не владеет никакая структура: форк или поле из `field_with_path`. Изменение, которое идёт мимо `set()`, — файл правили снаружи, писал другой процесс, сработал шаг миграции, — события `field write` не оставляет вовсе.
+`source=external` **не означает** внешний процесс. Это локальный `set()`
+через хендл без структуры-владельца. Правки файла и записи миграций
+не проходят через `Field::set`, поэтому трассу `field write` не создают.

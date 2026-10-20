@@ -22,13 +22,12 @@ GPUs on Anthropic's servers — and solve it more systematically.
 
 ## What it is
 
-`amethystate` holds a Rust GUI application's state — reactive in memory, saved
-on disk. You describe the state you want in one struct; saving it, making it
-reactive, and migrating it when it changes are what the library is for.
+`amethystate` saves application state between runs and notifies your code when
+it changes. You declare the state as Rust structs; the library provides field
+handles, storage and migrations.
 
-All of it is held by a **store**: a file on disk together with what memory knows
-about it - the buffer of writes and the subscriptions. A store is opened at
-startup, and the structs live in it.
+A **store** manages the saved data, buffered writes and subscriptions. Open it
+when the application starts, then use it to create your state structs.
 
 ```rust
 #[amethystate(prefix = "network")]
@@ -41,74 +40,64 @@ pub struct NetworkState {
 }
 ```
 
-`state.port().set(9090)` returns to a caller who can already read `9090` back, and
-to subscribers who have already heard about it. The disk catches up on its own.
+After `state.port().set(9090)`, reads return `9090` and subscribers to `port`
+have been notified. Saving to disk happens separately.
 
-Subscribers of `port`, and nobody else. What you watch is one field, one map
-key, or one path — never the struct, and never the store. A write to `host`
-reaches nothing that was listening to `port`, so a view redraws because the
-thing it draws changed and not because something near it did.
+Subscriptions can target a field, a map key or a path. A UI component watching
+`port` does not receive changes to `host`, so it can update only when the value
+it displays changes.
 
 ## What it decides, so you do not
 
-**Where the file goes.** A store opened by name lands where the platform keeps
-application data, with the extension its **engine** wants - the part that
-writes values to disk: redb, SQLite or a text document.
+**File location and format.** You can open a store by name in the platform's
+application-data directory or provide a path yourself. Its **engine** determines
+how the data is stored: redb, SQLite or a text document.
 
-**When to write.** The way an operating system treats a file through its page
-cache: a write lands in memory, reads see it at once, and a **flush** carries it
-to disk later. Here that is once per window, counted from the first unsaved write, so a
-slider dragged across its range costs a flush every few hundred milliseconds
-rather than one per frame. There is an `fsync` too - `save_now` waits until
-everything the store holds is on disk. Closing the store writes down whatever it
-was still holding.
+**When to save.** File writes are buffered in memory and flushed after a
+configurable interval from the first unsaved change. Dragging a slider therefore
+does not require a disk write on every frame. Call `save_now` when you need to
+wait for all pending writes to reach disk. Closing the store also flushes them.
 
-**What a value is on disk.** Five engines, three answers: redb keeps it as
-MessagePack, SQLite as JSON, and the text engines write it into the document
-itself, in that document's own syntax. The same declaration works against all
-five, and what a given format cannot hold is reported rather than discovered
-later.
+**Value encoding.** redb stores values as MessagePack, SQLite stores them as
+JSON, and the text engines use JSON, TOML or RON directly. You can use the same
+state declaration with each engine, subject to the format's supported values.
+Unsupported values produce an error.
 
-**Where a value is put right.** A `rule` on a field stands at every way in and
-out: a value read at startup, an edit made to the file, a write from your own
-code. It corrects the value rather than refusing it, and the correction is
-written back, so the screen and the file never hold different values. An
-invariant between two fields goes where the struct is opened, in an `Open` of
-its own.
+**Value rules.** A field's `rule` can normalize values read from storage or
+written by your code: clamp a size, for example, or replace an unavailable
+theme. Corrections are written back to the store. Checks involving several
+fields belong in a custom `Open` implementation.
 
-**What to do when the struct changed.** The shape each struct had is recorded
-beside the data. A version that went up runs the steps you declared; fields that
-moved under an unchanged version are reported as drift, with a diff, and startup
-carries on.
+**Schema changes.** The store records each struct's schema. When you increase
+its version and open with `migrate`, the library runs your migration steps.
+Changing the schema without increasing the version produces a drift report
+with a diff, but does not block startup.
 
-**What to do when somebody edited the file.** The text engines watch it. An edit
-made outside arrives as the same events a write does, and a save that meets one
-lays this store's own writes over what the file now holds rather than
-overwriting it.
+**External edits.** Text engines watch their files and notify subscribers when
+another program changes a value. Before saving, they merge pending writes into
+the current document rather than replacing it with an older copy.
 
 ## Two kinds of state
 
-They differ in one thing — whether a field is a handle — and share storage,
-schema and migrations.
+Choose whether your application needs reactive handles or plain values.
+Both modes use the same storage, schemas and migrations.
 
-- **Reactive** — a field is a **handle**: the object you read the field through,
-  write it through and subscribe to. The rest of the book assumes this one.
-- **Persistent-only** — ordinary fields on an ordinary struct, saved when you
-  say so. For frameworks that own their update loop, and for state nobody needs
-  to watch. It does not see changes made elsewhere.
+- **Reactive**, the default: read, write and subscribe through field handles.
+  Most examples in the book use this mode.
+- **Persistent-only**: load ordinary struct fields and save them explicitly.
+  Use it when the application manages updates itself and does not need
+  subscriptions. Loaded structs do not receive changes made elsewhere.
 
 ## What it is for, and what it is not
 
-It is sized for state an application holds about itself: window layout, the
-panel you had open, a filter, a recently-used list, a cache kept between runs.
-Tens of keys is its smallest case and not its only one — a cache is thousands,
-written in bursts and read in scans, and the library is built for that end too.
+Use it for window layouts, open panels, filters, recent-file lists and caches
+that should survive a restart. The API supports both small settings structs
+and collections with thousands of keys.
 
-It is not a database. There are no queries, no indexes and no transactions you
-can open; a path and a value is the whole data model. Open as many stores as you
-have files to open — what the engines disagree about is two of them over the
-*same* file, where redb refuses the second, SQLite holds the file, and the text
-engines let both in and sort it out when they save.
+It is not a general-purpose database: there is no query language, no indexes
+and no public transaction API. Data is addressed by path. You can open several
+stores, but opening the same file more than once is engine-dependent; see
+[Opening a store](/amethystate/store/opening/).
 
 ## Where to go next
 
