@@ -1,11 +1,11 @@
-error[E0599]: no function or associated item named `new` found for struct `Agent` in the current scope
+error[E0599]: no associated function or constant named `new` found for struct `Agent` in the current scope
   --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:29:20
    |
  4 | #[amethystate(prefix = "agent", open = manual)]
-   | ----------------------------------------------- function or associated item `new` not found for this struct
+   | ----------------------------------------------- associated function or constant `new` not found for this struct
 ...
 29 |     let _ = Agent::new();
-   |                    ^^^ function or associated item not found in `Agent`
+   |                    ^^^ associated function or constant not found in `Agent`
    |
 note: if you're trying to build a new `Agent` consider using one of the following associated functions:
       Agent::new_with
@@ -26,14 +26,14 @@ note: if you're trying to build a new `Agent` consider using one of the followin
            candidate #6: `rand::distr::uniform::UniformSampler`
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0599]: no function or associated item named `load` found for struct `KeptAgent` in the current scope
+error[E0599]: no associated function or constant named `load` found for struct `KeptAgent` in the current scope
   --> tests/fails/a_struct_that_opens_its_own_way_has_no_global_door.rs:30:24
    |
 16 | #[amethystate(prefix = "kept_agent", mode = "persistent", open = manual)]
-   | ------------------------------------------------------------------------- function or associated item `load` not found for this struct
+   | ------------------------------------------------------------------------- associated function or constant `load` not found for this struct
 ...
 30 |     let _ = KeptAgent::load();
-   |                        ^^^^ function or associated item not found in `KeptAgent`
+   |                        ^^^^ associated function or constant not found in `KeptAgent`
    |
 note: if you're trying to build a new `KeptAgent` consider using one of the following associated functions:
       KeptAgent::load_with

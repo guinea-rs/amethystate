@@ -1881,7 +1881,7 @@ note: required by a bound in `std::any::type_name`
   --> $RUST/core/src/any.rs
    |
    | pub const fn type_name<T: ?Sized>() -> &'static str {
-   |                        ^ required by this bound in `type_name`
+   |                           ^^^^^^ required by this bound in `type_name`
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `Opaque: serde::Deserialize<'de>` is not satisfied
@@ -1919,7 +1919,7 @@ note: required by a bound in `std::any::type_name`
   --> $RUST/core/src/any.rs
    |
    | pub const fn type_name<T: ?Sized>() -> &'static str {
-   |                        ^ required by this bound in `type_name`
+   |                           ^^^^^^ required by this bound in `type_name`
    = note: this error originates in the attribute macro `amethystate` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0599]: the method `fork_with_id` exists for struct `amethystate::Field<Opaque>`, but its trait bounds were not satisfied
