@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "amethystate",
  "amethystate-core",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-core"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-guinea"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "amethystate",
  "futures",
@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "amethystate-macros-core",
  "darling",
@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "amethystate-macros-core"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -707,6 +707,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -861,9 +867,9 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "guinea"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f55a85b3432aac441e80df72b22bc7f3212f4e13ea365825097b096a1c384055"
+checksum = "b09afe71dbb0eea39586d9a129e99f8dc3b6c19203a766abb1b4b2ed12c9c7a7"
 dependencies = [
  "guinea-app",
  "guinea-core",
@@ -874,13 +880,15 @@ dependencies = [
 
 [[package]]
 name = "guinea-app"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcd6977867dd07329efb5fccc1937586400bf865fcaa33aa374f6e066c2959d3"
+checksum = "6d4d6d2652205fbc21d93d65e758a1d20e33208243fc7cf4021b841ac3cba032"
 dependencies = [
  "anyhow",
  "guinea-core",
  "inventory",
+ "miette",
+ "petgraph",
  "serde",
  "tokio",
  "tracing",
@@ -888,9 +896,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-core"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15efc977ffc2b24f712aaf04afb8d6ac076e0c7be2641f5d23ba3c4f1fabeed6"
+checksum = "2113f2b7bdd113f36468a26b077d9217bf8f0350a574f519968f27f743c920e5"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -911,9 +919,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-macros"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d071a7c2f8410ce1c1cd094a3e2003596c625b4e2bccff60ca149ef8d3474b0f"
+checksum = "17a5d9c71106108cad40473645ce25c303168b5829934eeb1d4a311c14565018"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -924,21 +932,21 @@ dependencies = [
 
 [[package]]
 name = "guinea-mark"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cb619945334ed53d0c52f294add079982e32b7240d9c2c2a06fd268272add65"
+checksum = "9ce6123a84524ee5b438080cb3c2e6c8adcf725649947eaad14591e8748345c8"
 
 [[package]]
 name = "guinea-meta"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b35d04c6d04133e6a30690a84a20e04ac316b0884ecacd981b507020bf2b071"
+checksum = "2f210bc441bb422842f69a0692e5ab46efb5fe2a2509907dc18c352fe248e34b"
 
 [[package]]
 name = "guinea-router"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b04de22bc36a6b6f001a11e9a1355c0b9c651b9222a890e987a153f65c143918"
+checksum = "ba3350da2d27c2f4838449be79abd527a3030628e73c8764da329b75ae67f765"
 dependencies = [
  "anyhow",
  "guinea-app",
@@ -949,9 +957,9 @@ dependencies = [
 
 [[package]]
 name = "guinea-trace"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7af66f13eec24fcf2aa27b9dc422997873fe26e8c8c504b9efc270bbbdf4d1"
+checksum = "abc4854a6f9ec0788af6b18b3c48d75186781ecd4a189065c4ddf045e3179c44"
 dependencies = [
  "pin-project-lite",
  "serde_json",
@@ -1444,6 +1452,17 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset",
+ "hashbrown 0.15.5",
+ "indexmap",
 ]
 
 [[package]]

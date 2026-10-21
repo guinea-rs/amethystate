@@ -103,7 +103,7 @@ for record in report.components.iter().flat_map(|c| &c.nagging) {
 заменяет отдельные строки диагностикой в стиле предупреждений компилятора:
 
 ```toml
-amethystate = { version = "0.28", features = ["diagnostics"] }
+amethystate = { version = "0.29", features = ["diagnostics"] }
 ```
 
 Например, выпуск, записавший данные, объявлял структуру так:

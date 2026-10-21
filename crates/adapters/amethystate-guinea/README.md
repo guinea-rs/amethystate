@@ -20,7 +20,7 @@ Call `changing()` on a `Field<T>` or `ReactiveCell<T>`. To follow a map entry,
 use `map.entry_cell(key)`. An absent entry has no interval, so the timer pauses
 until the key is inserted. Dropping the source map also pauses the timer.
 
-The adapter's version follows amethystate. It requires guinea 0.31 and Rust 1.95.
-Applications on guinea 0.30 should use amethystate-guinea 0.27 instead.
+The adapter's version follows amethystate. It requires guinea 0.32 and Rust 1.95.
+For guinea 0.31, use amethystate-guinea 0.28; for guinea 0.30, use adapter 0.27.
 The guinea dependency has default features disabled: the adapter does not select
 a GUI backend or start its own runtime.

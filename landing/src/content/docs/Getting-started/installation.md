@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.28", features = ["redb"] }
+amethystate = { version = "0.29", features = ["redb"] }
 ```
 
 Enable a storage engine through a Cargo feature; none is enabled by default.
@@ -56,7 +56,7 @@ other tabs are delivered as external updates. This engine can only open in a
 browser page.
 
 ```toml
-amethystate = { version = "0.28", features = ["localstorage"] }
+amethystate = { version = "0.29", features = ["localstorage"] }
 ```
 
 ### Several engines at once
@@ -80,7 +80,7 @@ For example, `STRICT` tables require SQLite 3.37. An older SQLite can report
 an unsupported schema as corruption even when the file is intact.
 
 ```toml
-amethystate = { version = "0.28", features = ["sqlite"] }
+amethystate = { version = "0.29", features = ["sqlite"] }
 ```
 
 ## Migrating from an existing solution

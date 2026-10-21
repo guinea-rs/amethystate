@@ -11,12 +11,12 @@ a file edit.
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.28"
+amethystate-guinea = "0.29"
 ```
 
 The adapter uses amethystate's version number and requires Rust 1.95.
-It requires guinea 0.31; applications on guinea 0.30 should use adapter 0.27
-instead. The adapter does not enable guinea's default features, so your
+It requires guinea 0.32. For guinea 0.31, use adapter 0.28; for guinea 0.30,
+use adapter 0.27. The adapter does not enable guinea's default features, so your
 application chooses its GUI backend and runtime.
 
 ## A period that follows a field

@@ -40,7 +40,7 @@ pub struct Settings {
 Включите движок нужного формата:
 
 ```toml
-amethystate = { version = "0.28", features = ["toml"] }
+amethystate = { version = "0.29", features = ["toml"] }
 ```
 
 Откройте существующий файл:

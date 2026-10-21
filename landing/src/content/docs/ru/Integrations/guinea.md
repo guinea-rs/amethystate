@@ -11,11 +11,11 @@ title: guinea
 
 ```toml
 [dependencies]
-amethystate-guinea = "0.28"
+amethystate-guinea = "0.29"
 ```
 
 Версия адаптера совпадает с amethystate; нужен Rust 1.95.
-Адаптер требует guinea 0.31; для приложений на guinea 0.30 нужен адаптер 0.27.
+Адаптер требует guinea 0.32. Для guinea 0.31 нужен адаптер 0.28; для guinea 0.30 — 0.27.
 Дефолтные фичи guinea отключены: бэкенд интерфейса
 и runtime выбирает приложение.
 

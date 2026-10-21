@@ -39,7 +39,7 @@ pub struct Settings {
 Enable the matching storage engine:
 
 ```toml
-amethystate = { version = "0.28", features = ["toml"] }
+amethystate = { version = "0.29", features = ["toml"] }
 ```
 
 Open the existing file:

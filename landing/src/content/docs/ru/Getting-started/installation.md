@@ -6,7 +6,7 @@ sidebar:
 
 ```toml
 [dependencies]
-amethystate = { version = "0.28", features = ["redb"] }
+amethystate = { version = "0.29", features = ["redb"] }
 ```
 
 Включите движок хранения через фичу Cargo: по умолчанию ни один не включён.
@@ -56,7 +56,7 @@ amethystate = { version = "0.28", features = ["redb"] }
 приходят как внешние обновления. Этот движок открывается только на странице браузера.
 
 ```toml
-amethystate = { version = "0.28", features = ["localstorage"] }
+amethystate = { version = "0.29", features = ["localstorage"] }
 ```
 
 ### Несколько движков сразу
@@ -79,7 +79,7 @@ SQLite собирается из исходников, поэтому нужен
 о повреждённой схеме, даже если файл цел и проблема только в версии.
 
 ```toml
-amethystate = { version = "0.28", features = ["sqlite"] }
+amethystate = { version = "0.29", features = ["sqlite"] }
 ```
 
 ## Переход с существующего решения
