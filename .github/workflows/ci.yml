@@ -183,6 +183,8 @@ jobs:
   test:
     needs: changes
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C link-arg=/DEBUG:NONE'
     strategy:
       fail-fast: false
       matrix:

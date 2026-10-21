@@ -14,6 +14,10 @@
 //! samply record -- target/profiling/examples/profile_scan
 //! ```
 //!
+//! On Windows, a Cargo `/DEBUG:NONE` setting also needs a process-local
+//! `RUSTFLAGS` override ending in `-C link-arg=/DEBUG` for this build. Keep
+//! other required flags; AGENTS.md has a scoped PowerShell example.
+//!
 //! The store is committed before the scans, so the write buffer is empty and
 //! the work is the engine's, and the population is a separate phase whose
 //! frames sit under `insert` rather than under `scan_keys`.

@@ -72,13 +72,33 @@ workspace without the adapter on `cargo +1.90.0`.
 
 The ordinary dev, test, release and bench profiles disable debug info. The
 standalone Halloy fixture does the same for its dependencies, not only its own
-binary, and inherits the repository's toolchain pin. No linker flags force PDBs.
+binary, and inherits the repository's toolchain pin.
 For sampling or heap backtraces, opt in with `--profile profiling`; it retains
 release optimizations and debug symbols. For example:
 
 ```bash
 cargo run -p amethystate --example profile_scan --features redb,dhat-heap --profile profiling
 ```
+
+On MSVC, `debug = 0` alone does not guarantee that the linker emits no PDB.
+The local Cargo configuration and the Windows CI job use `/DEBUG:NONE`.
+With that setting, a profiling build also needs a process-local `/DEBUG`
+override. In PowerShell, restore the previous environment even if the build
+fails:
+
+```powershell
+$previous = $env:RUSTFLAGS
+try {
+    $env:RUSTFLAGS = "$previous -C link-arg=/DEBUG".Trim()
+    cargo run -p amethystate --example profile_scan --features redb,dhat-heap --profile profiling
+} finally {
+    $env:RUSTFLAGS = $previous
+}
+```
+
+`RUSTFLAGS` replaces Cargo's configured target flags. If your configuration
+has other required flags, include them in this override as well. The custom
+profile supplies symbols; the override only re-enables the MSVC PDB output.
 
 `sqlite` compiles SQLite in from source, so building it needs a C toolchain.
 
