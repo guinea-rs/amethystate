@@ -10,8 +10,8 @@
 //! Run it under one:
 //!
 //! ```text
-//! cargo flamegraph --example profile_scan --release
-//! samply record -- target/release/examples/profile_scan
+//! cargo build -p amethystate --example profile_scan --features redb --profile profiling
+//! samply record -- target/profiling/examples/profile_scan
 //! ```
 //!
 //! The store is committed before the scans, so the write buffer is empty and

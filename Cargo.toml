@@ -91,15 +91,21 @@ serial_test = "4.0.1"
 dhat = "0.3"
 
 [profile.dev]
-debug = "line-tables-only"
+debug = 0
 
-# A release build a profiler can read. `debug` alone leaves a sampler naming
-# addresses; the pair is what gets a `.pdb` written and found.
+[profile.test]
+debug = 0
+
 [profile.release]
-debug = true
-split-debuginfo = "packed"
+debug = 0
 
 [profile.bench]
+inherits = "release"
+debug = 0
+
+# An opt-in build a profiler can read. `debug` alone leaves a sampler naming
+# addresses; the pair is what gets a `.pdb` written and found.
+[profile.profiling]
 inherits = "release"
 debug = true
 split-debuginfo = "packed"

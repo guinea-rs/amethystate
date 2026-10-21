@@ -46,9 +46,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
-          toolchain: 1.95.0
+          toolchain: 1.99.1
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - shell: bash
+        run: rustc --version | grep -E '^rustc 1[.]99[.]1 '
 
       # Publish order follows the internal dependency graph (leaves first).
       - name: Publish crates in dependency order

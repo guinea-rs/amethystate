@@ -65,10 +65,20 @@ have no Rust API to compare. The tool is installed separately, with
 the same check on every push and pull request, and `publish.yml` will not
 publish a tag that fails it.
 
-The toolchain is pinned at 1.95, which guinea needs, and every library crate
-but `amethystate-guinea` declares `rust-version = "1.90"`. That floor is
-checked rather than trusted: `ci.ps1` and the `msrv` job build the workspace
-without it on `cargo +1.90.0`.
+Repository builds and ordinary CI jobs use Rust 1.99.1. This does not raise the
+public MSRV: every library crate but `amethystate-guinea` declares Rust 1.90;
+the adapter requires 1.95. `ci.ps1` and the separate `msrv` job still check the
+workspace without the adapter on `cargo +1.90.0`.
+
+The ordinary dev, test, release and bench profiles disable debug info. The
+standalone Halloy fixture does the same for its dependencies, not only its own
+binary, and inherits the repository's toolchain pin. No linker flags force PDBs.
+For sampling or heap backtraces, opt in with `--profile profiling`; it retains
+release optimizations and debug symbols. For example:
+
+```bash
+cargo run -p amethystate --example profile_scan --features redb,dhat-heap --profile profiling
+```
 
 `sqlite` compiles SQLite in from source, so building it needs a C toolchain.
 

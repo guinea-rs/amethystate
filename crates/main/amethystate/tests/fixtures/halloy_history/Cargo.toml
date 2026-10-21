@@ -6,7 +6,16 @@ publish = false
 
 [workspace]
 
-[profile.dev.package.halloy-history-app]
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
+
+[profile.release]
+debug = 0
+
+[profile.bench]
 debug = 0
 
 [dependencies]
