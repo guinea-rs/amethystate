@@ -1214,7 +1214,7 @@ impl fmt::Debug for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.path() {
             Ok(path) => write!(f, "Key({path})"),
-            Err(_) => write!(f, "Key({:?})", &self.0),
+            Err(_) => write!(f, "Key({:?})", self.0),
         }
     }
 }

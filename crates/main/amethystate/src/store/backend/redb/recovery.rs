@@ -84,6 +84,7 @@ struct FailingBackend {
 
 #[cfg(test)]
 impl FailingBackend {
+    #[allow(deprecated, reason = "try_update requires Rust 1.95; the MSRV is 1.90")]
     fn spend(&self) -> Result<(), io::Error> {
         if WRITES_LEFT
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
