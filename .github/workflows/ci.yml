@@ -77,7 +77,7 @@ jobs:
         with:
           toolchain: 1.99.1
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - shell: bash
         run: rustc --version | grep -E '^rustc 1[.]99[.]1 '
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -93,7 +93,7 @@ jobs:
         with:
           toolchain: 1.90.0
           components: rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: msrv
       - run: rustc +1.90.0 --version
@@ -118,7 +118,7 @@ jobs:
           toolchain: 1.99.1
           components: clippy, rust-src
       - if: needs.changes.outputs.code == 'true'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: engine-${{ matrix.engine }}
       - if: needs.changes.outputs.code == 'true'
@@ -137,7 +137,7 @@ jobs:
         with:
           toolchain: 1.99.1
           components: rustfmt, clippy, rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: guinea
       - shell: bash
@@ -156,7 +156,7 @@ jobs:
         with:
           toolchain: 1.99.1
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: no-engine
       - shell: bash
@@ -199,7 +199,7 @@ jobs:
           toolchain: 1.99.1
 
       - if: needs.changes.outputs.code == 'true'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: ${{ matrix.os }}
 
@@ -228,10 +228,10 @@ jobs:
           toolchain: 1.99.1
           targets: wasm32-unknown-unknown
           components: clippy, rust-src
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: browser
-      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
         with:
           tool: wasm-bindgen-cli@0.2.125
       - shell: bash
@@ -247,7 +247,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - shell: bash
         run: rustc --version | grep -E '^rustc 1[.]99[.]1 '
       - run: cargo doc --workspace --all-features --no-deps
