@@ -18,7 +18,7 @@ The adapter uses amethystate's version number and requires Rust 1.95.
 The guinea requirement is `>=0.32`, without an upper bound. A new guinea minor
 release does not by itself require an adapter release; a breaking change to the
 timer API may still need an adapter update. This release is tested with guinea
-0.32. For guinea 0.31, use adapter 0.28; for guinea 0.30,
+0.32, 0.33 and 0.34. For guinea 0.31, use adapter 0.28; for guinea 0.30,
 use adapter 0.27. The adapter does not enable guinea's default features, so your
 application chooses its GUI backend and runtime.
 
